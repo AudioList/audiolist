@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-primary-50: #eff6ff;
+  --color-primary-100: #dbeafe;
+  --color-primary-200: #bfdbfe;
+  --color-primary-300: #93c5fd;
+  --color-primary-400: #60a5fa;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+  --color-primary-700: #1d4ed8;
+  --color-primary-800: #1e40af;
+  --color-primary-900: #1e3a8a;
+
+  --color-surface-50: #fafafa;
+  --color-surface-100: #f4f4f5;
+  --color-surface-200: #e4e4e7;
+  --color-surface-300: #d4d4d8;
+  --color-surface-400: #a1a1aa;
+  --color-surface-500: #71717a;
+  --color-surface-600: #52525b;
+  --color-surface-700: #3f3f46;
+  --color-surface-800: #27272a;
+  --color-surface-900: #18181b;
+  --color-surface-950: #09090b;
+
+  --color-ppi-excellent: #22c55e;
+  --color-ppi-great: #14b8a6;
+  --color-ppi-good: #eab308;
+  --color-ppi-fair: #f97316;
+  --color-ppi-poor: #ef4444;
+}
+
+body {
+  @apply bg-white text-surface-900 dark:bg-surface-950 dark:text-surface-100;
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-surface-100 dark:bg-surface-900;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-surface-300 dark:bg-surface-600 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-surface-400 dark:bg-surface-500;
+}
