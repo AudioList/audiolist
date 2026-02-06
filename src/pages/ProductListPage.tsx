@@ -46,7 +46,7 @@ export default function ProductListPage() {
   );
 
   const { products, loading, error, hasMore, total, loadMore } = useProducts(hookOptions);
-  const retailers = useRetailers();
+  const retailers = useRetailers(categoryId);
 
   function handleCategoryChange(id: CategoryId) {
     navigate(`/products/${id}`);
@@ -342,7 +342,7 @@ function ProductCard({ product, showPPI }: { product: Product; showPPI: boolean 
       {/* PPI + Price row */}
       <div className="mt-auto flex items-center justify-between pt-3">
         <div>{showPPI && <PPIBadge score={product.ppi_score} size="sm" />}</div>
-        <PriceDisplay price={product.price} inStock={product.in_stock} />
+        <PriceDisplay price={product.price} affiliateUrl={product.affiliate_url} inStock={product.in_stock} />
       </div>
     </Link>
   );

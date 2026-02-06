@@ -58,12 +58,15 @@ export const STORE_COLLECTIONS: Record<string, StoreConfig> = {
   'www.headphones.com': {
     retailerId: 'headphones',
     collections: [
-      { handle: 'in-ear-monitors', categoryId: 'iem' },
+      { handle: 'in-ear-headphones', categoryId: 'iem' },
       { handle: 'headphones', categoryId: 'headphone' },
       { handle: 'dacs', categoryId: 'dac' },
       { handle: 'amplifiers', categoryId: 'amp' },
       { handle: 'cables', categoryId: 'cable' },
-      { handle: 'ear-pads-headbands', categoryId: 'hp_pads' },
+      { handle: 'ear-pads-tips-1', categoryId: 'hp_pads' },
+      { handle: 'headphone-cables', categoryId: 'hp_cable' },
+      { handle: 'digital-audio-players', categoryId: 'dap' },
+      { handle: 'bookshelf-speakers', categoryId: 'speaker' },
     ],
   },
   'hifigo.com': {

@@ -209,23 +209,46 @@ export function useProducts({
   return { products, loading, error, hasMore, total, loadMore, refresh };
 }
 
-export function useRetailers(): { id: string; name: string }[] {
+export function useRetailers(category: CategoryId): { id: string; name: string }[] {
   const [retailers, setRetailers] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
     async function fetchRetailers() {
-      const { data } = await supabase
+      // Get distinct retailer IDs that have price listings for products in this category
+      const PAGE = 1000;
+      const retailerIds = new Set<string>();
+      let offset = 0;
+
+      while (true) {
+        const { data } = await supabase
+          .from('price_listings')
+          .select('retailer_id, products!inner(category_id)')
+          .eq('products.category_id', category)
+          .range(offset, offset + PAGE - 1);
+
+        if (!data || data.length === 0) break;
+        for (const d of data) retailerIds.add((d as any).retailer_id);
+        if (data.length < PAGE) break;
+        offset += PAGE;
+      }
+
+      if (retailerIds.size === 0) {
+        setRetailers([]);
+        return;
+      }
+
+      // Fetch retailer names for those IDs
+      const { data: retData } = await supabase
         .from('retailers')
         .select('id, name')
         .eq('is_active', true)
+        .in('id', [...retailerIds])
         .order('name');
 
-      if (data) {
-        setRetailers(data as { id: string; name: string }[]);
-      }
+      setRetailers((retData ?? []) as { id: string; name: string }[]);
     }
     fetchRetailers();
-  }, []);
+  }, [category]);
 
   return retailers;
 }

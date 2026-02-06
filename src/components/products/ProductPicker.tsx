@@ -45,7 +45,7 @@ export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetai
   });
 
   const brands = useProductBrands(categoryId);
-  const retailers = useRetailers();
+  const retailers = useRetailers(categoryId);
   const { setProduct, getSelection } = useBuild();
   const currentSelection = getSelection(categoryId);
   const backdropRef = useRef<HTMLDivElement>(null);
