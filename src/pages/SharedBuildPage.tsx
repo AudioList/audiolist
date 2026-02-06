@@ -136,7 +136,6 @@ export default function SharedBuildPage() {
             <tr className="bg-surface-200 text-left text-surface-600 dark:bg-surface-800 dark:text-surface-300">
               <th className="px-4 py-3 font-semibold w-48">Component</th>
               <th className="px-4 py-3 font-semibold">Selection</th>
-              <th className="px-4 py-3 font-semibold text-center w-32">PPI Score</th>
               <th className="px-4 py-3 font-semibold text-right w-28">Price</th>
             </tr>
           </thead>
@@ -166,13 +165,6 @@ export default function SharedBuildPage() {
                       <span className="italic text-surface-400">Unknown product</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-center">
-                    {category?.has_ppi && product ? (
-                      <PPIBadge score={product.ppi_score} size="sm" />
-                    ) : (
-                      <span className="text-surface-400 dark:text-surface-500">--</span>
-                    )}
-                  </td>
                   <td className="px-4 py-3 text-right">
                     <PriceDisplay price={price} affiliateUrl={product?.affiliate_url} />
                   </td>
@@ -182,7 +174,7 @@ export default function SharedBuildPage() {
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-surface-300 bg-surface-50 dark:border-surface-600 dark:bg-surface-800/80">
-              <td className="px-4 py-4" colSpan={3}>
+              <td className="px-4 py-4" colSpan={2}>
                 <span className="text-lg font-bold text-surface-900 dark:text-surface-100">
                   Total
                 </span>

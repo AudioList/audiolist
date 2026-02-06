@@ -13,13 +13,7 @@ const sizeClasses: Record<'sm' | 'md' | 'lg', string> = {
 
 export default function PPIBadge({ score, size = 'md' }: PPIBadgeProps) {
   if (score === null) {
-    return (
-      <span
-        className={`inline-flex items-center rounded-full bg-surface-600 text-surface-300 font-medium ${sizeClasses[size]}`}
-      >
-        N/A
-      </span>
-    );
+    return null;
   }
 
   const colorClasses = getPPIColor(score);

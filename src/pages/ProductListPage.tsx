@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { CategoryId, ProductFilters, ProductSort, Product } from '../types';
 import { CATEGORIES, CATEGORY_MAP } from '../lib/categories';
-import { useProducts } from '../hooks/useProducts';
+import { useProducts, useRetailers } from '../hooks/useProducts';
 import SearchBar from '../components/products/SearchBar';
 import SortControls from '../components/products/SortControls';
 import PPIBadge from '../components/shared/PPIBadge';
@@ -31,6 +31,8 @@ export default function ProductListPage() {
     ppiMax: null,
     quality: null,
     rigType: null,
+    retailers: [],
+    hideOutOfStock: false,
   });
 
   const [sort, setSort] = useState<ProductSort>({
@@ -44,6 +46,7 @@ export default function ProductListPage() {
   );
 
   const { products, loading, error, hasMore, total, loadMore } = useProducts(hookOptions);
+  const retailers = useRetailers();
 
   function handleCategoryChange(id: CategoryId) {
     navigate(`/products/${id}`);
@@ -56,6 +59,8 @@ export default function ProductListPage() {
       ppiMax: null,
       quality: null,
       rigType: null,
+      retailers: [],
+      hideOutOfStock: false,
     });
     const cat = CATEGORY_MAP.get(id);
     setSort({
@@ -106,6 +111,19 @@ export default function ProductListPage() {
             <h3 className="mb-3 text-sm font-semibold text-surface-900 dark:text-surface-100">
               Filters
             </h3>
+
+            {/* Hide out of stock */}
+            <label className="mb-3 flex cursor-pointer items-center gap-2 text-sm text-surface-700 dark:text-surface-200 hover:text-surface-900 dark:hover:text-surface-100">
+              <input
+                type="checkbox"
+                checked={filters.hideOutOfStock}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, hideOutOfStock: e.target.checked }))
+                }
+                className="h-3.5 w-3.5 rounded border-surface-300 text-primary-500 focus:ring-primary-500/40 dark:border-surface-500 dark:bg-surface-700"
+              />
+              <span>Hide out of stock</span>
+            </label>
 
             {/* Price range */}
             <div className="space-y-2">
@@ -177,6 +195,39 @@ export default function ProductListPage() {
               </div>
             )}
 
+            {/* Retailer filter */}
+            {retailers.length > 0 && (
+              <div className="mt-4 space-y-2">
+                <label className="block text-xs font-medium text-surface-500 dark:text-surface-400">
+                  Retailer
+                  {filters.retailers.length > 0 && (
+                    <span className="ml-1.5 text-primary-400">({filters.retailers.length})</span>
+                  )}
+                </label>
+                <div className="max-h-48 space-y-1 overflow-y-auto">
+                  {retailers.map((retailer) => (
+                    <label
+                      key={retailer.id}
+                      className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={filters.retailers.includes(retailer.id)}
+                        onChange={() => {
+                          const next = filters.retailers.includes(retailer.id)
+                            ? filters.retailers.filter((r) => r !== retailer.id)
+                            : [...filters.retailers, retailer.id];
+                          setFilters((prev) => ({ ...prev, retailers: next }));
+                        }}
+                        className="h-3.5 w-3.5 rounded border-surface-300 text-primary-500 focus:ring-primary-500/40 dark:border-surface-500 dark:bg-surface-700"
+                      />
+                      <span className="truncate">{retailer.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Clear filters */}
             <button
               type="button"
@@ -190,6 +241,8 @@ export default function ProductListPage() {
                   ppiMax: null,
                   quality: null,
                   rigType: null,
+                  retailers: [],
+                  hideOutOfStock: false,
                 })
               }
               className="mt-4 w-full rounded-md border border-surface-300 bg-white px-3 py-1.5 text-xs font-medium text-surface-600 transition-colors hover:bg-surface-100 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-400 dark:hover:bg-surface-700"
@@ -289,7 +342,7 @@ function ProductCard({ product, showPPI }: { product: Product; showPPI: boolean 
       {/* PPI + Price row */}
       <div className="mt-auto flex items-center justify-between pt-3">
         <div>{showPPI && <PPIBadge score={product.ppi_score} size="sm" />}</div>
-        <PriceDisplay price={product.price} />
+        <PriceDisplay price={product.price} inStock={product.in_stock} />
       </div>
     </Link>
   );

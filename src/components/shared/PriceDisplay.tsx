@@ -1,6 +1,7 @@
 interface PriceDisplayProps {
   price: number | null;
   affiliateUrl?: string | null;
+  inStock?: boolean;
 }
 
 function ExternalLinkIcon() {
@@ -22,7 +23,7 @@ function formatPrice(price: number): string {
   return `$${price.toFixed(2)}`;
 }
 
-export default function PriceDisplay({ price, affiliateUrl }: PriceDisplayProps) {
+export default function PriceDisplay({ price, affiliateUrl, inStock }: PriceDisplayProps) {
   if (price === null) {
     return (
       <span className="text-surface-500 dark:text-surface-400 text-sm italic">
@@ -32,24 +33,43 @@ export default function PriceDisplay({ price, affiliateUrl }: PriceDisplayProps)
   }
 
   const formatted = formatPrice(price);
+  const isOOS = inStock === false;
 
   if (affiliateUrl) {
     return (
-      <a
-        href={affiliateUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-primary-400 hover:text-primary-300 font-semibold transition-colors"
-      >
-        {formatted}
-        <ExternalLinkIcon />
-      </a>
+      <div className="text-right">
+        <a
+          href={affiliateUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`font-semibold transition-colors ${
+            isOOS
+              ? 'text-surface-500 hover:text-surface-400'
+              : 'text-primary-400 hover:text-primary-300'
+          }`}
+        >
+          {formatted}
+          <ExternalLinkIcon />
+        </a>
+        {isOOS && (
+          <span className="block text-[10px] font-medium text-red-400">
+            Out of Stock
+          </span>
+        )}
+      </div>
     );
   }
 
   return (
-    <span className="text-surface-100 dark:text-surface-100 font-semibold">
-      {formatted}
-    </span>
+    <div className="text-right">
+      <span className={`font-semibold ${isOOS ? 'text-surface-500' : 'text-surface-100 dark:text-surface-100'}`}>
+        {formatted}
+      </span>
+      {isOOS && (
+        <span className="block text-[10px] font-medium text-red-400">
+          Out of Stock
+        </span>
+      )}
+    </div>
   );
 }

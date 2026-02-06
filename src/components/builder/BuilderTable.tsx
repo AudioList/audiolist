@@ -1,4 +1,4 @@
-import type { CategoryId } from '../../types';
+import type { CategoryId, Product } from '../../types';
 import { CATEGORIES } from '../../lib/categories';
 import { useBuild } from '../../context/BuildContext';
 import CategoryRow from './CategoryRow';
@@ -6,9 +6,10 @@ import TotalRow from './TotalRow';
 
 interface BuilderTableProps {
   onChooseProduct: (categoryId: CategoryId) => void;
+  onViewDetail: (product: Product) => void;
 }
 
-export default function BuilderTable({ onChooseProduct }: BuilderTableProps) {
+export default function BuilderTable({ onChooseProduct, onViewDetail }: BuilderTableProps) {
   const { getSelection } = useBuild();
 
   return (
@@ -20,10 +21,9 @@ export default function BuilderTable({ onChooseProduct }: BuilderTableProps) {
             <tr className="bg-surface-200 dark:bg-surface-800 text-surface-600 dark:text-surface-300 text-left">
               <th className="px-4 py-3 font-semibold w-48">Component</th>
               <th className="px-4 py-3 font-semibold">Selection</th>
-              <th className="px-4 py-3 font-semibold text-center w-32">PPI Score</th>
               <th className="px-4 py-3 font-semibold text-right w-28">Price</th>
-              <th className="px-4 py-3 w-12">
-                <span className="sr-only">Remove</span>
+              <th className="px-4 py-3 w-20">
+                <span className="sr-only">Actions</span>
               </th>
             </tr>
           </thead>
@@ -34,6 +34,7 @@ export default function BuilderTable({ onChooseProduct }: BuilderTableProps) {
                 category={category}
                 selection={getSelection(category.id)}
                 onChoose={onChooseProduct}
+                onViewDetail={onViewDetail}
               />
             ))}
           </tbody>
@@ -51,6 +52,7 @@ export default function BuilderTable({ onChooseProduct }: BuilderTableProps) {
             category={category}
             selection={getSelection(category.id)}
             onChoose={onChooseProduct}
+            onViewDetail={onViewDetail}
           />
         ))}
         <TotalRow />

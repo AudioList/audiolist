@@ -1,15 +1,19 @@
 import { useState, useCallback } from 'react';
 import { nanoid } from 'nanoid';
-import type { CategoryId, TargetType } from '../types';
+import type { CategoryId, TargetType, Product } from '../types';
 import { useBuild } from '../context/BuildContext';
+import { CATEGORY_MAP } from '../lib/categories';
 import { supabase } from '../lib/supabase';
 import BuilderTable from '../components/builder/BuilderTable';
 import ProductPicker from '../components/products/ProductPicker';
+import ProductDetailModal from '../components/shared/ProductDetailModal';
 import ShareButton from '../components/shared/ShareButton';
+import AdvancedSettings from '../components/builder/AdvancedSettings';
 
 export default function HomePage() {
   const { items, itemCount, clearBuild } = useBuild();
   const [pickerCategory, setPickerCategory] = useState<CategoryId | null>(null);
+  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const [targetType, setTargetType] = useState<TargetType>('df');
 
   const handleChooseProduct = useCallback((categoryId: CategoryId) => {
@@ -19,6 +23,21 @@ export default function HomePage() {
   const handleClosePicker = useCallback(() => {
     setPickerCategory(null);
   }, []);
+
+  const handleViewDetail = useCallback((product: Product) => {
+    setDetailProduct(product);
+  }, []);
+
+  const handleCloseDetail = useCallback(() => {
+    setDetailProduct(null);
+  }, []);
+
+  const handleSwapFromDetail = useCallback(() => {
+    if (!detailProduct) return;
+    const categoryId = detailProduct.category_id;
+    setDetailProduct(null);
+    setPickerCategory(categoryId);
+  }, [detailProduct]);
 
   const handleShare = useCallback(async (): Promise<string> => {
     const shareCode = nanoid(8);
@@ -66,41 +85,11 @@ export default function HomePage() {
             Build Your Audio Setup
           </h1>
           <p className="mt-1 text-sm text-surface-500 dark:text-surface-400">
-            Pick components, compare PPI scores, and share your build.
+            Pick components, compare prices, and share your build.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {/* Target type toggle */}
-          <div
-            className="inline-flex rounded-lg border border-surface-300 dark:border-surface-600"
-            role="group"
-            aria-label="Target curve"
-          >
-            <button
-              type="button"
-              onClick={() => setTargetType('df')}
-              className={`rounded-l-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                targetType === 'df'
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-white text-surface-600 hover:bg-surface-100 dark:bg-surface-800 dark:text-surface-300 dark:hover:bg-surface-700'
-              }`}
-            >
-              Diffuse Field
-            </button>
-            <button
-              type="button"
-              onClick={() => setTargetType('harman')}
-              className={`-ml-px rounded-r-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                targetType === 'harman'
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-white text-surface-600 hover:bg-surface-100 dark:bg-surface-800 dark:text-surface-300 dark:hover:bg-surface-700'
-              }`}
-            >
-              Harman
-            </button>
-          </div>
-
           {/* Share button */}
           {itemCount > 0 && <ShareButton onShare={handleShare} />}
 
@@ -118,13 +107,29 @@ export default function HomePage() {
       </div>
 
       {/* Builder table */}
-      <BuilderTable onChooseProduct={handleChooseProduct} />
+      <BuilderTable onChooseProduct={handleChooseProduct} onViewDetail={handleViewDetail} />
+
+      {/* Advanced settings (target curve toggle etc.) */}
+      <AdvancedSettings targetType={targetType} onTargetTypeChange={setTargetType} />
+
+      {/* Product detail modal */}
+      <ProductDetailModal
+        product={detailProduct}
+        categoryHasPpi={
+          detailProduct
+            ? (CATEGORY_MAP.get(detailProduct.category_id)?.has_ppi ?? false)
+            : false
+        }
+        onClose={handleCloseDetail}
+        onSwap={handleSwapFromDetail}
+      />
 
       {/* Product picker modal */}
       <ProductPicker
         categoryId={pickerCategory ?? 'iem'}
         isOpen={pickerCategory !== null}
         onClose={handleClosePicker}
+        onViewDetail={handleViewDetail}
       />
     </div>
   );

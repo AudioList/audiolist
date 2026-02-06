@@ -1,4 +1,6 @@
-export type CategoryId = 'iem' | 'headphone' | 'dac' | 'amp' | 'speaker' | 'cable' | 'dap' | 'microphone';
+export type CategoryId =
+  | 'iem' | 'headphone' | 'dac' | 'amp' | 'speaker' | 'cable' | 'dap' | 'microphone'
+  | 'iem_tips' | 'iem_cable' | 'iem_filter' | 'hp_pads' | 'hp_cable';
 
 export type TargetType = 'df' | 'harman';
 
@@ -8,6 +10,7 @@ export interface Category {
   sort_order: number;
   icon: string;
   has_ppi: boolean;
+  parent_category: CategoryId | null;
 }
 
 export interface Product {
@@ -28,10 +31,25 @@ export interface Product {
   pinna: string | null;
   quality: string | null;
   specs: Record<string, unknown>;
+  product_family_id: string | null;
+  variant_type: string | null;
+  variant_value: string | null;
+  source_type: string | null;
+  in_stock: boolean;
   first_seen: string | null;
   created_at: string;
   updated_at: string;
 }
+
+export interface ProductFamily {
+  id: string;
+  canonical_name: string;
+  base_product_id: string | null;
+  category_id: CategoryId;
+  created_at: string;
+}
+
+export type VariantType = 'pads' | 'tips' | 'apex' | 'nozzle' | 'dsp' | 'cable' | 'sample' | 'fit';
 
 export interface Build {
   id: string;
@@ -70,6 +88,8 @@ export interface ProductFilters {
   ppiMax: number | null;
   quality: string | null;
   rigType: string | null;
+  retailers: string[];
+  hideOutOfStock: boolean;
 }
 
 export interface ProductSort {

@@ -9,6 +9,8 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { extractBrand } from './brand-config';
+import { parseProductVariant } from './variant-config';
 
 // ---------------------------------------------------------------------------
 // Config
@@ -46,24 +48,6 @@ const DATA_SOURCES = [
 const UPSERT_BATCH_SIZE = 500;
 
 // ---------------------------------------------------------------------------
-// Known brands (case-insensitive match against start of product name)
-// ---------------------------------------------------------------------------
-
-const KNOWN_BRANDS = [
-  '64 Audio', 'AFUL', 'AKG', 'Astell&Kern', 'Audeze', 'Audio-Technica', 'Austrian Audio',
-  'AUNE', 'Beats', 'Beyerdynamic', 'Bose', 'Campfire Audio', 'CMF', 'Creative',
-  'Dan Clark Audio', 'DUNU', 'Edifier', 'Empire Ears', 'Etymotic', 'FiiO', 'Final',
-  'Focal', 'Grado', 'HEDD', 'Hidizs', 'Hifiman', 'HiBy', 'iBasso', 'IKKO',
-  'JBL', 'JVC', 'Koss', 'KZ', 'LETSHUOER', 'Meze', 'Moondrop', 'Neumann', 'Nothing',
-  'Philips', 'Samsung', 'See Audio', 'Sennheiser', 'Shanling', 'Shure', 'Simgot',
-  'SONY', 'SoundMAGIC', 'STAX', 'Tangzu', 'Tanchjim', 'ThieAudio', 'Tin HiFi',
-  'Topping', 'Tripowin', 'Truthear', 'Verum', 'Yamaha', 'ZMF',
-];
-
-// Sort longest-first so "Audio-Technica" matches before "Audio" (if that were a brand)
-const BRANDS_SORTED = [...KNOWN_BRANDS].sort((a, b) => b.length - a.length);
-
-// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -99,7 +83,7 @@ interface ProductRow {
   source_id: string;
   category_id: string;
   name: string;
-  brand: string;
+  brand: string | null;
   price: number | null;
   ppi_score: number;
   ppi_stdev: number;
@@ -109,6 +93,8 @@ interface ProductRow {
   rig_type: string;
   pinna: string | null;
   quality: string;
+  variant_type: string | null;
+  variant_value: string | null;
   first_seen: string | null;
   updated_at: string;
 }
@@ -116,18 +102,6 @@ interface ProductRow {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function extractBrand(name: string): string {
-  const nameLower = name.toLowerCase();
-  for (const brand of BRANDS_SORTED) {
-    if (nameLower.startsWith(brand.toLowerCase())) {
-      // Return the canonical brand casing from the list
-      return brand;
-    }
-  }
-  // Fallback: first word
-  return name.split(/\s+/)[0] || name;
-}
 
 async function fetchJson<T>(url: string, label: string): Promise<T | null> {
   try {
@@ -158,6 +132,10 @@ function findDfTarget(data: ResultsFile, matchStr: string, label: string): Ranke
 }
 
 function mapToProductRow(entry: RankedEntry): ProductRow {
+  // Parse variant modifiers from the product name
+  const parsed = parseProductVariant(entry.name);
+  const primaryVariant = parsed.variants[0] ?? null;
+
   return {
     source_id: entry.id,
     category_id: entry.type === 'iem' ? 'iem' : 'headphone',
@@ -172,6 +150,8 @@ function mapToProductRow(entry: RankedEntry): ProductRow {
     rig_type: entry.rig,
     pinna: entry.pinna,
     quality: entry.quality,
+    variant_type: primaryVariant?.type ?? null,
+    variant_value: primaryVariant?.value ?? null,
     first_seen: entry.firstSeen,
     updated_at: new Date().toISOString(),
   };

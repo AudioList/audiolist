@@ -13,6 +13,7 @@ import {
   getRetailers,
   getSupabase,
   buildAffiliateUrl,
+  FIRST_PARTY_BRAND_STRIP,
   type Retailer,
 } from "./config/retailers.ts";
 import {
@@ -171,17 +172,28 @@ async function fetchShopifyCatalogs(
 ): Promise<Map<string, ShopifyProduct[]>> {
   const shopifyRetailers = retailers.filter((r) => r.api_type === "shopify");
   const catalogs = new Map<string, ShopifyProduct[]>();
+  const CONCURRENCY = 4; // Fetch up to 4 stores in parallel
 
-  log("PHASE-A", `Fetching catalogs for ${shopifyRetailers.length} Shopify retailer(s)...`);
+  log("PHASE-A", `Fetching catalogs for ${shopifyRetailers.length} Shopify retailer(s) (concurrency: ${CONCURRENCY})...`);
 
-  for (const retailer of shopifyRetailers) {
-    try {
-      log("PHASE-A", `Fetching catalog for "${retailer.name}" (${retailer.shop_domain})...`);
-      const catalog = await fetchShopifyCatalog(retailer.shop_domain);
-      catalogs.set(retailer.id, catalog);
-      log("PHASE-A", `"${retailer.name}": ${catalog.length} products fetched`);
-    } catch (err) {
-      logError("PHASE-A", `Failed to fetch catalog for "${retailer.name}"`, err);
+  for (let i = 0; i < shopifyRetailers.length; i += CONCURRENCY) {
+    const batch = shopifyRetailers.slice(i, i + CONCURRENCY);
+
+    const results = await Promise.allSettled(
+      batch.map(async (retailer) => {
+        log("PHASE-A", `Fetching catalog for "${retailer.name}" (${retailer.shop_domain})...`);
+        const catalog = await fetchShopifyCatalog(retailer.shop_domain);
+        return { retailerId: retailer.id, name: retailer.name, catalog };
+      })
+    );
+
+    for (const result of results) {
+      if (result.status === "fulfilled") {
+        catalogs.set(result.value.retailerId, result.value.catalog);
+        log("PHASE-A", `"${result.value.name}": ${result.value.catalog.length} products fetched`);
+      } else {
+        logError("PHASE-A", "Catalog fetch failed", result.reason);
+      }
     }
   }
 
@@ -193,15 +205,42 @@ async function fetchShopifyCatalogs(
 // Phase B: Match products
 // ---------------------------------------------------------------------------
 
-function buildShopifyCandidates(catalog: ShopifyProduct[]): MatchCandidate[] {
+function buildShopifyCandidates(catalog: ShopifyProduct[], retailerId?: string): MatchCandidate[] {
+  const isFirstParty = retailerId ? retailerId in FIRST_PARTY_BRAND_STRIP : false;
+
   return catalog.map((p) => {
-    // Include vendor in the name for better matching as a fallback
+    // For first-party stores, skip vendor prepending — the vendor IS the store brand
+    // and prepending it creates noise that hurts match accuracy.
+    if (isFirstParty) {
+      return { name: p.title, id: p.handle };
+    }
+
+    // For third-party retailers, include vendor in the name for better matching
     const nameWithVendor =
       p.vendor && !p.title.toLowerCase().includes(p.vendor.toLowerCase())
         ? `${p.vendor} ${p.title}`
         : p.title;
     return { name: nameWithVendor, id: p.handle };
   });
+}
+
+/**
+ * Strip the store's own brand from a product name for first-party store matching.
+ * E.g., "64 Audio U12t" on 64audio.com → "U12t" for much better match confidence.
+ */
+function stripFirstPartyBrand(productName: string, retailerId: string): string {
+  const brands = FIRST_PARTY_BRAND_STRIP[retailerId];
+  if (!brands) return productName;
+
+  for (const brand of brands) {
+    if (productName.toLowerCase().startsWith(brand.toLowerCase())) {
+      const stripped = productName.slice(brand.length).trim();
+      // Only strip if there's still meaningful content left
+      if (stripped.length > 0) return stripped;
+    }
+  }
+
+  return productName;
 }
 
 async function matchProducts(
@@ -231,7 +270,7 @@ async function matchProducts(
   for (const r of shopifyRetailers) {
     const catalog = shopifyCatalogs.get(r.id);
     if (catalog) {
-      shopifyCandidates.set(r.id, buildShopifyCandidates(catalog));
+      shopifyCandidates.set(r.id, buildShopifyCandidates(catalog, r.id));
     }
   }
 
@@ -281,8 +320,12 @@ async function matchProducts(
       if (!candidates || candidates.length === 0) continue;
 
       try {
+        // For first-party stores, strip the store's own brand from the product name
+        // to improve match accuracy (e.g., "64 Audio U12t" → "U12t" on 64audio.com)
+        const matchName = stripFirstPartyBrand(product.name, retailer.id);
+
         const match = findBestMatch(
-          product.name,
+          matchName,
           candidates
         ) as MatchResult | null;
 
@@ -337,7 +380,7 @@ async function matchProducts(
             currency: "USD",
             in_stock: inStock,
             product_url: productUrl,
-            affiliate_url: affiliateUrl,
+            affiliate_url: affiliateUrl ?? productUrl,
             image_url: imageUrl,
             last_checked: new Date().toISOString(),
           });
@@ -410,7 +453,7 @@ async function matchProducts(
                 currency: "USD",
                 in_stock: inStock,
                 product_url: productUrl,
-                affiliate_url: affiliateUrl,
+                affiliate_url: affiliateUrl ?? productUrl,
                 image_url: imageUrl,
                 last_checked: new Date().toISOString(),
               });
@@ -478,13 +521,13 @@ async function denormalizeLowestPrices(): Promise<number> {
 
   // Fetch all in-stock price_listings (paginated to avoid Supabase 1000-row default limit)
   const PAGE_SIZE = 1000;
-  const listings: { product_id: string; price: number; affiliate_url: string | null }[] = [];
+  const listings: { product_id: string; price: number; affiliate_url: string | null; product_url: string | null }[] = [];
   let offset = 0;
 
   while (true) {
     const { data, error } = await supabase
       .from("price_listings")
-      .select("product_id, price, affiliate_url")
+      .select("product_id, price, affiliate_url, product_url")
       .eq("in_stock", true)
       .order("price", { ascending: true })
       .range(offset, offset + PAGE_SIZE - 1);
@@ -518,7 +561,7 @@ async function denormalizeLowestPrices(): Promise<number> {
     if (!existing || listing.price < existing.price) {
       lowestByProduct.set(listing.product_id, {
         price: listing.price,
-        affiliate_url: listing.affiliate_url,
+        affiliate_url: listing.affiliate_url ?? listing.product_url,
       });
     }
   }

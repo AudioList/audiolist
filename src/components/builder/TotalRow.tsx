@@ -17,7 +17,6 @@ export default function TotalRow() {
             </span>
           </div>
         </td>
-        <td className="px-4 py-4">{/* PPI column spacer */}</td>
         <td className="px-4 py-4 text-right">
           <span className="text-lg font-bold text-surface-900 dark:text-surface-100">
             ${totalPrice.toFixed(2)}

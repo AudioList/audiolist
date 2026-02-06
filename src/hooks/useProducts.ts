@@ -29,6 +29,8 @@ const defaultFilters: ProductFilters = {
   ppiMax: null,
   quality: null,
   rigType: null,
+  retailers: [],
+  hideOutOfStock: false,
 };
 
 const defaultSort: ProductSort = {
@@ -54,10 +56,20 @@ export function useProducts({
       setError(null);
 
       try {
+        const hasRetailerFilter = filters.retailers.length > 0;
+        const selectStr = hasRetailerFilter
+          ? '*, price_listings!inner(retailer_id, price, affiliate_url, product_url, in_stock)'
+          : '*';
+
         let query = supabase
           .from('products')
-          .select('*', { count: 'exact' })
+          .select(selectStr, { count: 'exact' })
           .eq('category_id', category);
+
+        // Retailer filter (via inner join on price_listings)
+        if (hasRetailerFilter) {
+          query = query.in('price_listings.retailer_id', filters.retailers);
+        }
 
         // Search
         if (filters.search) {
@@ -95,14 +107,23 @@ export function useProducts({
           query = query.eq('rig_type', filters.rigType);
         }
 
-        // Sort
+        // Hide out of stock (DB-level only when no retailer filter;
+        // with retailer filter we post-process after overriding in_stock)
+        if (filters.hideOutOfStock && !hasRetailerFilter) {
+          query = query.eq('in_stock', true);
+        }
+
+        // Sort: in_stock first (purchasable products above measurement-only)
+        query = query.order('in_stock', { ascending: false, nullsFirst: false });
+
+        // Primary sort field
         const ascending = sort.direction === 'asc';
         query = query.order(sort.field, {
           ascending,
           nullsFirst: false,
         });
 
-        // Secondary sort by name for stability
+        // Tertiary sort by name for stability
         if (sort.field !== 'name') {
           query = query.order('name', { ascending: true });
         }
@@ -116,7 +137,40 @@ export function useProducts({
 
         if (queryError) throw queryError;
 
-        const newProducts = (data ?? []) as Product[];
+        // When retailer filter is active, override product price/link/in_stock
+        // with the best listing from the matched retailers
+        if (hasRetailerFilter && data) {
+          for (const raw of data as any[]) {
+            const listings = raw.price_listings as {
+              retailer_id: string;
+              price: number | null;
+              affiliate_url: string | null;
+              product_url: string | null;
+              in_stock: boolean;
+            }[];
+            if (!listings?.length) continue;
+
+            // Pick the lowest-priced listing from the filtered retailers
+            let best: (typeof listings)[0] | null = null;
+            for (const l of listings) {
+              if (l.price === null) continue;
+              if (!best || l.price < best.price!) best = l;
+            }
+            if (best) {
+              raw.price = best.price;
+              raw.affiliate_url = best.affiliate_url ?? best.product_url;
+              raw.in_stock = best.in_stock;
+            }
+          }
+        }
+
+        let newProducts = (data ?? []) as unknown as Product[];
+
+        // Client-side OOS filter when retailer filter is active
+        // (in_stock was overridden above from price_listings)
+        if (filters.hideOutOfStock && hasRetailerFilter) {
+          newProducts = newProducts.filter((p) => p.in_stock);
+        }
 
         if (append) {
           setProducts((prev) => [...prev, ...newProducts]);
@@ -155,22 +209,58 @@ export function useProducts({
   return { products, loading, error, hasMore, total, loadMore, refresh };
 }
 
+export function useRetailers(): { id: string; name: string }[] {
+  const [retailers, setRetailers] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    async function fetchRetailers() {
+      const { data } = await supabase
+        .from('retailers')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name');
+
+      if (data) {
+        setRetailers(data as { id: string; name: string }[]);
+      }
+    }
+    fetchRetailers();
+  }, []);
+
+  return retailers;
+}
+
 export function useProductBrands(category: CategoryId): string[] {
   const [brands, setBrands] = useState<string[]>([]);
 
   useEffect(() => {
     async function fetchBrands() {
-      const { data } = await supabase
-        .from('products')
-        .select('brand')
-        .eq('category_id', category)
-        .not('brand', 'is', null)
-        .order('brand');
+      // Supabase defaults to 1000 rows per request, so we paginate
+      // to collect ALL brands for categories with many products.
+      const PAGE = 1000;
+      const allBrands = new Set<string>();
+      let offset = 0;
 
-      if (data) {
-        const unique = [...new Set(data.map((d) => d.brand as string))];
-        setBrands(unique);
+      while (true) {
+        const { data } = await supabase
+          .from('products')
+          .select('brand')
+          .eq('category_id', category)
+          .not('brand', 'is', null)
+          .order('brand')
+          .range(offset, offset + PAGE - 1);
+
+        if (!data || data.length === 0) break;
+
+        for (const d of data) {
+          allBrands.add(d.brand as string);
+        }
+
+        if (data.length < PAGE) break;
+        offset += PAGE;
       }
+
+      setBrands([...allBrands].sort((a, b) => a.localeCompare(b)));
     }
     fetchBrands();
   }, [category]);

@@ -1,8 +1,8 @@
-name: Sync Prices
+name: Sync Stores
 
 on:
   schedule:
-    # Run every 20 minutes for near-real-time price updates
+    # Run every 20 minutes: fetch new store products, then process them
     - cron: '*/20 * * * *'
   workflow_dispatch: # Allow manual trigger from GitHub UI
 
@@ -24,8 +24,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run price sync
+      - name: Sync store catalogs
         env:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          BESTBUY_API_KEY: ${{ secrets.BESTBUY_API_KEY }}
-        run: npx tsx scripts/sync-prices.ts
+        run: npx tsx scripts/sync-stores.ts
+
+      - name: Process store products
+        env:
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: npx tsx scripts/process-store-products.ts

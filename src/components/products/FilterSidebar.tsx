@@ -6,9 +6,10 @@ interface FilterSidebarProps {
   onChange: (filters: ProductFilters) => void;
   category: CategoryId;
   brands: string[];
+  retailers: { id: string; name: string }[];
 }
 
-const BRAND_LIMIT = 20;
+const BRAND_SEARCH_MIN = 10; // Show search box when there are this many brands
 
 function hasPPI(category: CategoryId): boolean {
   return category === 'iem' || category === 'headphone';
@@ -19,12 +20,16 @@ export default function FilterSidebar({
   onChange,
   category,
   brands,
+  retailers,
 }: FilterSidebarProps) {
   const [expanded, setExpanded] = useState(false);
-  const [showAllBrands, setShowAllBrands] = useState(false);
+  const [brandSearch, setBrandSearch] = useState('');
+  const [measurementOpen, setMeasurementOpen] = useState(false);
 
   const showPPI = hasPPI(category);
-  const visibleBrands = showAllBrands ? brands : brands.slice(0, BRAND_LIMIT);
+  const visibleBrands = brandSearch
+    ? brands.filter((b) => b.toLowerCase().includes(brandSearch.toLowerCase()))
+    : brands;
 
   function update(partial: Partial<ProductFilters>) {
     onChange({ ...filters, ...partial });
@@ -40,6 +45,8 @@ export default function FilterSidebar({
       ppiMax: null,
       quality: null,
       rigType: null,
+      retailers: [],
+      hideOutOfStock: false,
     });
   }
 
@@ -50,17 +57,37 @@ export default function FilterSidebar({
     update({ brands: next });
   }
 
+  function toggleRetailer(retailerId: string) {
+    const next = filters.retailers.includes(retailerId)
+      ? filters.retailers.filter((r) => r !== retailerId)
+      : [...filters.retailers, retailerId];
+    update({ retailers: next });
+  }
+
   const hasActiveFilters =
     filters.brands.length > 0 ||
+    filters.retailers.length > 0 ||
     filters.priceMin !== null ||
     filters.priceMax !== null ||
     filters.ppiMin !== null ||
     filters.ppiMax !== null ||
     filters.quality !== null ||
-    filters.rigType !== null;
+    filters.rigType !== null ||
+    filters.hideOutOfStock;
 
   const content = (
     <div className="space-y-5">
+      {/* Hide out of stock */}
+      <label className="flex cursor-pointer items-center gap-2 text-sm text-surface-200 hover:text-surface-100">
+        <input
+          type="checkbox"
+          checked={filters.hideOutOfStock}
+          onChange={(e) => update({ hideOutOfStock: e.target.checked })}
+          className="h-3.5 w-3.5 rounded border-surface-500 bg-surface-700 text-primary-500 focus:ring-primary-500/40 focus:ring-offset-0"
+        />
+        <span>Hide out of stock</span>
+      </label>
+
       {/* Price Range */}
       <div>
         <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-surface-400">
@@ -91,71 +118,97 @@ export default function FilterSidebar({
         </div>
       </div>
 
-      {/* PPI Range */}
+      {/* Measurement Filters — collapsible, collapsed by default */}
       {showPPI && (
         <div>
-          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-surface-400">
-            PPI Range
-          </h4>
-          <div className="flex items-center gap-2">
-            <input
-              type="number"
-              placeholder="Min"
-              value={filters.ppiMin ?? ''}
-              onChange={(e) =>
-                update({ ppiMin: e.target.value ? Number(e.target.value) : null })
-              }
-              min={0}
-              max={100}
-              className="w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
-            />
-            <span className="text-surface-500 text-sm">-</span>
-            <input
-              type="number"
-              placeholder="Max"
-              value={filters.ppiMax ?? ''}
-              onChange={(e) =>
-                update({ ppiMax: e.target.value ? Number(e.target.value) : null })
-              }
-              min={0}
-              max={100}
-              className="w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Quality */}
-      <div>
-        <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-surface-400">
-          Quality
-        </h4>
-        <select
-          value={filters.quality ?? ''}
-          onChange={(e) => update({ quality: e.target.value || null })}
-          className="w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
-        >
-          <option value="">All</option>
-          <option value="high">High</option>
-          <option value="low">Low</option>
-        </select>
-      </div>
-
-      {/* Rig Type */}
-      {showPPI && (
-        <div>
-          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-surface-400">
-            Rig Type
-          </h4>
-          <select
-            value={filters.rigType ?? ''}
-            onChange={(e) => update({ rigType: e.target.value || null })}
-            className="w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
+          <button
+            type="button"
+            onClick={() => setMeasurementOpen(!measurementOpen)}
+            className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wider text-surface-400 hover:text-surface-300 transition-colors"
           >
-            <option value="">All</option>
-            <option value="711">711</option>
-            <option value="5128">5128</option>
-          </select>
+            <span>Measurement Filters</span>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className={`h-3.5 w-3.5 transition-transform ${measurementOpen ? 'rotate-180' : ''}`}
+              aria-hidden="true"
+            >
+              <path
+                fillRule="evenodd"
+                d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </button>
+
+          {measurementOpen && (
+            <div className="mt-3 space-y-4">
+              {/* PPI Range */}
+              <div>
+                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-surface-400">
+                  PPI Range
+                </h4>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    placeholder="Min"
+                    value={filters.ppiMin ?? ''}
+                    onChange={(e) =>
+                      update({ ppiMin: e.target.value ? Number(e.target.value) : null })
+                    }
+                    min={0}
+                    max={100}
+                    className="w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
+                  />
+                  <span className="text-surface-500 text-sm">-</span>
+                  <input
+                    type="number"
+                    placeholder="Max"
+                    value={filters.ppiMax ?? ''}
+                    onChange={(e) =>
+                      update({ ppiMax: e.target.value ? Number(e.target.value) : null })
+                    }
+                    min={0}
+                    max={100}
+                    className="w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
+                  />
+                </div>
+              </div>
+
+              {/* Quality */}
+              <div>
+                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-surface-400">
+                  Quality
+                </h4>
+                <select
+                  value={filters.quality ?? ''}
+                  onChange={(e) => update({ quality: e.target.value || null })}
+                  className="w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
+                >
+                  <option value="">All</option>
+                  <option value="high">High</option>
+                  <option value="low">Low</option>
+                </select>
+              </div>
+
+              {/* Rig Type */}
+              <div>
+                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-surface-400">
+                  Rig Type
+                </h4>
+                <select
+                  value={filters.rigType ?? ''}
+                  onChange={(e) => update({ rigType: e.target.value || null })}
+                  className="w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
+                >
+                  <option value="">All</option>
+                  <option value="711">711</option>
+                  <option value="5128">5128</option>
+                </select>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -167,7 +220,16 @@ export default function FilterSidebar({
             <span className="ml-1.5 text-primary-400">({filters.brands.length})</span>
           )}
         </h4>
-        <div className="max-h-48 space-y-1 overflow-y-auto pr-1">
+        {brands.length >= BRAND_SEARCH_MIN && (
+          <input
+            type="text"
+            placeholder="Search brands..."
+            value={brandSearch}
+            onChange={(e) => setBrandSearch(e.target.value)}
+            className="mb-2 w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40"
+          />
+        )}
+        <div className="max-h-80 space-y-1 overflow-y-auto pr-1">
           {visibleBrands.map((brand) => (
             <label
               key={brand}
@@ -185,17 +247,39 @@ export default function FilterSidebar({
           {brands.length === 0 && (
             <p className="text-xs text-surface-500 italic">No brands available</p>
           )}
+          {brands.length > 0 && visibleBrands.length === 0 && (
+            <p className="text-xs text-surface-500 italic">No matching brands</p>
+          )}
         </div>
-        {brands.length > BRAND_LIMIT && (
-          <button
-            type="button"
-            onClick={() => setShowAllBrands(!showAllBrands)}
-            className="mt-1.5 text-xs text-primary-400 hover:text-primary-300 transition-colors"
-          >
-            {showAllBrands ? 'Show less' : `Show all (${brands.length})`}
-          </button>
-        )}
       </div>
+
+      {/* Retailer */}
+      {retailers.length > 0 && (
+        <div>
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-surface-400">
+            Retailer
+            {filters.retailers.length > 0 && (
+              <span className="ml-1.5 text-primary-400">({filters.retailers.length})</span>
+            )}
+          </h4>
+          <div className="max-h-60 space-y-1 overflow-y-auto pr-1">
+            {retailers.map((retailer) => (
+              <label
+                key={retailer.id}
+                className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-200 hover:bg-surface-700"
+              >
+                <input
+                  type="checkbox"
+                  checked={filters.retailers.includes(retailer.id)}
+                  onChange={() => toggleRetailer(retailer.id)}
+                  className="h-3.5 w-3.5 rounded border-surface-500 bg-surface-700 text-primary-500 focus:ring-primary-500/40 focus:ring-offset-0"
+                />
+                <span className="truncate">{retailer.name}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Clear Filters */}
       {hasActiveFilters && (

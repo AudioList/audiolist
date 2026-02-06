@@ -1,0 +1,75 @@
+name: Sync Stores (Category)
+
+on:
+  schedule:
+    # Run every 20 minutes
+    - cron: '*/20 * * * *'
+  workflow_dispatch:
+    inputs:
+      group:
+        description: 'Category group to sync (iem, headphone, or all)'
+        required: false
+        default: 'all'
+
+jobs:
+  sync-iem:
+    if: >-
+      github.event_name == 'schedule' ||
+      github.event.inputs.group == 'all' ||
+      github.event.inputs.group == 'iem'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync IEM stores
+        env:
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: npx tsx scripts/sync-stores-iem.ts
+
+      - name: Process IEM products
+        env:
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: npx tsx scripts/process-store-products-iem.ts
+
+  sync-headphone:
+    if: >-
+      github.event_name == 'schedule' ||
+      github.event.inputs.group == 'all' ||
+      github.event.inputs.group == 'headphone'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync headphone stores
+        env:
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: npx tsx scripts/sync-stores-headphone.ts
+
+      - name: Process headphone products
+        env:
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: npx tsx scripts/process-store-products-headphone.ts

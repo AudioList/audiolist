@@ -10,7 +10,10 @@
     "preview": "vite preview",
     "sync:products": "tsx scripts/sync-to-supabase.ts",
     "sync:prices": "tsx scripts/sync-prices.ts",
-    "admin": "tsx scripts/admin-server.ts"
+    "sync:families": "tsx scripts/parse-variants.ts",
+    "admin": "tsx scripts/admin-server.ts",
+    "sync:stores:iem": "tsx scripts/sync-stores-iem.ts && tsx scripts/process-store-products-iem.ts",
+    "sync:stores:headphone": "tsx scripts/sync-stores-headphone.ts && tsx scripts/process-store-products-headphone.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.95.2",

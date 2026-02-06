@@ -83,6 +83,66 @@ export async function fetchShopifyCatalog(
   return allProducts;
 }
 
+export async function fetchShopifyCollection(
+  domain: string,
+  collectionHandle: string,
+  options?: { maxPages?: number; delayMs?: number; limit?: number }
+): Promise<ShopifyProduct[]> {
+  const maxPages = options?.maxPages ?? 100;
+  const delayMs = options?.delayMs ?? 600;
+  const limit = options?.limit ?? 250;
+  const allProducts: ShopifyProduct[] = [];
+
+  for (let page = 1; page <= maxPages; page++) {
+    try {
+      const url = `https://${domain}/collections/${collectionHandle}/products.json?limit=${limit}&page=${page}`;
+      console.log(
+        `Fetching ${domain}/collections/${collectionHandle} page ${page}... (${allProducts.length} products)`
+      );
+
+      const response = await fetch(url, {
+        headers: { "User-Agent": USER_AGENT },
+      });
+
+      if (!response.ok) {
+        console.log(
+          `HTTP ${response.status} fetching collection ${collectionHandle} page ${page} from ${domain}, stopping`
+        );
+        break;
+      }
+
+      const data = await response.json();
+      const products: ShopifyProduct[] = data?.products ?? [];
+
+      if (products.length === 0) {
+        console.log(
+          `No more products in collection ${collectionHandle} page ${page} from ${domain}, done`
+        );
+        break;
+      }
+
+      allProducts.push(...products);
+
+      if (page < maxPages && products.length >= limit) {
+        await delay(delayMs);
+      } else {
+        break; // Last partial page
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.log(
+        `Error fetching collection ${collectionHandle} page ${page} from ${domain}: ${message}. Returning ${allProducts.length} products collected so far.`
+      );
+      break;
+    }
+  }
+
+  console.log(
+    `Finished fetching ${domain}/collections/${collectionHandle}: ${allProducts.length} total products`
+  );
+  return allProducts;
+}
+
 export async function searchShopifyCatalog(
   domain: string,
   query: string

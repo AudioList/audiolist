@@ -35,8 +35,7 @@ export default function Footer() {
 
         {/* PPI info */}
         <p className="mt-4 text-center text-xs text-surface-400 dark:text-surface-500 sm:text-left">
-          PPI (Price Performance Index) scores rate audio products on value relative to
-          measured performance. Higher scores indicate better value for money.
+          Predicted Preference Index — Scores indicate what listeners would rank the sound out of 100.
         </p>
       </div>
     </footer>

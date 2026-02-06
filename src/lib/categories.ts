@@ -1,24 +1,49 @@
 import type { Category, CategoryId } from '../types';
 
 export const CATEGORIES: Category[] = [
-  { id: 'iem', name: 'IEMs', sort_order: 1, icon: 'headphones', has_ppi: true },
-  { id: 'headphone', name: 'Headphones', sort_order: 2, icon: 'headphones', has_ppi: true },
-  { id: 'dac', name: 'DAC', sort_order: 3, icon: 'cpu', has_ppi: false },
-  { id: 'amp', name: 'Amplifier', sort_order: 4, icon: 'zap', has_ppi: false },
-  { id: 'speaker', name: 'Speakers', sort_order: 5, icon: 'speaker', has_ppi: false },
-  { id: 'cable', name: 'Cables & Accessories', sort_order: 6, icon: 'cable', has_ppi: false },
-  { id: 'dap', name: 'DAP', sort_order: 7, icon: 'smartphone', has_ppi: false },
-  { id: 'microphone', name: 'Microphone', sort_order: 8, icon: 'mic', has_ppi: false },
+  // Main categories
+  { id: 'iem', name: 'In-Ear Monitors', sort_order: 1, icon: 'headphones', has_ppi: true, parent_category: null },
+  // In-ear monitor accessories
+  { id: 'iem_tips', name: 'Eartips', sort_order: 10, icon: 'circle-dot', has_ppi: false, parent_category: 'iem' },
+  { id: 'iem_cable', name: 'In-Ear Cables', sort_order: 11, icon: 'cable', has_ppi: false, parent_category: 'iem' },
+  { id: 'iem_filter', name: 'Filters & Modules', sort_order: 12, icon: 'filter', has_ppi: false, parent_category: 'iem' },
+  // Main categories continued
+  { id: 'headphone', name: 'Headphones', sort_order: 2, icon: 'headphones', has_ppi: true, parent_category: null },
+  // Headphone accessories
+  { id: 'hp_pads', name: 'Earpads', sort_order: 20, icon: 'disc', has_ppi: false, parent_category: 'headphone' },
+  { id: 'hp_cable', name: 'Headphone Cables', sort_order: 21, icon: 'cable', has_ppi: false, parent_category: 'headphone' },
+  // Main categories continued
+  { id: 'dac', name: 'Digital-to-Analog Converter', sort_order: 3, icon: 'cpu', has_ppi: false, parent_category: null },
+  { id: 'amp', name: 'Amplifier', sort_order: 4, icon: 'zap', has_ppi: false, parent_category: null },
+  { id: 'speaker', name: 'Speakers', sort_order: 5, icon: 'speaker', has_ppi: false, parent_category: null },
+  { id: 'cable', name: 'Cables & Accessories', sort_order: 6, icon: 'cable', has_ppi: false, parent_category: null },
+  { id: 'dap', name: 'Digital Audio Player', sort_order: 7, icon: 'smartphone', has_ppi: false, parent_category: null },
+  { id: 'microphone', name: 'Microphone', sort_order: 8, icon: 'mic', has_ppi: false, parent_category: null },
 ];
 
 export const CATEGORY_MAP = new Map<CategoryId, Category>(
   CATEGORIES.map((c) => [c.id, c])
 );
 
+/** Get child (accessory) categories for a parent category. */
+export function getChildCategories(parentId: CategoryId): Category[] {
+  return CATEGORIES.filter((c) => c.parent_category === parentId);
+}
+
+/** Get only top-level categories (no parent). */
+export function getTopLevelCategories(): Category[] {
+  return CATEGORIES.filter((c) => c.parent_category === null);
+}
+
 export function getCategoryIcon(id: CategoryId): string {
   switch (id) {
     case 'iem': return '\u{1F3A7}';
+    case 'iem_tips': return '\u{1F534}';
+    case 'iem_cable': return '\u{1F50C}';
+    case 'iem_filter': return '\u2699\uFE0F';
     case 'headphone': return '\u{1F3A7}';
+    case 'hp_pads': return '\u{1F94F}';
+    case 'hp_cable': return '\u{1F50C}';
     case 'dac': return '\u{1F4FB}';
     case 'amp': return '\u26A1';
     case 'speaker': return '\u{1F50A}';

@@ -62,7 +62,7 @@ export function normalizeName(name: string): string {
 // Character-bigram Dice coefficient
 // ---------------------------------------------------------------------------
 
-function getBigrams(str: string): Set<string> {
+export function getBigrams(str: string): Set<string> {
   const bigrams = new Set<string>();
   for (let i = 0; i < str.length - 1; i++) {
     bigrams.add(str.substring(i, i + 2));
@@ -95,7 +95,7 @@ export function diceCoefficient(a: string, b: string): number {
 // Token-level Dice coefficient (word overlap)
 // ---------------------------------------------------------------------------
 
-function tokenDice(a: string, b: string): number {
+export function tokenDice(a: string, b: string): number {
   const tokensA = new Set(a.split(/\s+/).filter((t) => t.length > 0));
   const tokensB = new Set(b.split(/\s+/).filter((t) => t.length > 0));
 
@@ -113,7 +113,7 @@ function tokenDice(a: string, b: string): number {
 // Brand removal helper
 // ---------------------------------------------------------------------------
 
-function removeBrand(normalized: string): string {
+export function removeBrand(normalized: string): string {
   const spaceIdx = normalized.indexOf(" ");
   if (spaceIdx === -1) return normalized;
   return normalized.substring(spaceIdx + 1).trim();
@@ -150,6 +150,121 @@ export function findBestMatch(
     const tokenNoBrandScore = tokenDice(productNoBrand, candidateNoBrand);
 
     // Take the best of all approaches
+    const score = Math.max(fullScore, noBrandScore, tokenFullScore, tokenNoBrandScore);
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestCandidate = candidate;
+    }
+  }
+
+  if (!bestCandidate) return null;
+
+  return {
+    id: bestCandidate.id,
+    name: bestCandidate.name,
+    score: bestScore,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Pre-indexed matching (avoids recomputing normalization per candidate)
+// ---------------------------------------------------------------------------
+
+export interface IndexedCandidate {
+  id: string;
+  name: string;
+  normalized: string;
+  noBrand: string;
+  bigrams: Set<string>;
+  noBrandBigrams: Set<string>;
+  tokens: Set<string>;
+  noBrandTokens: Set<string>;
+}
+
+/**
+ * Build a pre-computed index of candidates. Call once per category,
+ * then reuse for all queries against that category.
+ */
+export function buildCandidateIndex(
+  candidates: Array<{ name: string; id: string }>
+): IndexedCandidate[] {
+  return candidates.map((c) => {
+    const normalized = normalizeName(c.name);
+    const noBrand = removeBrand(normalized);
+    return {
+      id: c.id,
+      name: c.name,
+      normalized,
+      noBrand,
+      bigrams: getBigrams(normalized),
+      noBrandBigrams: getBigrams(noBrand),
+      tokens: new Set(normalized.split(/\s+/).filter((t) => t.length > 0)),
+      noBrandTokens: new Set(noBrand.split(/\s+/).filter((t) => t.length > 0)),
+    };
+  });
+}
+
+/**
+ * Like findBestMatch but uses pre-computed index to avoid redundant normalization.
+ */
+export function findBestMatchIndexed(
+  productName: string,
+  index: IndexedCandidate[]
+): { id: string; name: string; score: number } | null {
+  if (index.length === 0) return null;
+
+  const normalizedProduct = normalizeName(productName);
+  const productNoBrand = removeBrand(normalizedProduct);
+  const productBigrams = getBigrams(normalizedProduct);
+  const productNoBrandBigrams = getBigrams(productNoBrand);
+  const productTokens = new Set(normalizedProduct.split(/\s+/).filter((t) => t.length > 0));
+  const productNoBrandTokens = new Set(productNoBrand.split(/\s+/).filter((t) => t.length > 0));
+
+  let bestScore = -1;
+  let bestCandidate: IndexedCandidate | null = null;
+
+  for (const candidate of index) {
+    // 1) Full name character-bigram Dice (inline for speed)
+    let intersectionCount = 0;
+    for (const bigram of productBigrams) {
+      if (candidate.bigrams.has(bigram)) intersectionCount++;
+    }
+    const fullScore =
+      productBigrams.size + candidate.bigrams.size > 0
+        ? (2 * intersectionCount) / (productBigrams.size + candidate.bigrams.size)
+        : normalizedProduct === candidate.normalized ? 1 : 0;
+
+    // 2) Brand-removed character-bigram Dice
+    let noBrandIntersection = 0;
+    for (const bigram of productNoBrandBigrams) {
+      if (candidate.noBrandBigrams.has(bigram)) noBrandIntersection++;
+    }
+    const noBrandScore =
+      productNoBrandBigrams.size + candidate.noBrandBigrams.size > 0
+        ? (2 * noBrandIntersection) / (productNoBrandBigrams.size + candidate.noBrandBigrams.size)
+        : productNoBrand === candidate.noBrand ? 1 : 0;
+
+    // 3) Token-level Dice
+    let tokenIntersection = 0;
+    for (const token of productTokens) {
+      if (candidate.tokens.has(token)) tokenIntersection++;
+    }
+    const tokenFullScore =
+      productTokens.size + candidate.tokens.size > 0
+        ? (2 * tokenIntersection) / (productTokens.size + candidate.tokens.size)
+        : 0;
+
+    // 4) Token-level no-brand Dice
+    let tokenNoBrandIntersection = 0;
+    for (const token of productNoBrandTokens) {
+      if (candidate.noBrandTokens.has(token)) tokenNoBrandIntersection++;
+    }
+    const tokenNoBrandScore =
+      productNoBrandTokens.size + candidate.noBrandTokens.size > 0
+        ? (2 * tokenNoBrandIntersection) / (productNoBrandTokens.size + candidate.noBrandTokens.size)
+        : 0;
+
     const score = Math.max(fullScore, noBrandScore, tokenFullScore, tokenNoBrandScore);
 
     if (score > bestScore) {

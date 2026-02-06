@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { CategoryId, ProductFilters, ProductSort, Product } from '../../types';
-import { useProducts, useProductBrands } from '../../hooks/useProducts';
+import { useProducts, useProductBrands, useRetailers } from '../../hooks/useProducts';
 import { useBuild } from '../../context/BuildContext';
 import { CATEGORY_MAP } from '../../lib/categories';
 import SearchBar from './SearchBar';
@@ -12,6 +12,7 @@ interface ProductPickerProps {
   categoryId: CategoryId;
   isOpen: boolean;
   onClose: () => void;
+  onViewDetail?: (product: Product) => void;
 }
 
 const emptyFilters: ProductFilters = {
@@ -23,9 +24,11 @@ const emptyFilters: ProductFilters = {
   ppiMax: null,
   quality: null,
   rigType: null,
+  retailers: [],
+  hideOutOfStock: false,
 };
 
-export default function ProductPicker({ categoryId, isOpen, onClose }: ProductPickerProps) {
+export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetail }: ProductPickerProps) {
   const category = CATEGORY_MAP.get(categoryId);
   const showPPI = category?.has_ppi ?? false;
 
@@ -42,6 +45,7 @@ export default function ProductPicker({ categoryId, isOpen, onClose }: ProductPi
   });
 
   const brands = useProductBrands(categoryId);
+  const retailers = useRetailers();
   const { setProduct, getSelection } = useBuild();
   const currentSelection = getSelection(categoryId);
   const backdropRef = useRef<HTMLDivElement>(null);
@@ -164,6 +168,7 @@ export default function ProductPicker({ categoryId, isOpen, onClose }: ProductPi
             onChange={setFilters}
             category={categoryId}
             brands={brands}
+            retailers={retailers}
           />
 
           <div className="min-w-0 flex-1">
@@ -176,12 +181,13 @@ export default function ProductPicker({ categoryId, isOpen, onClose }: ProductPi
 
             {/* Product grid */}
             {products.length > 0 && (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="flex flex-col gap-2">
                 {products.map((product) => (
                   <ProductCard
                     key={product.id}
                     product={product}
                     onSelect={handleSelect}
+                    onViewDetail={onViewDetail}
                     isSelected={currentSelection?.product.id === product.id}
                     showPPI={showPPI}
                   />
