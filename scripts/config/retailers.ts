@@ -57,7 +57,7 @@ export function buildAffiliateUrl(
   if (!template) return null;
 
   let url = template
-    .replace("{product_url}", encodeURIComponent(productUrl))
+    .replace("{product_url}", productUrl)
     .replace("{handle}", handle)
     .replace("{base_url}", retailer.base_url);
 
