@@ -1,32 +1,66 @@
-const PARENTHETICAL_RE = /\s*\([^)]*\)/g;
+// ---------------------------------------------------------------------------
+// Noise parentheticals to strip (non-meaningful for matching)
+// ---------------------------------------------------------------------------
+const NOISE_PARENS_RE =
+  /\s*\((pre-production|custom|universal|demo|sample|prototype|review unit|loaner)\)/gi;
 
+// ---------------------------------------------------------------------------
+// Retail noise words to strip
+// ---------------------------------------------------------------------------
+const RETAIL_NOISE_RE =
+  /\b(official|authentic|genuine|free shipping|new arrival|in stock|hot sale|latest|original)\b/gi;
+
+// ---------------------------------------------------------------------------
+// Category suffixes to strip
+// ---------------------------------------------------------------------------
 const SUFFIX_TERMS = [
   "in-ear monitor",
   "in-ear monitors",
+  "in ear monitor",
+  "in ear monitors",
   "iem",
   "iems",
   "headphone",
   "headphones",
   "earphone",
   "earphones",
+  "earbuds",
+  "earbud",
+  "over-ear",
+  "on-ear",
+  "open-back",
+  "closed-back",
 ];
 
-// Build a regex that matches any of the suffix terms at word boundaries (case-insensitive)
 const SUFFIX_RE = new RegExp(
   `\\b(${SUFFIX_TERMS.map((t) => t.replace(/-/g, "[-\\s]?")).join("|")})\\b`,
   "gi"
 );
 
+// ---------------------------------------------------------------------------
+// Name normalization
+// ---------------------------------------------------------------------------
+
 export function normalizeName(name: string): string {
   let result = name.toLowerCase();
-  // Remove parenthetical content like "(Pre-production)", "(center)", "(Custom)"
-  result = result.replace(PARENTHETICAL_RE, "");
-  // Remove common suffixes
+  // Remove only noise parentheticals (keep model variants like Pro, SE, MK2, years)
+  result = result.replace(NOISE_PARENS_RE, "");
+  // Remove retail noise words
+  result = result.replace(RETAIL_NOISE_RE, "");
+  // Remove common category suffixes
   result = result.replace(SUFFIX_RE, "");
+  // Normalize dashes and special chars to spaces
+  result = result.replace(/[-–—]/g, " ");
+  // Remove non-alphanumeric except spaces
+  result = result.replace(/[^a-z0-9\s]/g, "");
   // Collapse multiple spaces
   result = result.replace(/\s{2,}/g, " ");
   return result.trim();
 }
+
+// ---------------------------------------------------------------------------
+// Character-bigram Dice coefficient
+// ---------------------------------------------------------------------------
 
 function getBigrams(str: string): Set<string> {
   const bigrams = new Set<string>();
@@ -44,7 +78,6 @@ export function diceCoefficient(a: string, b: string): number {
   const bigramsB = getBigrams(b);
 
   if (bigramsA.size === 0 && bigramsB.size === 0) {
-    // Both single-char strings: compare directly
     return a === b ? 1 : 0;
   }
 
@@ -58,15 +91,37 @@ export function diceCoefficient(a: string, b: string): number {
   return (2 * intersectionCount) / (bigramsA.size + bigramsB.size);
 }
 
-/**
- * Try to extract the brand (first word) from a product name.
- * Returns the name without the brand prefix.
- */
+// ---------------------------------------------------------------------------
+// Token-level Dice coefficient (word overlap)
+// ---------------------------------------------------------------------------
+
+function tokenDice(a: string, b: string): number {
+  const tokensA = new Set(a.split(/\s+/).filter((t) => t.length > 0));
+  const tokensB = new Set(b.split(/\s+/).filter((t) => t.length > 0));
+
+  if (tokensA.size === 0 || tokensB.size === 0) return 0;
+
+  let intersection = 0;
+  for (const token of tokensA) {
+    if (tokensB.has(token)) intersection++;
+  }
+
+  return (2 * intersection) / (tokensA.size + tokensB.size);
+}
+
+// ---------------------------------------------------------------------------
+// Brand removal helper
+// ---------------------------------------------------------------------------
+
 function removeBrand(normalized: string): string {
   const spaceIdx = normalized.indexOf(" ");
   if (spaceIdx === -1) return normalized;
   return normalized.substring(spaceIdx + 1).trim();
 }
+
+// ---------------------------------------------------------------------------
+// Find best match
+// ---------------------------------------------------------------------------
 
 export function findBestMatch(
   productName: string,
@@ -83,15 +138,19 @@ export function findBestMatch(
   for (const candidate of candidates) {
     const normalizedCandidate = normalizeName(candidate.name);
 
-    // Primary: compare full normalized names
+    // 1) Full name character-bigram Dice
     const fullScore = diceCoefficient(normalizedProduct, normalizedCandidate);
 
-    // Secondary: compare with brand removed from both
+    // 2) Brand-removed character-bigram Dice
     const candidateNoBrand = removeBrand(normalizedCandidate);
     const noBrandScore = diceCoefficient(productNoBrand, candidateNoBrand);
 
-    // Take the higher of the two scores
-    const score = Math.max(fullScore, noBrandScore);
+    // 3) Token-level Dice (word overlap)
+    const tokenFullScore = tokenDice(normalizedProduct, normalizedCandidate);
+    const tokenNoBrandScore = tokenDice(productNoBrand, candidateNoBrand);
+
+    // Take the best of all approaches
+    const score = Math.max(fullScore, noBrandScore, tokenFullScore, tokenNoBrandScore);
 
     if (score > bestScore) {
       bestScore = score;
@@ -108,8 +167,12 @@ export function findBestMatch(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Thresholds
+// ---------------------------------------------------------------------------
+
 export const MATCH_THRESHOLDS = {
-  AUTO_APPROVE: 0.85,
-  PENDING_REVIEW: 0.60,
-  REJECT: 0.60,
+  AUTO_APPROVE: 0.75,
+  PENDING_REVIEW: 0.55,
+  REJECT: 0.55,
 } as const;
