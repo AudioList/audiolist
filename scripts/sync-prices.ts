@@ -80,7 +80,12 @@ function log(phase: string, msg: string): void {
 }
 
 function logError(phase: string, msg: string, err: unknown): void {
-  const detail = err instanceof Error ? err.message : String(err);
+  const detail =
+    err instanceof Error
+      ? err.message
+      : typeof err === "object" && err !== null
+        ? JSON.stringify(err)
+        : String(err);
   console.error(`[${timestamp()}] [${phase}] ERROR: ${msg} — ${detail}`);
 }
 
@@ -471,22 +476,36 @@ async function denormalizeLowestPrices(): Promise<number> {
 
   log("PHASE-D", "Finding lowest in-stock price per product...");
 
-  // Fetch all in-stock price_listings grouped by product_id
-  const { data: listings, error } = await supabase
-    .from("price_listings")
-    .select("product_id, price, affiliate_url")
-    .eq("in_stock", true)
-    .order("price", { ascending: true });
+  // Fetch all in-stock price_listings (paginated to avoid Supabase 1000-row default limit)
+  const PAGE_SIZE = 1000;
+  const listings: { product_id: string; price: number; affiliate_url: string | null }[] = [];
+  let offset = 0;
 
-  if (error) {
-    logError("PHASE-D", "Failed to fetch price_listings", error);
-    return 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from("price_listings")
+      .select("product_id, price, affiliate_url")
+      .eq("in_stock", true)
+      .order("price", { ascending: true })
+      .range(offset, offset + PAGE_SIZE - 1);
+
+    if (error) {
+      logError("PHASE-D", "Failed to fetch price_listings", error);
+      return 0;
+    }
+
+    if (!data || data.length === 0) break;
+    listings.push(...data);
+    offset += data.length;
+    if (data.length < PAGE_SIZE) break;
   }
 
-  if (!listings || listings.length === 0) {
+  if (listings.length === 0) {
     log("PHASE-D", "No in-stock listings found. Nothing to denormalize.");
     return 0;
   }
+
+  log("PHASE-D", `Fetched ${listings.length} in-stock listings`);
 
   // Group by product_id, keep only the lowest price per product
   const lowestByProduct = new Map<
@@ -506,34 +525,30 @@ async function denormalizeLowestPrices(): Promise<number> {
 
   log("PHASE-D", `Found lowest prices for ${lowestByProduct.size} product(s). Updating...`);
 
-  // Build update rows
-  const updateRows: Record<string, unknown>[] = [];
-  for (const [productId, info] of lowestByProduct) {
-    updateRows.push({
-      id: productId,
-      price: info.price,
-      affiliate_url: info.affiliate_url,
-    });
-  }
-
-  // Upsert in batches (using id as conflict key)
+  // Update products individually (can't upsert since we only have partial columns)
   let updatedCount = 0;
-  for (let i = 0; i < updateRows.length; i += UPSERT_BATCH_SIZE) {
-    const batch = updateRows.slice(i, i + UPSERT_BATCH_SIZE);
+  const entries = Array.from(lowestByProduct.entries());
+  for (let i = 0; i < entries.length; i += UPSERT_BATCH_SIZE) {
+    const batch = entries.slice(i, i + UPSERT_BATCH_SIZE);
     const batchNum = Math.floor(i / UPSERT_BATCH_SIZE) + 1;
-    const totalBatches = Math.ceil(updateRows.length / UPSERT_BATCH_SIZE);
+    const totalBatches = Math.ceil(entries.length / UPSERT_BATCH_SIZE);
 
     try {
-      const { error: updateError } = await supabase
-        .from("products")
-        .upsert(batch, { onConflict: "id" });
+      let batchSuccess = 0;
+      for (const [productId, info] of batch) {
+        const { error: updateError } = await supabase
+          .from("products")
+          .update({ price: info.price, affiliate_url: info.affiliate_url })
+          .eq("id", productId);
 
-      if (updateError) {
-        logError("PHASE-D", `Update batch ${batchNum}/${totalBatches} failed`, updateError);
-      } else {
-        updatedCount += batch.length;
-        log("PHASE-D", `Updated products batch ${batchNum}/${totalBatches} (${batch.length} rows)`);
+        if (updateError) {
+          logError("PHASE-D", `Failed to update product ${productId}`, updateError);
+        } else {
+          batchSuccess++;
+        }
       }
+      updatedCount += batchSuccess;
+      log("PHASE-D", `Updated products batch ${batchNum}/${totalBatches} (${batchSuccess}/${batch.length} rows)`);
     } catch (err) {
       logError("PHASE-D", `Update batch ${batchNum}/${totalBatches} exception`, err);
     }
