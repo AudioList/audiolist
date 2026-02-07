@@ -35,23 +35,9 @@ export function getTopLevelCategories(): Category[] {
   return CATEGORIES.filter((c) => c.parent_category === null);
 }
 
-export function getCategoryIcon(id: CategoryId): string {
-  switch (id) {
-    case 'iem': return '\u{1F3A7}';
-    case 'iem_tips': return '\u{1F534}';
-    case 'iem_cable': return '\u{1F50C}';
-    case 'iem_filter': return '\u2699\uFE0F';
-    case 'headphone': return '\u{1F3A7}';
-    case 'hp_pads': return '\u{1F94F}';
-    case 'hp_cable': return '\u{1F50C}';
-    case 'dac': return '\u{1F4FB}';
-    case 'amp': return '\u26A1';
-    case 'speaker': return '\u{1F50A}';
-    case 'cable': return '\u{1F50C}';
-    case 'dap': return '\u{1F4F1}';
-    case 'microphone': return '\u{1F3A4}';
-    default: return '\u{1F3B5}';
-  }
+/** @deprecated Use <CategoryIcon categoryId={id} /> component instead */
+export function getCategoryIcon(_id: CategoryId): string {
+  return '';
 }
 
 export function getPPIColor(score: number): string {

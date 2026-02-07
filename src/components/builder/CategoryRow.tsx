@@ -1,7 +1,8 @@
 import type { Category, CategoryId, BuildSelection, Product } from '../../types';
 import { useBuild } from '../../context/BuildContext';
-import { getCategoryIcon, getCategoryBorderColor } from '../../lib/categories';
+import { getCategoryBorderColor } from '../../lib/categories';
 import PriceDisplay from '../shared/PriceDisplay';
+import CategoryIcon from '../shared/CategoryIcon';
 
 interface CategoryRowProps {
   category: Category;
@@ -14,7 +15,6 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
   const { removeProduct } = useBuild();
   const product = selection?.product;
   const price = selection?.custom_price ?? product?.price ?? null;
-  const icon = getCategoryIcon(category.id);
   const borderColor = getCategoryBorderColor(category.id);
 
   return (
@@ -24,7 +24,7 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
         {/* Category icon + name */}
         <td className="px-4 py-3 whitespace-nowrap">
           <div className="flex items-center gap-2.5">
-            <span className="text-lg" aria-hidden="true">{icon}</span>
+            <CategoryIcon categoryId={category.id} className="w-5 h-5 text-surface-500 dark:text-surface-400" />
             <div>
               <span className={`text-base font-bold text-surface-900 dark:text-surface-100`}>
                 {category.name}
@@ -126,7 +126,7 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
         {/* Card header: icon + category name + action buttons */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <span className="text-lg" aria-hidden="true">{icon}</span>
+            <CategoryIcon categoryId={category.id} className="w-5 h-5 text-surface-500 dark:text-surface-400" />
             <div>
               <span className="text-base font-bold text-surface-900 dark:text-surface-100">
                 {category.name}
