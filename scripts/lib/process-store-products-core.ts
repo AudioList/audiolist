@@ -7,9 +7,10 @@
 
 import { getSupabase, getRetailers, type Retailer } from '../config/retailers.ts';
 import { extractBrand } from '../brand-config.ts';
-import { normalizeName, buildCandidateIndex, findBestMatchIndexed, type IndexedCandidate } from '../scrapers/matcher.ts';
+import { normalizeName, buildCandidateIndex, findBestMatchIndexed, extractHeadphoneDesign, extractIemType, detectCorrectCategory, isJunkProduct, type IndexedCandidate } from '../scrapers/matcher.ts';
 import type { CategoryId } from '../config/store-collections.ts';
 import { log, logError } from './log.ts';
+import { extractTagAttributes } from './extract-tags.ts';
 
 const BATCH_SIZE = 1000;
 const UPSERT_BATCH_SIZE = 100;
@@ -192,6 +193,14 @@ async function processStoreProducts(
   const spUpdateWithCanonical: { id: string; canonicalProductId: string }[] = [];
   const spUpdateProcessedOnly: string[] = [];
 
+  // Build a product-id-to-category lookup for cross-category guard
+  const productCategoryMap = new Map<string, string>();
+  for (const [catId, products] of existingByCategory) {
+    for (const p of products) {
+      productCategoryMap.set(p.id, catId);
+    }
+  }
+
   // Pre-build candidate indices per category
   log('PROCESS', 'Building candidate indices...');
   const categoryIndices = new Map<string, IndexedCandidate[]>();
@@ -230,9 +239,26 @@ async function processStoreProducts(
       const brand = extractStoreBrand(sp);
       const retailer = retailerMap.get(sp.retailer_id);
 
+      // Category override: detect misclassification across all categories
+      let effectiveCategoryId = categoryId;
+
+      // Skip junk/test products entirely
+      if (isJunkProduct(sp.title)) {
+        log('JUNK', `Skipping junk product: "${sp.title}"`);
+        spUpdateProcessedOnly.push(sp.id);
+        stats.skipped++;
+        continue;
+      }
+
+      const detected = detectCorrectCategory(sp.title, brand, categoryId as CategoryId);
+      if (detected) {
+        log('CATEGORY', `Override: "${sp.title}" store=${categoryId} -> detected=${detected}`);
+        effectiveCategoryId = detected;
+      }
+
       const brandKey = brand?.toLowerCase();
-      const brandIndex = brandKey ? brandIndices.get(categoryId)?.get(brandKey) : undefined;
-      const categoryIndex = categoryIndices.get(categoryId);
+      const brandIndex = brandKey ? brandIndices.get(effectiveCategoryId)?.get(brandKey) : undefined;
+      const categoryIndex = categoryIndices.get(effectiveCategoryId);
       const candidateIndex = (brandIndex && brandIndex.length > 0) ? brandIndex : categoryIndex;
 
       const match = (candidateIndex && candidateIndex.length > 0)
@@ -241,10 +267,17 @@ async function processStoreProducts(
 
       let canonicalProductId: string | null = null;
 
-      if (match && match.score >= MERGE_THRESHOLD) {
+      // Cross-category guard: skip match if the matched product is in a different category
+      const matchedCategory = match ? productCategoryMap.get(match.id) : undefined;
+      const crossCategory = match && matchedCategory && matchedCategory !== effectiveCategoryId;
+      if (crossCategory) {
+        log('GUARD', `Cross-category match skipped: "${sp.title}" (${effectiveCategoryId}) -> matched product in ${matchedCategory} (score=${match!.score.toFixed(3)})`);
+      }
+
+      if (match && match.score >= MERGE_THRESHOLD && !crossCategory) {
         canonicalProductId = match.id;
         stats.merged++;
-      } else if (match && match.score >= REVIEW_THRESHOLD) {
+      } else if (match && match.score >= REVIEW_THRESHOLD && !crossCategory) {
         matchRows.push({
           product_id: match.id,
           retailer_id: sp.retailer_id,
@@ -256,11 +289,41 @@ async function processStoreProducts(
         });
         stats.pendingReview++;
       } else {
+        // Extract headphone design type from title and/or Shopify tags
+        let headphoneDesign = effectiveCategoryId === 'headphone'
+          ? extractHeadphoneDesign(sp.title)
+          : null;
+
+        // Extract structured attributes from Shopify tags (driver_type, wearing_style, headphone_design)
+        const tagAttrs = (sp.tags && sp.tags.length > 0) ? extractTagAttributes(sp.tags) : null;
+
+        // Tags can supplement title-based extraction
+        if (!headphoneDesign && tagAttrs?.headphone_design) {
+          headphoneDesign = tagAttrs.headphone_design;
+        }
+
+        // Build initial specs from tag extraction
+        const initialSpecs: Record<string, unknown> = {};
+        if (tagAttrs?.driver_type) initialSpecs.driver_type = tagAttrs.driver_type;
+        if (tagAttrs?.wearing_style) initialSpecs.wearing_style = tagAttrs.wearing_style;
+
+        // Extract IEM type from title and/or tags
+        let iemType: 'tws' | 'active' | 'passive' | null = null;
+        if (effectiveCategoryId === 'iem') {
+          iemType = extractIemType(sp.title);
+          if (!iemType && tagAttrs?.iem_type) {
+            iemType = tagAttrs.iem_type;
+          }
+          if (!iemType) {
+            iemType = 'passive'; // Default for IEMs
+          }
+        }
+
         const { data: newProduct, error: insertError } = await supabase
           .from('products')
           .insert({
             source_id: `store:${sp.retailer_id}:${sp.external_id}`,
-            category_id: categoryId,
+            category_id: effectiveCategoryId,
             name: sp.title,
             brand,
             price: sp.price,
@@ -268,6 +331,9 @@ async function processStoreProducts(
             affiliate_url: sp.affiliate_url ?? sp.product_url,
             source_type: 'store',
             in_stock: sp.in_stock,
+            ...(headphoneDesign ? { headphone_design: headphoneDesign } : {}),
+            ...(iemType ? { iem_type: iemType } : {}),
+            ...(Object.keys(initialSpecs).length > 0 ? { specs: initialSpecs } : {}),
           })
           .select('id')
           .single();
@@ -300,6 +366,7 @@ async function processStoreProducts(
           const newEntry = { id: newProduct.id, name: sp.title, brand, category_id: categoryId };
           if (existingList) existingList.push(newEntry);
           else existingByCategory.set(categoryId, [newEntry]);
+          productCategoryMap.set(newProduct.id, categoryId);
 
           const idx = categoryIndices.get(categoryId);
           if (idx) {

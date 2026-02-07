@@ -38,11 +38,69 @@ const SUFFIX_RE = new RegExp(
 );
 
 // ---------------------------------------------------------------------------
+// Roman numeral to Arabic numeral conversion
+// ---------------------------------------------------------------------------
+
+const ROMAN_MAP: [RegExp, string][] = [
+  [/\bxiii\b/g, "13"],
+  [/\bxii\b/g, "12"],
+  [/\bxi\b/g, "11"],
+  [/\bviii\b/g, "8"],
+  [/\bvii\b/g, "7"],
+  [/\bvi\b/g, "6"],
+  [/\biv\b/g, "4"],
+  [/\bix\b/g, "9"],
+  [/\biii\b/g, "3"],
+  [/\bii\b/g, "2"],
+  // Single-letter Roman numerals only when they look like version numbers
+  // (preceded by a space/start and followed by end/space/non-alpha)
+  // Skip "v" and "x" as standalone since they're too ambiguous
+];
+
+/**
+ * Convert Roman numeral tokens to Arabic numerals in a lowercased string.
+ * Order matters: longer numerals must be matched first (e.g., "viii" before "vi").
+ */
+function romanToArabic(str: string): string {
+  let result = str;
+  for (const [pattern, replacement] of ROMAN_MAP) {
+    result = result.replace(pattern, replacement);
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Ordinal normalization (1st -> 1, 2nd -> 2, etc.)
+// ---------------------------------------------------------------------------
+
+function normalizeOrdinals(str: string): string {
+  return str.replace(/\b(\d+)(st|nd|rd|th)\b/g, "$1");
+}
+
+// ---------------------------------------------------------------------------
+// "Mark" / "Mk" normalization (Mk2 -> 2, Mark II -> 2, MkIII -> 3)
+// ---------------------------------------------------------------------------
+
+function normalizeMark(str: string): string {
+  // "mk2", "mark 2", "mk ii", "mark ii" etc. -> just the number
+  return str
+    .replace(/\b(?:mark|mk)\s*(\d+)\b/g, "$1")
+    .replace(/\b(?:mark|mk)\s*(i{1,4}v?i{0,3})\b/g, (_match, roman) => {
+      const temp = romanToArabic(roman);
+      return temp;
+    });
+}
+
+// ---------------------------------------------------------------------------
 // Name normalization
 // ---------------------------------------------------------------------------
 
 export function normalizeName(name: string): string {
   let result = name.toLowerCase();
+  // Strip everything after a pipe character (Bloom Audio format:
+  // "Product Name | Open-Back Dynamic Headphones").
+  // Also handles " - " style suffixes that some retailers use for category descriptions.
+  result = result.replace(/\s*\|.*$/, "");
   // Remove only noise parentheticals (keep model variants like Pro, SE, MK2, years)
   result = result.replace(NOISE_PARENS_RE, "");
   // Remove retail noise words
@@ -53,9 +111,363 @@ export function normalizeName(name: string): string {
   result = result.replace(/[-–—]/g, " ");
   // Remove non-alphanumeric except spaces
   result = result.replace(/[^a-z0-9\s]/g, "");
+  // Split letter-digit boundaries: "chu2" -> "chu 2", "hd600" -> "hd 600"
+  // This normalizes concatenated model numbers so "Chu2" matches "Chu 2"
+  result = result.replace(/([a-z])(\d)/g, "$1 $2");
+  result = result.replace(/(\d)([a-z])/g, "$1 $2");
   // Collapse multiple spaces
   result = result.replace(/\s{2,}/g, " ");
+  // Normalize "Mark"/"Mk" prefixes before Roman numeral conversion
+  result = normalizeMark(result);
+  // Convert Roman numerals to Arabic (ii->2, iii->3, iv->4, etc.)
+  result = romanToArabic(result);
+  // Normalize ordinals (1st->1, 2nd->2, etc.)
+  result = normalizeOrdinals(result);
+  // Final whitespace cleanup
+  result = result.replace(/\s{2,}/g, " ");
   return result.trim();
+}
+
+/**
+ * Extract headphone design type from a product name.
+ * Returns 'open' or 'closed' if detected, otherwise null.
+ * Checks both the base name and pipe-separated description.
+ */
+export function extractHeadphoneDesign(name: string): 'open' | 'closed' | null {
+  const lower = name.toLowerCase();
+  if (/\bopen[\s-]?back\b/.test(lower)) return 'open';
+  if (/\bclosed[\s-]?back\b/.test(lower)) return 'closed';
+  if (/\bopen\b/.test(lower) && /\bheadphone/.test(lower)) return 'open';
+  if (/\bclosed\b/.test(lower) && /\bheadphone/.test(lower)) return 'closed';
+  return null;
+}
+
+/**
+ * Extract IEM connectivity type from a product name.
+ * Returns 'tws' or 'active' if detected, otherwise null.
+ * 'passive' is the default for IEMs and assigned during backfill.
+ */
+export function extractIemType(name: string): 'tws' | 'active' | null {
+  const lower = name.toLowerCase();
+  if (/\btws\b/.test(lower)) return 'tws';
+  if (/\btruly[\s-]?wireless\b/.test(lower)) return 'tws';
+  if (/\btrue[\s-]?wireless\b/.test(lower)) return 'tws';
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Product category detection (headphone vs IEM)
+// ---------------------------------------------------------------------------
+
+import type { CategoryId } from '../config/store-collections.ts';
+import {
+  HEADPHONE_ONLY_BRANDS,
+  HEADPHONE_BRAND_IEM_EXCEPTIONS,
+  BRAND_RULE_MAP,
+  HEADPHONE_NAME_INDICATORS,
+  HEADPHONE_NAME_INDICATORS_GUARDED,
+  GUARDED_INDICATOR_BLOCKERS,
+  IEM_NAME_INDICATORS,
+  // Cable rules
+  IEM_CABLE_BRANDS,
+  IEM_CABLE_INDICATORS,
+  IEM_CABLE_MODEL_PATTERNS,
+  HP_CABLE_INDICATORS,
+  HP_CABLE_MODEL_PATTERNS,
+  GENERAL_CABLE_INDICATORS,
+  // Speaker rules
+  SPEAKER_GUARD_INDICATORS,
+  SPEAKER_TO_CABLE_INDICATORS,
+  SPEAKER_ACCESSORY_INDICATORS,
+  // DAP rules
+  DAP_PRODUCT_OVERRIDES,
+  STATIONARY_INDICATORS,
+  DAP_GUARD_INDICATORS,
+  // DAC/Amp rules
+  DAC_INDICATORS,
+  AMP_ONLY_INDICATORS,
+  // Junk & misplaced
+  JUNK_PRODUCT_PATTERNS,
+  MISPLACED_OVERRIDES,
+} from '../config/category-rules.ts';
+
+/**
+ * Detect whether a product should be categorized as 'iem' or 'headphone'.
+ * Uses a three-tier classification system:
+ *   Tier 1: Headphone-only brands (with IEM exceptions)
+ *   Tier 2: Brand + model regex patterns
+ *   Tier 3: Name keyword fallback
+ *
+ * Returns null if the category cannot be determined with confidence.
+ */
+export function detectProductCategory(
+  name: string,
+  brand: string | null
+): 'iem' | 'headphone' | null {
+  const brandLower = brand?.toLowerCase().trim() ?? '';
+
+  // --- Tier 1: Headphone-only brands ---
+  if (brandLower && HEADPHONE_ONLY_BRANDS.has(brandLower)) {
+    // Check exceptions (e.g. STAX SR-001/002/003 are genuine IEMs)
+    for (const exRx of HEADPHONE_BRAND_IEM_EXCEPTIONS) {
+      if (exRx.test(name)) return 'iem';
+    }
+    return 'headphone';
+  }
+
+  // --- Tier 2: Brand + model regex ---
+  if (brandLower) {
+    const rule = BRAND_RULE_MAP.get(brandLower);
+    if (rule) {
+      // Check IEM patterns first (higher specificity prevents false reclassification)
+      for (const rx of rule.iemPatterns) {
+        if (rx.test(name)) return 'iem';
+      }
+      for (const rx of rule.headphonePatterns) {
+        if (rx.test(name)) return 'headphone';
+      }
+    }
+  }
+
+  // --- Tier 3: Name keyword fallback ---
+  // IEM indicators take priority (guard against reclassification)
+  for (const rx of IEM_NAME_INDICATORS) {
+    if (rx.test(name)) return null; // Strong IEM signal -- leave as-is
+  }
+  for (const rx of HEADPHONE_NAME_INDICATORS) {
+    if (rx.test(name)) return 'headphone';
+  }
+
+  // Guarded indicators: only trigger if no blocker words are present
+  const hasBlocker = GUARDED_INDICATOR_BLOCKERS.some((rx) => rx.test(name));
+  if (!hasBlocker) {
+    for (const rx of HEADPHONE_NAME_INDICATORS_GUARDED) {
+      if (rx.test(name)) return 'headphone';
+    }
+  }
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Cable sub-category detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Detect the correct sub-category for a cable product.
+ * Returns the detected cable sub-category, or null if it should stay.
+ */
+export function detectCableSubCategory(
+  name: string,
+  brand: string | null,
+  currentCategory: CategoryId
+): 'iem_cable' | 'hp_cable' | 'cable' | null {
+  const brandLower = brand?.toLowerCase().trim() ?? '';
+
+  // 1. IEM-cable-only brands (highest confidence)
+  if (brandLower && IEM_CABLE_BRANDS.has(brandLower)) {
+    return currentCategory === 'iem_cable' ? null : 'iem_cable';
+  }
+
+  // 2. Explicit "IEM cable" or "earphone cable" in name -> iem_cable (high confidence guard)
+  if (/\bIEM\s+(cable|upgrade)\b/i.test(name) || /\bearphone\s+(cable|upgrade)\b/i.test(name)) {
+    return currentCategory === 'iem_cable' ? null : 'iem_cable';
+  }
+
+  // 3. IEM cable model patterns
+  for (const rx of IEM_CABLE_MODEL_PATTERNS) {
+    if (rx.test(name)) return currentCategory === 'iem_cable' ? null : 'iem_cable';
+  }
+
+  // 4. HP cable model patterns
+  for (const rx of HP_CABLE_MODEL_PATTERNS) {
+    if (rx.test(name)) return currentCategory === 'hp_cable' ? null : 'hp_cable';
+  }
+
+  // 5. General cable indicators (power, interconnect, USB, etc.)
+  // Check BEFORE connector indicators so "USB cable" doesn't match as IEM cable
+  for (const rx of GENERAL_CABLE_INDICATORS) {
+    if (rx.test(name)) return currentCategory === 'cable' ? null : 'cable';
+  }
+
+  // 6. IEM connector indicators (2-pin, MMCX, etc.)
+  for (const rx of IEM_CABLE_INDICATORS) {
+    if (rx.test(name)) return currentCategory === 'iem_cable' ? null : 'iem_cable';
+  }
+
+  // 7. HP cable indicators
+  for (const rx of HP_CABLE_INDICATORS) {
+    if (rx.test(name)) return currentCategory === 'hp_cable' ? null : 'hp_cable';
+  }
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Speaker category detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Detect whether a speaker product is actually a different category.
+ * Returns 'cable' if it should be moved, or null if it stays as speaker.
+ */
+export function detectSpeakerCategory(
+  name: string,
+): CategoryId | null {
+  // Guard: if any speaker indicator matches, it stays
+  for (const rx of SPEAKER_GUARD_INDICATORS) {
+    if (rx.test(name)) return null;
+  }
+
+  // Cable indicators
+  for (const rx of SPEAKER_TO_CABLE_INDICATORS) {
+    if (rx.test(name)) return 'cable';
+  }
+
+  // Accessory indicators
+  for (const rx of SPEAKER_ACCESSORY_INDICATORS) {
+    if (rx.test(name)) return 'cable'; // "cable" category = "Cables & Accessories"
+  }
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// DAP category detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Detect whether a DAP product is actually a different category.
+ * Returns the correct category, or null if it should stay as DAP.
+ */
+export function detectDapCategory(
+  name: string,
+): CategoryId | null {
+  // 1. Specific product overrides first
+  for (const override of DAP_PRODUCT_OVERRIDES) {
+    if (override.pattern.test(name)) return override.targetCategory;
+  }
+
+  // 2. Check guard indicators -- if portable/DAP, keep it
+  for (const rx of DAP_GUARD_INDICATORS) {
+    if (rx.test(name)) return null;
+  }
+
+  // 3. Check stationary indicators
+  for (const rx of STATIONARY_INDICATORS) {
+    if (rx.test(name)) {
+      // Determine target based on what the product actually is
+      if (/\bintegrated\s+amplifier\b/i.test(name)) return 'amp';
+      if (/\bactive\s+speaker\b/i.test(name)) return 'speaker';
+      // Default: streamers, servers, transports, CD/SACD players -> dac
+      return 'dac';
+    }
+  }
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// DAC / Amp detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Detect whether a DAC or Amp product should be in the other category.
+ * Policy: All combos (mentioning both DAC and amp) -> 'dac'.
+ * Pure amps with no DAC reference stay in 'amp'.
+ * Pure DACs with no amp reference and only amp keywords -> 'amp'.
+ */
+export function detectDacAmpCategory(
+  name: string,
+  currentCategory: CategoryId
+): 'dac' | 'amp' | null {
+  const hasDac = DAC_INDICATORS.some((rx) => rx.test(name));
+  const hasAmp = AMP_ONLY_INDICATORS.some((rx) => rx.test(name));
+
+  if (currentCategory === 'amp') {
+    // If the product mentions DAC at all, it should be in 'dac' (combos -> dac policy)
+    if (hasDac) return 'dac';
+  }
+
+  if (currentCategory === 'dac') {
+    // If the product mentions ONLY amp indicators and NO DAC indicators, move to 'amp'
+    if (hasAmp && !hasDac) return 'amp';
+  }
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Junk & misplaced product detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Check if a product name matches junk/test item patterns.
+ */
+export function isJunkProduct(name: string): boolean {
+  return JUNK_PRODUCT_PATTERNS.some((rx) => rx.test(name));
+}
+
+/**
+ * Check for misplaced products using explicit override lists.
+ * Returns the correct target category, or null if no override matched.
+ */
+export function detectMisplacedProduct(
+  name: string,
+  currentCategory: CategoryId
+): CategoryId | null {
+  for (const override of MISPLACED_OVERRIDES) {
+    if (override.sourceCategory === currentCategory && override.pattern.test(name)) {
+      return override.targetCategory;
+    }
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Master detection function
+// ---------------------------------------------------------------------------
+
+/**
+ * Given a product name, brand, and current category, returns the correct category
+ * or null if no reclassification is needed.
+ * Delegates to the appropriate sub-detector based on currentCategory.
+ */
+export function detectCorrectCategory(
+  name: string,
+  brand: string | null,
+  currentCategory: CategoryId
+): CategoryId | null {
+  // 1. Check explicit misplaced overrides first (highest priority)
+  const overrideResult = detectMisplacedProduct(name, currentCategory);
+  if (overrideResult) return overrideResult;
+
+  // 2. Category-specific detection
+  switch (currentCategory) {
+    case 'iem':
+    case 'headphone': {
+      const detected = detectProductCategory(name, brand);
+      return (detected && detected !== currentCategory) ? detected : null;
+    }
+    case 'cable':
+    case 'hp_cable':
+    case 'iem_cable': {
+      const detected = detectCableSubCategory(name, brand, currentCategory);
+      return (detected && detected !== currentCategory) ? detected : null;
+    }
+    case 'dap': {
+      return detectDapCategory(name);
+    }
+    case 'speaker': {
+      return detectSpeakerCategory(name);
+    }
+    case 'dac':
+    case 'amp': {
+      return detectDacAmpCategory(name, currentCategory);
+    }
+    default:
+      return null;
+  }
 }
 
 // ---------------------------------------------------------------------------

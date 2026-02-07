@@ -2,18 +2,18 @@ name: Sync Prices
 
 on:
   schedule:
-    # Run every 20 minutes for near-real-time price updates
-    - cron: '*/20 * * * *'
+    # Run every 40 minutes — job takes ~26 min, gives headroom
+    - cron: '5/40 * * * *'
   workflow_dispatch: # Allow manual trigger from GitHub UI
 
 concurrency:
   group: sync-prices
-  cancel-in-progress: true
+  cancel-in-progress: false  # Let running sync finish; queued run waits
 
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
 
     steps:
       - name: Checkout repo
