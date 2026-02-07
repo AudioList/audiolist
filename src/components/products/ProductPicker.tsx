@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { CategoryId, ProductFilters, ProductSort, Product } from '../../types';
-import { useProducts, useProductBrands, useRetailers } from '../../hooks/useProducts';
+import { useProducts, useProductBrands, useRetailers, useSpeakerTypes } from '../../hooks/useProducts';
 import { useBuild } from '../../context/BuildContext';
 import { CATEGORY_MAP } from '../../lib/categories';
 import SearchBar from './SearchBar';
@@ -26,6 +26,7 @@ const emptyFilters: ProductFilters = {
   rigType: null,
   retailers: [],
   hideOutOfStock: false,
+  speakerTypes: [],
 };
 
 export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetail }: ProductPickerProps) {
@@ -46,6 +47,7 @@ export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetai
 
   const brands = useProductBrands(categoryId);
   const retailers = useRetailers(categoryId);
+  const speakerTypes = useSpeakerTypes();
   const { setProduct, getSelection } = useBuild();
   const currentSelection = getSelection(categoryId);
   const backdropRef = useRef<HTMLDivElement>(null);
@@ -169,6 +171,7 @@ export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetai
             category={categoryId}
             brands={brands}
             retailers={retailers}
+            speakerTypes={categoryId === 'speaker' ? speakerTypes : undefined}
           />
 
           <div className="min-w-0 flex-1">

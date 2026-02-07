@@ -98,6 +98,7 @@ export interface ProductFilters {
   rigType: string | null;
   retailers: string[];
   hideOutOfStock: boolean;
+  speakerTypes: string[];
 }
 
 export interface ProductSort {

@@ -8,6 +8,7 @@ interface FilterSidebarProps {
   category: CategoryId;
   brands: string[];
   retailers: { id: string; name: string }[];
+  speakerTypes?: { value: string; label: string; count: number }[];
 }
 
 const BRAND_SEARCH_MIN = 10; // Show search box when there are this many brands
@@ -22,6 +23,7 @@ export default function FilterSidebar({
   category,
   brands,
   retailers,
+  speakerTypes = [],
 }: FilterSidebarProps) {
   const [expanded, setExpanded] = useState(false);
   const [brandSearch, setBrandSearch] = useState('');
@@ -48,6 +50,7 @@ export default function FilterSidebar({
       rigType: null,
       retailers: [],
       hideOutOfStock: false,
+      speakerTypes: [],
     });
   }
 
@@ -65,9 +68,17 @@ export default function FilterSidebar({
     update({ retailers: next });
   }
 
+  function toggleSpeakerType(type: string) {
+    const next = filters.speakerTypes.includes(type)
+      ? filters.speakerTypes.filter((t) => t !== type)
+      : [...filters.speakerTypes, type];
+    update({ speakerTypes: next });
+  }
+
   const hasActiveFilters =
     filters.brands.length > 0 ||
     filters.retailers.length > 0 ||
+    filters.speakerTypes.length > 0 ||
     filters.priceMin !== null ||
     filters.priceMax !== null ||
     filters.ppiMin !== null ||
@@ -88,6 +99,35 @@ export default function FilterSidebar({
         />
         <span>Hide out of stock</span>
       </label>
+
+      {/* Speaker Type (speaker category only) */}
+      {category === 'speaker' && speakerTypes.length > 0 && (
+        <div>
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-surface-400">
+            Speaker Type
+            {filters.speakerTypes.length > 0 && (
+              <span className="ml-1.5 text-primary-400">({filters.speakerTypes.length})</span>
+            )}
+          </h4>
+          <div className="max-h-48 space-y-1 overflow-y-auto pr-1">
+            {speakerTypes.map((st) => (
+              <label
+                key={st.value}
+                className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-200 hover:bg-surface-700"
+              >
+                <input
+                  type="checkbox"
+                  checked={filters.speakerTypes.includes(st.value)}
+                  onChange={() => toggleSpeakerType(st.value)}
+                  className="h-3.5 w-3.5 rounded border-surface-500 bg-surface-700 text-primary-500 focus:ring-primary-500/40 focus:ring-offset-0"
+                />
+                <span className="truncate">{st.label}</span>
+                <span className="ml-auto text-xs text-surface-500">{st.count}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Price Range */}
       <div>

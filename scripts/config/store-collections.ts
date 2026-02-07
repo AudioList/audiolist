@@ -176,4 +176,79 @@ export const STORE_COLLECTIONS: Record<string, StoreConfig> = {
       { handle: 'dacs', categoryId: 'dac' },
     ],
   },
+  'www.peachtreeaudio.com': {
+    retailerId: 'peachtreeaudio',
+    collections: [
+      { handle: 'speakers', categoryId: 'speaker' },
+      { handle: 'integrated-amplifiers', categoryId: 'amp' },
+      { handle: 'preamps-and-power-amps', categoryId: 'amp' },
+    ],
+  },
+  'www.psaudio.com': {
+    retailerId: 'psaudio',
+    collections: [
+      { handle: 'loudspeakers', categoryId: 'speaker' },
+      { handle: 'amplifiers', categoryId: 'amp' },
+      { handle: 'dacs-and-sources', categoryId: 'dac' },
+    ],
+  },
+  'www.rel.net': {
+    retailerId: 'rel',
+    collections: [
+      { handle: 'powered-subwoofers', categoryId: 'speaker' },
+    ],
+  },
+  'www.aperionaudio.com': {
+    retailerId: 'aperionaudio',
+    collections: [
+      { handle: 'bookshelf-speakers', categoryId: 'speaker' },
+      { handle: 'center-channel-speakers', categoryId: 'speaker' },
+      { handle: 'tower-speakers', categoryId: 'speaker' },
+      { handle: 'bravus-subwoofers', categoryId: 'speaker' },
+      { handle: 'surround-speakers', categoryId: 'speaker' },
+    ],
+  },
+  'www.qacoustics.com': {
+    retailerId: 'qacoustics',
+    collections: [
+      { handle: 'bookshelf-speakers', categoryId: 'speaker' },
+      { handle: 'floorstanding-speakers', categoryId: 'speaker' },
+      { handle: 'sunwoofers', categoryId: 'speaker' },
+      { handle: 'centered', categoryId: 'speaker' },
+    ],
+  },
+  'www.buchardt-audio.com': {
+    retailerId: 'buchardtaudio',
+    collections: [
+      { handle: 'active-speakers', categoryId: 'speaker' },
+      { handle: 'passive-speakers', categoryId: 'speaker' },
+    ],
+  },
+  'www.wharfedaleusa.com': {
+    retailerId: 'wharfedale',
+    collections: [
+      { handle: 'bookshelf-speakers', categoryId: 'speaker' },
+      { handle: 'floostanding', categoryId: 'speaker' },
+      { handle: 'center-channel', categoryId: 'speaker' },
+      { handle: 'subwoofer', categoryId: 'speaker' },
+    ],
+  },
+  'www.jamo.com': {
+    retailerId: 'jamo',
+    collections: [
+      { handle: 'hi-fi-speakers', categoryId: 'speaker' },
+      { handle: 'home-theatre', categoryId: 'speaker' },
+      { handle: 'subwoofers', categoryId: 'speaker' },
+    ],
+  },
+  'www.trianglehifi.com': {
+    retailerId: 'trianglehifi',
+    collections: [
+      { handle: 'enceinte-bibliotheque', categoryId: 'speaker' },
+      { handle: 'enceintes-colonnes', categoryId: 'speaker' },
+      { handle: 'enceintes-actives', categoryId: 'speaker' },
+      { handle: 'voie-centrale', categoryId: 'speaker' },
+      { handle: 'caisson-de-grave', categoryId: 'speaker' },
+    ],
+  },
 };

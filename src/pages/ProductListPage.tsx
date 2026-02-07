@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { CategoryId, ProductFilters, ProductSort, Product } from '../types';
 import { CATEGORIES, CATEGORY_MAP, getScoreLabel, isSpinormaCategory } from '../lib/categories';
-import { useProducts, useRetailers } from '../hooks/useProducts';
+import { useProducts, useRetailers, useSpeakerTypes } from '../hooks/useProducts';
 import SearchBar from '../components/products/SearchBar';
 import SortControls from '../components/products/SortControls';
 import PPIBadge from '../components/shared/PPIBadge';
@@ -33,6 +33,7 @@ export default function ProductListPage() {
     rigType: null,
     retailers: [],
     hideOutOfStock: false,
+    speakerTypes: [],
   });
 
   const [sort, setSort] = useState<ProductSort>({
@@ -47,6 +48,7 @@ export default function ProductListPage() {
 
   const { products, loading, error, hasMore, total, loadMore } = useProducts(hookOptions);
   const retailers = useRetailers(categoryId);
+  const speakerTypes = useSpeakerTypes();
 
   function handleCategoryChange(id: CategoryId) {
     navigate(`/products/${id}`);
@@ -61,6 +63,7 @@ export default function ProductListPage() {
       rigType: null,
       retailers: [],
       hideOutOfStock: false,
+      speakerTypes: [],
     });
     const cat = CATEGORY_MAP.get(id);
     setSort({
@@ -124,6 +127,40 @@ export default function ProductListPage() {
               />
               <span>Hide out of stock</span>
             </label>
+
+            {/* Speaker Type (only for speaker category) */}
+            {categoryId === 'speaker' && speakerTypes.length > 0 && (
+              <div className="mb-3 space-y-2">
+                <label className="block text-xs font-medium text-surface-500 dark:text-surface-400">
+                  Speaker Type
+                  {filters.speakerTypes.length > 0 && (
+                    <span className="ml-1.5 text-primary-400">({filters.speakerTypes.length})</span>
+                  )}
+                </label>
+                <div className="max-h-48 space-y-1 overflow-y-auto">
+                  {speakerTypes.map((st) => (
+                    <label
+                      key={st.value}
+                      className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={filters.speakerTypes.includes(st.value)}
+                        onChange={() => {
+                          const next = filters.speakerTypes.includes(st.value)
+                            ? filters.speakerTypes.filter((t) => t !== st.value)
+                            : [...filters.speakerTypes, st.value];
+                          setFilters((prev) => ({ ...prev, speakerTypes: next }));
+                        }}
+                        className="h-3.5 w-3.5 rounded border-surface-300 text-primary-500 focus:ring-primary-500/40 dark:border-surface-500 dark:bg-surface-700"
+                      />
+                      <span className="truncate">{st.label}</span>
+                      <span className="ml-auto text-xs text-surface-400">{st.count}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Price range */}
             <div className="space-y-2">
@@ -243,6 +280,7 @@ export default function ProductListPage() {
                   rigType: null,
                   retailers: [],
                   hideOutOfStock: false,
+                  speakerTypes: [],
                 })
               }
               className="mt-4 w-full rounded-md border border-surface-300 bg-white px-3 py-1.5 text-xs font-medium text-surface-600 transition-colors hover:bg-surface-100 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-400 dark:hover:bg-surface-700"

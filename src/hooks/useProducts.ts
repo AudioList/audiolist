@@ -31,6 +31,7 @@ const defaultFilters: ProductFilters = {
   rigType: null,
   retailers: [],
   hideOutOfStock: false,
+  speakerTypes: [],
 };
 
 const defaultSort: ProductSort = {
@@ -105,6 +106,11 @@ export function useProducts({
         // Rig type
         if (filters.rigType) {
           query = query.eq('rig_type', filters.rigType);
+        }
+
+        // Speaker type
+        if (filters.speakerTypes.length > 0) {
+          query = query.in('speaker_type', filters.speakerTypes);
         }
 
         // Hide out of stock (DB-level only when no retailer filter;
@@ -251,6 +257,72 @@ export function useRetailers(category: CategoryId): { id: string; name: string }
   }, [category]);
 
   return retailers;
+}
+
+/** Display labels for speaker_type values */
+const SPEAKER_TYPE_LABELS: Record<string, string> = {
+  bookshelf: 'Bookshelf',
+  floorstanding: 'Floorstanding',
+  center: 'Center',
+  portable: 'Portable',
+  toursound: 'Tour Sound',
+  inwall: 'In-Wall',
+  cinema: 'Cinema',
+  surround: 'Surround',
+  omnidirectional: 'Omnidirectional',
+  columns: 'Columns',
+  outdoor: 'Outdoor',
+  soundbar: 'Soundbar',
+  cbt: 'CBT',
+  panel: 'Panel',
+};
+
+export function getSpeakerTypeLabel(type: string): string {
+  return SPEAKER_TYPE_LABELS[type] ?? type.charAt(0).toUpperCase() + type.slice(1);
+}
+
+export function useSpeakerTypes(): { value: string; label: string; count: number }[] {
+  const [types, setTypes] = useState<{ value: string; label: string; count: number }[]>([]);
+
+  useEffect(() => {
+    async function fetchTypes() {
+      const PAGE = 1000;
+      const counts = new Map<string, number>();
+      let offset = 0;
+
+      while (true) {
+        const { data } = await supabase
+          .from('products')
+          .select('speaker_type')
+          .eq('category_id', 'speaker')
+          .not('speaker_type', 'is', null)
+          .range(offset, offset + PAGE - 1);
+
+        if (!data || data.length === 0) break;
+
+        for (const d of data) {
+          const t = d.speaker_type as string;
+          counts.set(t, (counts.get(t) ?? 0) + 1);
+        }
+
+        if (data.length < PAGE) break;
+        offset += PAGE;
+      }
+
+      const result = [...counts.entries()]
+        .map(([value, count]) => ({
+          value,
+          label: getSpeakerTypeLabel(value),
+          count,
+        }))
+        .sort((a, b) => b.count - a.count);
+
+      setTypes(result);
+    }
+    fetchTypes();
+  }, []);
+
+  return types;
 }
 
 export function useProductBrands(category: CategoryId): string[] {

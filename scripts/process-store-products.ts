@@ -398,11 +398,24 @@ async function processStoreProducts(
     }
   }
 
+  // Deduplicate price_listings by (product_id, retailer_id), keeping the cheapest
+  const dedupedListings = (() => {
+    const map = new Map<string, typeof listingRows[0]>();
+    for (const row of listingRows) {
+      const key = `${row.product_id}::${row.retailer_id}`;
+      const existing = map.get(key);
+      if (!existing || (row.price !== null && (existing.price === null || row.price < existing.price))) {
+        map.set(key, row);
+      }
+    }
+    return [...map.values()];
+  })();
+
   // Batch upsert price_listings
-  if (listingRows.length > 0) {
-    log('UPSERT', `Upserting ${listingRows.length} price_listings...`);
-    for (let i = 0; i < listingRows.length; i += UPSERT_BATCH_SIZE) {
-      const batch = listingRows.slice(i, i + UPSERT_BATCH_SIZE);
+  if (dedupedListings.length > 0) {
+    log('UPSERT', `Upserting ${dedupedListings.length} price_listings (deduped from ${listingRows.length})...`);
+    for (let i = 0; i < dedupedListings.length; i += UPSERT_BATCH_SIZE) {
+      const batch = dedupedListings.slice(i, i + UPSERT_BATCH_SIZE);
       const { error } = await supabase
         .from('price_listings')
         .upsert(batch, { onConflict: 'product_id,retailer_id' });
@@ -413,11 +426,21 @@ async function processStoreProducts(
     }
   }
 
+  // Deduplicate product_matches by (product_id, retailer_id)
+  const dedupedMatches = (() => {
+    const map = new Map<string, typeof matchRows[0]>();
+    for (const row of matchRows) {
+      const key = `${row.product_id}::${row.retailer_id}`;
+      if (!map.has(key)) map.set(key, row);
+    }
+    return [...map.values()];
+  })();
+
   // Batch upsert product_matches for pending reviews
-  if (matchRows.length > 0) {
-    log('UPSERT', `Upserting ${matchRows.length} product_matches (pending review)...`);
-    for (let i = 0; i < matchRows.length; i += UPSERT_BATCH_SIZE) {
-      const batch = matchRows.slice(i, i + UPSERT_BATCH_SIZE);
+  if (dedupedMatches.length > 0) {
+    log('UPSERT', `Upserting ${dedupedMatches.length} product_matches (deduped from ${matchRows.length})...`);
+    for (let i = 0; i < dedupedMatches.length; i += UPSERT_BATCH_SIZE) {
+      const batch = dedupedMatches.slice(i, i + UPSERT_BATCH_SIZE);
       const { error } = await supabase
         .from('product_matches')
         .upsert(batch, { onConflict: 'product_id,retailer_id' });
