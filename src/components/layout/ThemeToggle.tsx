@@ -39,48 +39,20 @@ const icons = {
       <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
     </svg>
   ),
-  system: (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="h-5 w-5"
-      aria-hidden="true"
-    >
-      <rect x={2} y={3} width={20} height={14} rx={2} ry={2} />
-      <line x1={8} y1={21} x2={16} y2={21} />
-      <line x1={12} y1={17} x2={12} y2={21} />
-    </svg>
-  ),
 } as const;
-
-const labels = {
-  system: 'System theme',
-  light: 'Light theme',
-  dark: 'Dark theme',
-} as const;
-
-const cycle: Record<string, 'light' | 'dark' | 'system'> = {
-  system: 'light',
-  light: 'dark',
-  dark: 'system',
-};
 
 export default function ThemeToggle() {
   const { theme, setTheme } = useTheme();
 
-  const next = cycle[theme];
+  const next = theme === 'light' ? 'dark' : 'light';
+  const label = theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode';
 
   return (
     <button
       type="button"
       onClick={() => setTheme(next)}
-      aria-label={labels[theme]}
-      title={labels[theme]}
+      aria-label={label}
+      title={label}
       className="rounded-lg p-2 text-surface-500 transition-colors hover:bg-surface-100 hover:text-surface-700 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-surface-200"
     >
       {icons[theme]}

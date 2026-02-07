@@ -1,5 +1,6 @@
 import type { Category, CategoryId, BuildSelection, Product } from '../../types';
 import { useBuild } from '../../context/BuildContext';
+import { useExperienceMode } from '../../context/ExperienceModeContext';
 import PriceDisplay from '../shared/PriceDisplay';
 
 interface CategoryRowProps {
@@ -15,6 +16,7 @@ interface CategoryRowProps {
 
 export default function CategoryRow({ category, selection, onChoose, onViewDetail, isChild = false, childPosition }: CategoryRowProps) {
   const { removeProduct } = useBuild();
+  const { mode } = useExperienceMode();
   const product = selection?.product;
   const price = selection?.custom_price ?? product?.price ?? null;
 
@@ -41,10 +43,13 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
               </div>
             )}
             <div>
-              <span className={`font-bold text-surface-900 dark:text-surface-100 ${isChild ? 'text-sm' : 'text-base'}`}>
+              <span
+                className={`font-bold text-surface-900 dark:text-surface-100 ${isChild ? 'text-sm' : 'text-base'}`}
+                title={mode === 'beginner' ? category.description : undefined}
+              >
                 {category.name}
               </span>
-              {category.description && (
+              {category.description && mode !== 'beginner' && (
                 <span className="block text-[11px] text-surface-500 dark:text-surface-400 font-normal leading-tight">
                   {category.description}
                 </span>
@@ -153,10 +158,13 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
               </div>
             )}
             <div>
-              <span className={`font-bold text-surface-900 dark:text-surface-100 ${isChild ? 'text-sm' : 'text-base'}`}>
+              <span
+                className={`font-bold text-surface-900 dark:text-surface-100 ${isChild ? 'text-sm' : 'text-base'}`}
+                title={mode === 'beginner' ? category.description : undefined}
+              >
                 {category.name}
               </span>
-              {category.description && (
+              {category.description && mode !== 'beginner' && (
                 <span className="block text-[11px] text-surface-500 dark:text-surface-400 font-normal leading-tight">
                   {category.description}
                 </span>

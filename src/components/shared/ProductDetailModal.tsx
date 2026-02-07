@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import type { Product } from '../../types';
 import { CATEGORY_MAP } from '../../lib/categories';
+import { useExperienceMode } from '../../context/ExperienceModeContext';
 import PPIBadge from './PPIBadge';
 import PriceDisplay from './PriceDisplay';
 import WhereToBuy from './WhereToBuy';
@@ -58,6 +59,8 @@ export default function ProductDetailModal({
     if (e.target === backdropRef.current) onClose();
   }
 
+  const { mode } = useExperienceMode();
+
   if (!product) return null;
 
   const category = CATEGORY_MAP.get(product.category_id);
@@ -91,12 +94,19 @@ export default function ProductDetailModal({
                 </>
               )}
             </div>
-            <h2
-              id="product-detail-title"
-              className="mt-1 text-lg font-bold text-surface-50"
-            >
-              {product.name}
-            </h2>
+            <div className="mt-1 flex items-center gap-2">
+              <h2
+                id="product-detail-title"
+                className="text-lg font-bold text-surface-50"
+              >
+                {product.name}
+              </h2>
+              {mode === 'advanced' && product.asr_recommended && (
+                <span className="inline-flex shrink-0 items-center rounded-md bg-green-900/50 px-2 py-0.5 text-xs font-semibold text-green-400 ring-1 ring-green-500/30">
+                  ASR Recommended
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Close button */}
@@ -136,7 +146,7 @@ export default function ProductDetailModal({
           )}
 
           {/* PPI breakdown table */}
-          {categoryHasPpi && product.ppi_score !== null && (
+          {mode !== 'beginner' && categoryHasPpi && product.ppi_score !== null && (
             <div className="rounded-lg border border-surface-700 bg-surface-800">
               <table className="w-full text-sm">
                 <thead>
@@ -171,12 +181,12 @@ export default function ProductDetailModal({
 
           {/* Metadata badges */}
           <div className="flex flex-wrap gap-2">
-            {product.source_domain && (
+            {mode !== 'beginner' && product.source_domain && (
               <span className="inline-flex items-center rounded-full bg-surface-800 px-2.5 py-1 text-xs font-medium text-surface-400">
                 Source: {product.source_domain}
               </span>
             )}
-            {product.rig_type && (
+            {mode !== 'beginner' && product.rig_type && (
               <span className="inline-flex items-center rounded-full bg-surface-800 px-2.5 py-1 text-xs font-medium text-surface-400">
                 Rig: {product.rig_type}
               </span>

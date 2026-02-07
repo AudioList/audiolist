@@ -651,13 +651,13 @@ async function denormalizeLowestPrices(): Promise<number> {
 
   // Fetch all in-stock price_listings (paginated to avoid Supabase 1000-row default limit)
   const PAGE_SIZE = 1000;
-  const listings: { product_id: string; price: number; affiliate_url: string | null; product_url: string | null }[] = [];
+  const listings: { product_id: string; price: number; affiliate_url: string | null; product_url: string | null; image_url: string | null }[] = [];
   let offset = 0;
 
   while (true) {
     const { data, error } = await supabase
       .from("price_listings")
-      .select("product_id, price, affiliate_url, product_url")
+      .select("product_id, price, affiliate_url, product_url, image_url")
       .eq("in_stock", true)
       .order("price", { ascending: true })
       .range(offset, offset + PAGE_SIZE - 1);
@@ -683,7 +683,7 @@ async function denormalizeLowestPrices(): Promise<number> {
   // Group by product_id, keep only the lowest price per product
   const lowestByProduct = new Map<
     string,
-    { price: number; affiliate_url: string | null }
+    { price: number; affiliate_url: string | null; image_url: string | null }
   >();
 
   for (const listing of listings) {
@@ -692,7 +692,16 @@ async function denormalizeLowestPrices(): Promise<number> {
       lowestByProduct.set(listing.product_id, {
         price: listing.price,
         affiliate_url: listing.affiliate_url ?? listing.product_url,
+        image_url: listing.image_url,
       });
+    }
+  }
+
+  // Second pass: fill in missing images from any listing that has one
+  for (const listing of listings) {
+    const existing = lowestByProduct.get(listing.product_id);
+    if (existing && !existing.image_url && listing.image_url) {
+      existing.image_url = listing.image_url;
     }
   }
 
@@ -709,9 +718,16 @@ async function denormalizeLowestPrices(): Promise<number> {
     try {
       let batchSuccess = 0;
       for (const [productId, info] of batch) {
+        const updatePayload: { price: number; affiliate_url: string | null; image_url?: string } = {
+          price: info.price,
+          affiliate_url: info.affiliate_url,
+        };
+        if (info.image_url) {
+          updatePayload.image_url = info.image_url;
+        }
         const { error: updateError } = await supabase
           .from("products")
-          .update({ price: info.price, affiliate_url: info.affiliate_url })
+          .update(updatePayload)
           .eq("id", productId);
 
         if (updateError) {

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import ThemeToggle from './ThemeToggle';
+import ExperienceModeToggle from './ExperienceModeToggle';
 
 const navLinks = [
   { to: '/', label: 'Builder' },
@@ -46,6 +47,9 @@ export default function Header() {
 
         {/* Right section */}
         <div className="flex items-center gap-2">
+          <div className="hidden sm:block">
+            <ExperienceModeToggle />
+          </div>
           <ThemeToggle />
 
           {/* Mobile hamburger */}
@@ -105,6 +109,9 @@ export default function Header() {
                 {link.label}
               </NavLink>
             ))}
+          </div>
+          <div className="mt-2 flex justify-center sm:hidden">
+            <ExperienceModeToggle />
           </div>
         </nav>
       )}

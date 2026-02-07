@@ -1,5 +1,6 @@
 import type { Product } from '../../types';
 import { isSpinormaCategory, sinadToScore } from '../../lib/categories';
+import { useExperienceMode } from '../../context/ExperienceModeContext';
 import PPIBadge from '../shared/PPIBadge';
 import PriceDisplay from '../shared/PriceDisplay';
 
@@ -20,6 +21,8 @@ export default function ProductCard({
   showPPI = false,
   showSinad = false,
 }: ProductCardProps) {
+  const { mode } = useExperienceMode();
+
   return (
     <div
       className={`group relative flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-all ${
@@ -70,15 +73,23 @@ export default function ProductCard({
               HQ
             </span>
           )}
-          {product.rig_type && (
+          {mode !== 'beginner' && product.rig_type && (
             <span className="inline-flex shrink-0 items-center rounded-md bg-surface-700 px-1.5 py-0.5 text-[10px] font-semibold text-surface-300 ring-1 ring-surface-600">
               {product.rig_type}
+            </span>
+          )}
+          {mode === 'advanced' && product.asr_recommended && (
+            <span className="inline-flex shrink-0 items-center rounded-md bg-green-900/50 px-1.5 py-0.5 text-[10px] font-semibold text-green-400 ring-1 ring-green-500/30">
+              ASR
             </span>
           )}
         </div>
         {product.brand && (
           <div className="mt-0.5 text-xs text-surface-400">
             <span className="truncate">{product.brand}</span>
+            {mode === 'advanced' && product.source_domain && (
+              <span className="ml-1.5 text-surface-500">({product.source_domain})</span>
+            )}
           </div>
         )}
       </div>
@@ -94,7 +105,9 @@ export default function ProductCard({
       {showSinad && product.sinad_db !== null && (
         <div className="shrink-0 flex items-center gap-1.5">
           <PPIBadge score={sinadToScore(product.sinad_db)} size="sm" label="SINAD" />
-          <span className="text-[10px] font-medium text-surface-400">{product.sinad_db} dB</span>
+          {mode !== 'beginner' && (
+            <span className="text-[10px] font-medium text-surface-400">{product.sinad_db} dB</span>
+          )}
         </div>
       )}
 

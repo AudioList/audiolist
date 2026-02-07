@@ -1,4 +1,5 @@
 import type { ProductSort, SortField } from '../../types';
+import { useExperienceMode } from '../../context/ExperienceModeContext';
 
 interface SortControlsProps {
   sort: ProductSort;
@@ -50,12 +51,13 @@ interface SortOption {
 }
 
 export default function SortControls({ sort, onChange, showPPI = false, showSinad = false, scoreLabel }: SortControlsProps) {
+  const { mode } = useExperienceMode();
   const options: SortOption[] = [];
 
-  if (showPPI) {
+  if (mode !== 'beginner' && showPPI) {
     options.push({ field: 'ppi_score', label: scoreLabel ?? 'PPI Score' });
   }
-  if (showSinad) {
+  if (mode !== 'beginner' && showSinad) {
     options.push({ field: 'sinad_db', label: 'SINAD' });
   }
   options.push({ field: 'price', label: 'Price' });

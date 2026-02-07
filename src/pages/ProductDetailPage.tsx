@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { CATEGORY_MAP, getScoreLabel, isSpinormaCategory, isSinadCategory, sinadToScore, isAmpCategory, AMP_LOAD_IMPEDANCES, formatPowerMw } from '../lib/categories';
 import type { AmpLoadOhms } from '../lib/categories';
 import { useBuild } from '../context/BuildContext';
+import { useExperienceMode } from '../context/ExperienceModeContext';
 import PPIBadge from '../components/shared/PPIBadge';
 import PriceDisplay from '../components/shared/PriceDisplay';
 import WhereToBuy from '../components/shared/WhereToBuy';
@@ -13,6 +14,7 @@ export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { setProduct } = useBuild();
+  const { mode } = useExperienceMode();
 
   const [product, setProductData] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
@@ -176,8 +178,8 @@ export default function ProductDetailPage() {
             </div>
           )}
 
-          {/* Spinorama breakdown table (speakers) */}
-          {category?.has_ppi && product.ppi_score !== null && isSpinormaCategory(product.category_id) && (
+          {/* Spinorama breakdown table (speakers, hidden in beginner mode) */}
+          {mode !== 'beginner' && category?.has_ppi && product.ppi_score !== null && isSpinormaCategory(product.category_id) && (
             <div className="rounded-lg border border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-800">
               <table className="w-full text-sm">
                 <thead>
@@ -234,8 +236,8 @@ export default function ProductDetailPage() {
             </div>
           )}
 
-          {/* PPI breakdown table (IEM/headphone) */}
-          {category?.has_ppi && product.ppi_score !== null && !isSpinormaCategory(product.category_id) && (
+          {/* PPI breakdown table (IEM/headphone, hidden in beginner mode) */}
+          {mode !== 'beginner' && category?.has_ppi && product.ppi_score !== null && !isSpinormaCategory(product.category_id) && (
             <div className="rounded-lg border border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-800">
               <table className="w-full text-sm">
                 <thead>
@@ -286,8 +288,8 @@ export default function ProductDetailPage() {
             </div>
           )}
 
-          {/* SINAD breakdown table (DAC/Amp) */}
-          {isSinadCategory(product.category_id) && product.sinad_db !== null && (
+          {/* SINAD breakdown table (DAC/Amp, hidden in beginner mode) */}
+          {mode !== 'beginner' && isSinadCategory(product.category_id) && product.sinad_db !== null && (
             <div className="rounded-lg border border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-800">
               <table className="w-full text-sm">
                 <thead>
@@ -360,8 +362,8 @@ export default function ProductDetailPage() {
             </div>
           )}
 
-          {/* Output Power section (Amps only) */}
-          {isAmpCategory(product.category_id) && (() => {
+          {/* Output Power section (Amps only, hidden in beginner mode) */}
+          {mode !== 'beginner' && isAmpCategory(product.category_id) && (() => {
             const powerData: { ohms: AmpLoadOhms; mw: number | null }[] = AMP_LOAD_IMPEDANCES.map((ohms) => ({
               ohms,
               mw: product[`power_${ohms}ohm_mw` as keyof typeof product] as number | null,
@@ -482,17 +484,17 @@ export default function ProductDetailPage() {
 
           {/* Additional info */}
           <div className="flex flex-wrap gap-3">
-            {product.source_domain && (
+            {mode !== 'beginner' && product.source_domain && (
               <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" title="Measurement data source">
                 Source: {product.source_domain}
               </span>
             )}
-            {product.rig_type && (
+            {mode !== 'beginner' && product.rig_type && (
               <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" title="Measurement rig used for testing — 5128 is the newer, more accurate standard">
                 Rig: {product.rig_type}
               </span>
             )}
-            {product.speaker_type && (
+            {mode !== 'beginner' && product.speaker_type && (
               <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
                 Type: {product.speaker_type}
               </span>
@@ -500,6 +502,11 @@ export default function ProductDetailPage() {
             {product.quality && (
               <span className="inline-flex items-center rounded-full bg-primary-100 px-2.5 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-900/30 dark:text-primary-400">
                 {product.quality}
+              </span>
+            )}
+            {mode === 'advanced' && product.asr_recommended && (
+              <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                ASR Recommended
               </span>
             )}
           </div>

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { CategoryId, ProductFilters, ProductSort, Product } from '../../types';
 import { useProducts, useProductBrands, useRetailers, useSpeakerTypes } from '../../hooks/useProducts';
 import { useBuild } from '../../context/BuildContext';
+import { useExperienceMode } from '../../context/ExperienceModeContext';
 import { CATEGORY_MAP, isSinadCategory } from '../../lib/categories';
 import SearchBar from './SearchBar';
 import SortControls from './SortControls';
@@ -32,6 +33,7 @@ const emptyFilters: ProductFilters = {
 };
 
 export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetail }: ProductPickerProps) {
+  const { mode } = useExperienceMode();
   const category = CATEGORY_MAP.get(categoryId);
   const showPPI = category?.has_ppi ?? false;
 
@@ -65,6 +67,13 @@ export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetai
       });
     }
   }, [isOpen, showPPI, showSinad]);
+
+  // Reset sort when beginner mode hides score-based sort options
+  useEffect(() => {
+    if (mode === 'beginner' && (sort.field === 'ppi_score' || sort.field === 'sinad_db')) {
+      setSort({ field: 'price', direction: 'desc' });
+    }
+  }, [mode, sort.field]);
 
   // ESC key handler
   useEffect(() => {

@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { ProductFilters, CategoryId } from '../../types';
 import { isSpinormaCategory, isSinadCategory } from '../../lib/categories';
+import { useExperienceMode } from '../../context/ExperienceModeContext';
 
 interface FilterSidebarProps {
   filters: ProductFilters;
@@ -25,9 +26,15 @@ export default function FilterSidebar({
   retailers,
   speakerTypes = [],
 }: FilterSidebarProps) {
+  const { mode } = useExperienceMode();
   const [expanded, setExpanded] = useState(false);
   const [brandSearch, setBrandSearch] = useState('');
-  const [measurementOpen, setMeasurementOpen] = useState(false);
+  const [measurementOpen, setMeasurementOpen] = useState(mode === 'advanced');
+
+  // Sync measurement section expand state when mode changes
+  useEffect(() => {
+    if (mode === 'advanced') setMeasurementOpen(true);
+  }, [mode]);
 
   const showPPI = hasPPI(category);
   const visibleBrands = brandSearch
@@ -165,8 +172,8 @@ export default function FilterSidebar({
         </div>
       </div>
 
-      {/* Measurement Filters — collapsible, collapsed by default */}
-      {showPPI && (
+      {/* Measurement Filters — collapsible, collapsed by default, hidden in beginner mode */}
+      {mode !== 'beginner' && showPPI && (
         <div>
           <button
             type="button"
@@ -261,8 +268,8 @@ export default function FilterSidebar({
         </div>
       )}
 
-      {/* SINAD Filter (DAC/Amp only) */}
-      {showSinad && (
+      {/* SINAD Filter (DAC/Amp only, hidden in beginner mode) */}
+      {mode !== 'beginner' && showSinad && (
         <div>
           <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-surface-400">
             SINAD Range (dB)

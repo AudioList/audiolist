@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { CategoryId, ProductFilters, ProductSort, Product } from '../types';
 import { CATEGORIES, CATEGORY_MAP, getScoreLabel, isSpinormaCategory, isSinadCategory, sinadToScore } from '../lib/categories';
+import { useExperienceMode } from '../context/ExperienceModeContext';
 import { useProducts, useProductBrands, useRetailers, useSpeakerTypes } from '../hooks/useProducts';
 import SearchBar from '../components/products/SearchBar';
 import SortControls from '../components/products/SortControls';
@@ -13,6 +14,7 @@ const DEFAULT_CATEGORY: CategoryId = 'iem';
 export default function ProductListPage() {
   const { category: categoryParam } = useParams<{ category: string }>();
   const navigate = useNavigate();
+  const { mode } = useExperienceMode();
 
   const categoryId = (
     CATEGORY_MAP.has(categoryParam as CategoryId)
@@ -42,6 +44,13 @@ export default function ProductListPage() {
     field: category.has_ppi ? 'ppi_score' : isSinadCategory(categoryId) ? 'sinad_db' : 'price',
     direction: 'desc',
   });
+
+  // Reset sort when beginner mode hides score-based sort options
+  useEffect(() => {
+    if (mode === 'beginner' && (sort.field === 'ppi_score' || sort.field === 'sinad_db')) {
+      setSort({ field: 'price', direction: 'desc' });
+    }
+  }, [mode, sort.field]);
 
   const hookOptions = useMemo(
     () => ({ category: categoryId, filters, sort }),
@@ -208,8 +217,8 @@ export default function ProductListPage() {
               </div>
             </div>
 
-            {/* PPI range (only for categories with PPI) */}
-            {category.has_ppi && (
+            {/* PPI range (only for categories with PPI, hidden in beginner mode) */}
+            {mode !== 'beginner' && category.has_ppi && (
               <div className="mt-4 space-y-2">
                 <label className="block text-xs font-semibold text-surface-700 dark:text-surface-300">
                   {getScoreLabel(categoryId)} Range
@@ -244,8 +253,8 @@ export default function ProductListPage() {
               </div>
             )}
 
-            {/* SINAD range (only for DAC/Amp categories) */}
-            {isSinadCategory(categoryId) && (
+            {/* SINAD range (only for DAC/Amp categories, hidden in beginner mode) */}
+            {mode !== 'beginner' && isSinadCategory(categoryId) && (
               <div className="mt-4 space-y-2">
                 <label className="block text-xs font-semibold text-surface-700 dark:text-surface-300">
                   SINAD Range (dB)
@@ -438,6 +447,8 @@ export default function ProductListPage() {
 /* ----- ProductCard (local component) ----- */
 
 function ProductCard({ product, showPPI, showSinad = false }: { product: Product; showPPI: boolean; showSinad?: boolean }) {
+  const { mode } = useExperienceMode();
+
   return (
     <Link
       to={`/product/${product.id}`}
@@ -464,6 +475,9 @@ function ProductCard({ product, showPPI, showSinad = false }: { product: Product
       {product.brand && (
         <span className="text-xs font-semibold uppercase tracking-wide text-surface-600 dark:text-surface-300">
           {product.brand}
+          {mode === 'advanced' && product.source_domain && (
+            <span className="ml-1.5 font-normal normal-case text-surface-400">({product.source_domain})</span>
+          )}
         </span>
       )}
 
@@ -479,7 +493,9 @@ function ProductCard({ product, showPPI, showSinad = false }: { product: Product
           {showSinad && product.sinad_db !== null && (
             <span className="inline-flex items-center gap-1.5">
               <PPIBadge score={sinadToScore(product.sinad_db)} size="sm" label="SINAD" />
-              <span className="text-xs font-medium text-surface-500 dark:text-surface-400">{product.sinad_db} dB</span>
+              {mode !== 'beginner' && (
+                <span className="text-xs font-medium text-surface-500 dark:text-surface-400">{product.sinad_db} dB</span>
+              )}
             </span>
           )}
         </div>

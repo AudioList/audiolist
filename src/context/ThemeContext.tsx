@@ -1,35 +1,24 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
 
-type Theme = 'light' | 'dark' | 'system';
+type Theme = 'light' | 'dark';
 
 interface ThemeContextValue {
   theme: Theme;
-  resolved: 'light' | 'dark';
   setTheme: (theme: Theme) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-function getSystemTheme(): 'light' | 'dark' {
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-}
-
-function resolveTheme(theme: Theme): 'light' | 'dark' {
-  return theme === 'system' ? getSystemTheme() : theme;
-}
-
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(() => {
     const stored = localStorage.getItem('theme');
-    if (stored === 'light' || stored === 'dark') return stored;
-    return 'system';
+    if (stored === 'dark') return 'dark';
+    return 'light';
   });
-
-  const [resolved, setResolved] = useState<'light' | 'dark'>(() => resolveTheme(theme));
 
   const setTheme = useCallback((newTheme: Theme) => {
     setThemeState(newTheme);
-    if (newTheme === 'system') {
+    if (newTheme === 'light') {
       localStorage.removeItem('theme');
     } else {
       localStorage.setItem('theme', newTheme);
@@ -37,26 +26,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const r = resolveTheme(theme);
-    setResolved(r);
-    document.documentElement.classList.toggle('dark', r === 'dark');
-  }, [theme]);
-
-  useEffect(() => {
-    if (theme !== 'system') return;
-
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = () => {
-      const r = getSystemTheme();
-      setResolved(r);
-      document.documentElement.classList.toggle('dark', r === 'dark');
-    };
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
+    document.documentElement.classList.toggle('dark', theme === 'dark');
   }, [theme]);
 
   return (
-    <ThemeContext.Provider value={{ theme, resolved, setTheme }}>
+    <ThemeContext.Provider value={{ theme, setTheme }}>
       {children}
     </ThemeContext.Provider>
   );
