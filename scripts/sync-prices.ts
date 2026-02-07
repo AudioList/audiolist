@@ -31,6 +31,7 @@ import {
 import { searchBestBuy } from "./scrapers/bestbuy.ts";
 import { searchAmazon, closeBrowser as closeAmazonBrowser } from "./scrapers/amazon.ts";
 import { findBestMatch, MATCH_THRESHOLDS } from "./scrapers/matcher.ts";
+import { STORE_COLLECTIONS } from "./config/store-collections.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -228,6 +229,60 @@ async function fetchShopifyCatalogs(
 }
 
 // ---------------------------------------------------------------------------
+// Cross-category guard: build handle-to-category lookup per retailer
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a mapping of (retailer_id -> (external_id/handle -> category_id))
+ * from the store_products table. This allows us to verify that a Shopify match
+ * is in the same category as the canonical product before creating a listing.
+ */
+async function loadStoreProductCategories(
+  retailerIds: string[]
+): Promise<Map<string, Map<string, string>>> {
+  const supabase = getSupabase();
+  const result = new Map<string, Map<string, string>>();
+
+  for (const rId of retailerIds) {
+    result.set(rId, new Map());
+  }
+
+  let offset = 0;
+  const PAGE_SIZE = 1000;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('store_products')
+      .select('retailer_id, external_id, category_id')
+      .in('retailer_id', retailerIds)
+      .not('category_id', 'is', null)
+      .range(offset, offset + PAGE_SIZE - 1);
+
+    if (error) {
+      logError('GUARD', 'Failed to load store_product categories', error);
+      break;
+    }
+
+    if (!data || data.length === 0) break;
+
+    for (const row of data as { retailer_id: string; external_id: string; category_id: string }[]) {
+      const rMap = result.get(row.retailer_id);
+      if (rMap) rMap.set(row.external_id, row.category_id);
+    }
+
+    offset += PAGE_SIZE;
+    if (data.length < PAGE_SIZE) break;
+  }
+
+  log('GUARD', `Loaded store_product category mappings for ${retailerIds.length} retailer(s)`);
+  for (const [rId, map] of result) {
+    if (map.size > 0) log('GUARD', `  ${rId}: ${map.size} handle->category entries`);
+  }
+
+  return result;
+}
+
+// ---------------------------------------------------------------------------
 // Phase B: Match products
 // ---------------------------------------------------------------------------
 
@@ -273,7 +328,8 @@ async function matchProducts(
   products: Product[],
   retailers: Retailer[],
   shopifyCatalogs: Map<string, ShopifyProduct[]>,
-  bestBuyApiKey: string | undefined
+  bestBuyApiKey: string | undefined,
+  storeProductCategories: Map<string, Map<string, string>>
 ): Promise<{
   matchRows: Record<string, unknown>[];
   listingRows: Record<string, unknown>[];
@@ -360,6 +416,18 @@ async function matchProducts(
         if (!match || match.score < MATCH_THRESHOLDS.PENDING_REVIEW) {
           rStats.skipped++;
           continue;
+        }
+
+        // Cross-category guard: verify the matched Shopify product's category
+        // matches the canonical product's category before creating any match/listing.
+        if (product.category_id) {
+          const handleCategoryMap = storeProductCategories.get(retailer.id);
+          const matchedCategory = handleCategoryMap?.get(match.id);
+          if (matchedCategory && matchedCategory !== product.category_id) {
+            log('GUARD', `Cross-category match skipped: "${product.name}" (${product.category_id}) -> "${match.name}" (${matchedCategory}) @ ${retailer.name} (score=${match.score.toFixed(3)})`);
+            rStats.skipped++;
+            continue;
+          }
         }
 
         const isAutoApprove = match.score >= MATCH_THRESHOLDS.AUTO_APPROVE;
@@ -818,13 +886,22 @@ async function main(): Promise<void> {
     shopifyCatalogs = await fetchShopifyCatalogs(retailers);
   }
 
+  // Load store_product category mappings for cross-category guard
+  const shopifyRetailerIds = retailers
+    .filter((r) => r.api_type === "shopify")
+    .map((r) => r.id);
+  const storeProductCategories = shopifyRetailerIds.length > 0
+    ? await loadStoreProductCategories(shopifyRetailerIds)
+    : new Map<string, Map<string, string>>();
+
   // Phase B: Match products
   console.log("\n--- Phase B: Match Products ---\n");
   const { matchRows, listingRows, stats } = await matchProducts(
     products,
     retailers,
     shopifyCatalogs,
-    bestBuyApiKey
+    bestBuyApiKey,
+    storeProductCategories
   );
 
   // Phase C: Upsert matches and price_listings

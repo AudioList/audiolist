@@ -10,6 +10,8 @@ interface FilterSidebarProps {
   brands: string[];
   retailers: { id: string; name: string }[];
   speakerTypes?: { value: string; label: string; count: number }[];
+  headphoneDesigns?: { value: string; label: string; count: number }[];
+  iemTypes?: { value: string; label: string; count: number }[];
 }
 
 const BRAND_SEARCH_MIN = 10; // Show search box when there are this many brands
@@ -25,6 +27,8 @@ export default function FilterSidebar({
   brands,
   retailers,
   speakerTypes = [],
+  headphoneDesigns = [],
+  iemTypes = [],
 }: FilterSidebarProps) {
   const { mode } = useExperienceMode();
   const [expanded, setExpanded] = useState(false);
@@ -60,6 +64,8 @@ export default function FilterSidebar({
       speakerTypes: [],
       sinadMin: null,
       sinadMax: null,
+      headphoneDesigns: [],
+      iemTypes: [],
     });
   }
 
@@ -84,12 +90,28 @@ export default function FilterSidebar({
     update({ speakerTypes: next });
   }
 
+  function toggleHeadphoneDesign(design: string) {
+    const next = filters.headphoneDesigns.includes(design)
+      ? filters.headphoneDesigns.filter((d) => d !== design)
+      : [...filters.headphoneDesigns, design];
+    update({ headphoneDesigns: next });
+  }
+
+  function toggleIemType(type: string) {
+    const next = filters.iemTypes.includes(type)
+      ? filters.iemTypes.filter((t) => t !== type)
+      : [...filters.iemTypes, type];
+    update({ iemTypes: next });
+  }
+
   const showSinad = isSinadCategory(category);
 
   const hasActiveFilters =
     filters.brands.length > 0 ||
     filters.retailers.length > 0 ||
     filters.speakerTypes.length > 0 ||
+    filters.headphoneDesigns.length > 0 ||
+    filters.iemTypes.length > 0 ||
     filters.priceMin !== null ||
     filters.priceMax !== null ||
     filters.ppiMin !== null ||
@@ -136,6 +158,64 @@ export default function FilterSidebar({
                 />
                 <span className="truncate">{st.label}</span>
                 <span className="ml-auto text-xs text-surface-500">{st.count}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Headphone Design (headphone/IEM only) */}
+      {headphoneDesigns.length > 0 && (
+        <div>
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-surface-400">
+            Design
+            {filters.headphoneDesigns.length > 0 && (
+              <span className="ml-1.5 text-primary-400">({filters.headphoneDesigns.length})</span>
+            )}
+          </h4>
+          <div className="space-y-1">
+            {headphoneDesigns.map((hd) => (
+              <label
+                key={hd.value}
+                className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-200 hover:bg-surface-700"
+              >
+                <input
+                  type="checkbox"
+                  checked={filters.headphoneDesigns.includes(hd.value)}
+                  onChange={() => toggleHeadphoneDesign(hd.value)}
+                  className="h-3.5 w-3.5 rounded border-surface-500 bg-surface-700 text-primary-500 focus:ring-primary-500/40 focus:ring-offset-0"
+                />
+                <span className="truncate">{hd.label}</span>
+                <span className="ml-auto text-xs text-surface-500">{hd.count}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* IEM Type (IEM category only) */}
+      {iemTypes.length > 0 && (
+        <div>
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-surface-400">
+            IEM Type
+            {filters.iemTypes.length > 0 && (
+              <span className="ml-1.5 text-primary-400">({filters.iemTypes.length})</span>
+            )}
+          </h4>
+          <div className="space-y-1">
+            {iemTypes.map((it) => (
+              <label
+                key={it.value}
+                className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-200 hover:bg-surface-700"
+              >
+                <input
+                  type="checkbox"
+                  checked={filters.iemTypes.includes(it.value)}
+                  onChange={() => toggleIemType(it.value)}
+                  className="h-3.5 w-3.5 rounded border-surface-500 bg-surface-700 text-primary-500 focus:ring-primary-500/40 focus:ring-offset-0"
+                />
+                <span className="truncate">{it.label}</span>
+                <span className="ml-auto text-xs text-surface-500">{it.count}</span>
               </label>
             ))}
           </div>

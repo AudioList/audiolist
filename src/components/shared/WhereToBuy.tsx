@@ -1,7 +1,9 @@
 import { usePriceListings } from '../../hooks/usePriceListings';
+import RetailerTrustInfo from './RetailerTrustInfo';
 
 interface WhereToBuyProps {
   productId: string;
+  discontinued?: boolean;
 }
 
 function formatPrice(price: number, currency: string): string {
@@ -31,7 +33,7 @@ function relativeTime(dateString: string): string {
   return 'just now';
 }
 
-export default function WhereToBuy({ productId }: WhereToBuyProps) {
+export default function WhereToBuy({ productId, discontinued }: WhereToBuyProps) {
   const { listings, loading, error } = usePriceListings(productId);
 
   // Find the most recent last_checked across all listings
@@ -118,7 +120,10 @@ export default function WhereToBuy({ productId }: WhereToBuyProps) {
                         className="border-b border-surface-100 last:border-b-0 dark:border-surface-800"
                       >
                         <td className="py-3 pr-4 font-semibold text-surface-900 dark:text-surface-100">
-                          {listing.retailer?.name ?? 'Unknown'}
+                          <span className="inline-flex items-center gap-1">
+                            {listing.retailer?.name ?? 'Unknown'}
+                            {listing.retailer && <RetailerTrustInfo retailer={listing.retailer} />}
+                          </span>
                         </td>
                         <td className="py-3 pr-4 font-mono text-surface-900 dark:text-surface-100">
                           {formatPrice(listing.price, listing.currency)}
@@ -127,6 +132,10 @@ export default function WhereToBuy({ productId }: WhereToBuyProps) {
                           {listing.in_stock ? (
                             <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
                               In Stock
+                            </span>
+                          ) : discontinued ? (
+                            <span className="inline-flex items-center rounded-full bg-surface-200 px-2 py-0.5 text-xs font-medium text-surface-600 dark:bg-surface-700 dark:text-surface-400">
+                              Discontinued
                             </span>
                           ) : (
                             <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400">

@@ -5,11 +5,13 @@ import { supabase } from '../lib/supabase';
 import { CATEGORY_MAP } from '../lib/categories';
 import PPIBadge from '../components/shared/PPIBadge';
 import PriceDisplay from '../components/shared/PriceDisplay';
+import CloneBuildButton from '../components/shared/CloneBuildButton';
 
 interface SharedBuild {
   id: string;
   share_code: string;
   name: string;
+  description: string;
   items: BuildItem[];
 }
 
@@ -30,7 +32,7 @@ export default function SharedBuildPage() {
         // Fetch build by share_code
         const { data: buildData, error: buildError } = await supabase
           .from('builds')
-          .select('id, share_code, name')
+          .select('id, share_code, name, description')
           .eq('share_code', shareCode)
           .single();
 
@@ -65,6 +67,7 @@ export default function SharedBuildPage() {
           id: buildData.id,
           share_code: buildData.share_code,
           name: buildData.name,
+          description: buildData.description ?? '',
           items,
         });
       } catch (err) {
@@ -123,6 +126,11 @@ export default function SharedBuildPage() {
         <h1 className="text-2xl font-bold text-surface-900 dark:text-surface-50">
           {build.name}
         </h1>
+        {build.description && (
+          <p className="mt-1 text-sm text-surface-600 dark:text-surface-300">
+            {build.description}
+          </p>
+        )}
         <p className="mt-1 text-sm text-surface-500 dark:text-surface-400">
           Shared build &mdash; {build.items.length}{' '}
           {build.items.length === 1 ? 'component' : 'components'}
@@ -243,13 +251,14 @@ export default function SharedBuildPage() {
         </div>
       </div>
 
-      {/* CTA */}
-      <div className="text-center">
+      {/* Clone + CTA */}
+      <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+        <CloneBuildButton items={build.items} buildName={build.name} />
         <Link
           to="/"
-          className="inline-block rounded-lg bg-primary-600 px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-500"
+          className="inline-block rounded-lg border border-surface-300 bg-white px-6 py-2.5 text-sm font-medium text-surface-700 transition-colors hover:bg-surface-100 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-300 dark:hover:bg-surface-700"
         >
-          Create Your Own Build
+          Create From Scratch
         </Link>
       </div>
     </div>

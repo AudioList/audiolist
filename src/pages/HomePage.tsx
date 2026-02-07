@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { nanoid } from 'nanoid';
 import type { CategoryId, TargetType, Product } from '../types';
 import { useBuild } from '../context/BuildContext';
@@ -9,9 +10,13 @@ import ProductPicker from '../components/products/ProductPicker';
 import ProductDetailModal from '../components/shared/ProductDetailModal';
 import ShareButton from '../components/shared/ShareButton';
 import AdvancedSettings from '../components/builder/AdvancedSettings';
+import SignalChainVisualizer from '../components/builder/SignalChainVisualizer';
+import StarterBuildCards from '../components/builder/StarterBuildCards';
+import { useExperienceMode } from '../context/ExperienceModeContext';
 
 export default function HomePage() {
-  const { items, itemCount, clearBuild } = useBuild();
+  const { items, itemCount, clearBuild, name, description, setName, setDescription } = useBuild();
+  const { mode } = useExperienceMode();
   const [pickerCategory, setPickerCategory] = useState<CategoryId | null>(null);
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const [targetType, setTargetType] = useState<TargetType>('df');
@@ -39,14 +44,19 @@ export default function HomePage() {
     setPickerCategory(categoryId);
   }, [detailProduct]);
 
-  const handleShare = useCallback(async (): Promise<string> => {
+  const handleShare = useCallback(async (opts?: { isPublic?: boolean; authorName?: string }): Promise<string> => {
     const shareCode = nanoid(8);
-    const buildName = 'My Audio Build';
 
     // Insert the build record
     const { data: build, error: buildError } = await supabase
       .from('builds')
-      .insert({ share_code: shareCode, name: buildName })
+      .insert({
+        share_code: shareCode,
+        name,
+        description,
+        is_public: opts?.isPublic ?? false,
+        author_name: opts?.authorName ?? null,
+      })
       .select('id')
       .single();
 
@@ -74,23 +84,33 @@ export default function HomePage() {
     }
 
     return `${window.location.origin}/build/${shareCode}`;
-  }, [items]);
+  }, [items, name, description]);
 
   return (
     <div className="space-y-6">
       {/* Header section */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-extrabold text-surface-900 dark:text-surface-50">
-            Build Your Audio Setup
-          </h1>
-          <p className="mt-1 text-sm text-surface-600 dark:text-surface-300">
-            Pick components, compare prices, and share your build.
-          </p>
+        <div className="min-w-0 flex-1">
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Name your build..."
+            className="w-full border-b-2 border-transparent bg-transparent text-3xl font-extrabold text-surface-900 outline-none transition-colors placeholder:text-surface-300 hover:border-surface-200 focus:border-primary-500 dark:text-surface-50 dark:placeholder:text-surface-600 dark:hover:border-surface-700 dark:focus:border-primary-400"
+            aria-label="Build name"
+          />
+          <input
+            type="text"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Add a description for your build..."
+            className="mt-1 w-full border-b border-transparent bg-transparent text-sm text-surface-600 outline-none transition-colors placeholder:text-surface-400 hover:border-surface-200 focus:border-primary-400 dark:text-surface-300 dark:placeholder:text-surface-500 dark:hover:border-surface-700 dark:focus:border-primary-500"
+            aria-label="Build description"
+          />
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Share button — always visible so users know the feature exists */}
+        <div className="flex flex-shrink-0 flex-wrap items-center gap-3">
+          {/* Share button -- always visible so users know the feature exists */}
           <ShareButton onShare={handleShare} disabled={itemCount === 0} />
 
           {/* Clear build */}
@@ -105,6 +125,34 @@ export default function HomePage() {
           )}
         </div>
       </div>
+
+      {/* Quiz CTA + Starter builds (shown when build is empty) */}
+      {itemCount === 0 && (
+        <>
+          <div className="flex items-center justify-center gap-3 rounded-xl border border-primary-200 bg-primary-50 px-5 py-4 dark:border-primary-800 dark:bg-primary-900/10">
+            <div className="text-center">
+              <p className="text-sm font-semibold text-primary-800 dark:text-primary-300">
+                New to audio? Take our 1-minute setup quiz.
+              </p>
+              <p className="mt-0.5 text-xs text-primary-600 dark:text-primary-400">
+                We will recommend the perfect build for your budget and listening style.
+              </p>
+            </div>
+            <Link
+              to="/quiz"
+              className="shrink-0 rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-500"
+            >
+              Take the Quiz
+            </Link>
+          </div>
+          <StarterBuildCards />
+        </>
+      )}
+
+      {/* Signal chain visualizer (beginner/default only) */}
+      {mode !== 'advanced' && itemCount > 0 && (
+        <SignalChainVisualizer items={items} />
+      )}
 
       {/* Builder table */}
       <BuilderTable onChooseProduct={handleChooseProduct} onViewDetail={handleViewDetail} />

@@ -1,15 +1,73 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { CategoryId, ProductFilters, ProductSort, Product } from '../types';
 import { CATEGORIES, CATEGORY_MAP, getScoreLabel, isSpinormaCategory, isSinadCategory, sinadToScore } from '../lib/categories';
 import { useExperienceMode } from '../context/ExperienceModeContext';
-import { useProducts, useProductBrands, useRetailers, useSpeakerTypes } from '../hooks/useProducts';
+import { useProducts, useProductBrands, useRetailers, useSpeakerTypes, useHeadphoneDesigns, useIemTypes } from '../hooks/useProducts';
 import SearchBar from '../components/products/SearchBar';
 import SortControls from '../components/products/SortControls';
 import PPIBadge from '../components/shared/PPIBadge';
 import PriceDisplay from '../components/shared/PriceDisplay';
+import BestValueBadge from '../components/shared/BestValueBadge';
 
 const DEFAULT_CATEGORY: CategoryId = 'iem';
+
+const SESSION_KEY = 'audiolist_product_list_state';
+
+function getDefaultFilters(): ProductFilters {
+  return {
+    search: '',
+    brands: [],
+    priceMin: null,
+    priceMax: null,
+    ppiMin: null,
+    ppiMax: null,
+    quality: null,
+    rigType: null,
+    retailers: [],
+    hideOutOfStock: false,
+    speakerTypes: [],
+    sinadMin: null,
+    sinadMax: null,
+    headphoneDesigns: [],
+    iemTypes: [],
+  };
+}
+
+function getDefaultSort(catId: CategoryId): ProductSort {
+  const cat = CATEGORY_MAP.get(catId);
+  return {
+    field: cat?.has_ppi ? 'ppi_score' : isSinadCategory(catId) ? 'sinad_db' : 'price',
+    direction: 'desc',
+  };
+}
+
+/** Save filters/sort/scroll for a category so they survive navigation to product detail. */
+function saveListState(catId: CategoryId, filters: ProductFilters, sort: ProductSort, scrollY: number) {
+  try {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ catId, filters, sort, scrollY }));
+  } catch { /* quota exceeded or private mode -- ignore */ }
+}
+
+/** Restore saved state, only if it matches the current category. */
+function loadListState(catId: CategoryId): { filters: ProductFilters; sort: ProductSort; scrollY: number } | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const state = JSON.parse(raw);
+    if (state.catId !== catId) return null;
+    // Merge with defaults so newly-added filter fields don't crash the page
+    if (state.filters) {
+      state.filters = { ...getDefaultFilters(), ...state.filters };
+    }
+    return state;
+  } catch { /* corrupt JSON -- ignore */ }
+  return null;
+}
+
+function clearListState() {
+  try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
+}
 
 export default function ProductListPage() {
   const { category: categoryParam } = useParams<{ category: string }>();
@@ -24,33 +82,51 @@ export default function ProductListPage() {
 
   const category = CATEGORY_MAP.get(categoryId)!;
 
-  const [filters, setFilters] = useState<ProductFilters>({
-    search: '',
-    brands: [],
-    priceMin: null,
-    priceMax: null,
-    ppiMin: null,
-    ppiMax: null,
-    quality: null,
-    rigType: null,
-    retailers: [],
-    hideOutOfStock: false,
-    speakerTypes: [],
-    sinadMin: null,
-    sinadMax: null,
-  });
+  // On mount, try to restore saved state for this category
+  const savedState = useRef(loadListState(categoryId));
 
-  const [sort, setSort] = useState<ProductSort>({
-    field: category.has_ppi ? 'ppi_score' : isSinadCategory(categoryId) ? 'sinad_db' : 'price',
-    direction: 'desc',
-  });
+  const [filters, setFilters] = useState<ProductFilters>(
+    savedState.current?.filters ?? getDefaultFilters(),
+  );
 
-  // Reset sort when beginner mode hides score-based sort options
+  const [sort, setSort] = useState<ProductSort>(
+    savedState.current?.sort ?? getDefaultSort(categoryId),
+  );
+
+  // Restore scroll position after products render
+  const pendingScrollY = useRef(savedState.current?.scrollY ?? 0);
+
+  // Track previous categoryId to detect actual category changes vs. remounts
+  const prevCategoryId = useRef(categoryId);
+
+  // Reset filters, sort, and brand search when categoryId actually changes
+  // (user clicked a different category tab, NOT when returning from product detail)
   useEffect(() => {
-    if (mode === 'beginner' && (sort.field === 'ppi_score' || sort.field === 'sinad_db')) {
-      setSort({ field: 'price', direction: 'desc' });
+    if (prevCategoryId.current !== categoryId) {
+      prevCategoryId.current = categoryId;
+      clearListState();
+      setFilters(getDefaultFilters());
+      setBrandSearch('');
+      setSort(getDefaultSort(categoryId));
+      pendingScrollY.current = 0;
     }
-  }, [mode, sort.field]);
+  }, [categoryId]);
+
+  // Persist filters/sort to sessionStorage so they survive product detail navigation
+  useEffect(() => {
+    saveListState(categoryId, filters, sort, window.scrollY);
+  }, [categoryId, filters, sort]);
+
+  // Also save scroll position on scroll (debounced via the beforeunload-style approach)
+  useEffect(() => {
+    const handleScroll = () => {
+      saveListState(categoryId, filters, sort, window.scrollY);
+    };
+    // Save on any navigation away (link click triggers this component unmounting)
+    return () => {
+      handleScroll();
+    };
+  }, [categoryId, filters, sort]);
 
   const hookOptions = useMemo(
     () => ({ category: categoryId, filters, sort }),
@@ -61,35 +137,29 @@ export default function ProductListPage() {
   const brands = useProductBrands(categoryId);
   const retailers = useRetailers(categoryId);
   const speakerTypes = useSpeakerTypes();
+  const headphoneDesigns = useHeadphoneDesigns(categoryId);
+  const iemTypes = useIemTypes(categoryId);
   const [brandSearch, setBrandSearch] = useState('');
+
+  // Restore scroll position after products load (only once, on initial mount)
+  const scrollRestored = useRef(false);
+  useEffect(() => {
+    if (!scrollRestored.current && !loading && products.length > 0 && pendingScrollY.current > 0) {
+      scrollRestored.current = true;
+      // Use rAF to ensure DOM has rendered before scrolling
+      requestAnimationFrame(() => {
+        window.scrollTo(0, pendingScrollY.current);
+      });
+    }
+  }, [loading, products.length]);
 
   const visibleBrands = brandSearch
     ? brands.filter((b) => b.toLowerCase().includes(brandSearch.toLowerCase()))
     : brands;
 
   function handleCategoryChange(id: CategoryId) {
+    // Navigate only -- the categoryId useEffect handles filter/sort reset
     navigate(`/products/${id}`);
-    setFilters({
-      search: '',
-      brands: [],
-      priceMin: null,
-      priceMax: null,
-      ppiMin: null,
-      ppiMax: null,
-      quality: null,
-      rigType: null,
-      retailers: [],
-      hideOutOfStock: false,
-      speakerTypes: [],
-      sinadMin: null,
-      sinadMax: null,
-    });
-    setBrandSearch('');
-    const cat = CATEGORY_MAP.get(id);
-    setSort({
-      field: cat?.has_ppi ? 'ppi_score' : isSinadCategory(id) ? 'sinad_db' : 'price',
-      direction: 'desc',
-    });
   }
 
   return (
@@ -124,7 +194,7 @@ export default function ProductListPage() {
             placeholder={`Search ${category.name}...`}
           />
         </div>
-        <SortControls sort={sort} onChange={setSort} showPPI={category.has_ppi} showSinad={isSinadCategory(categoryId)} scoreLabel={getScoreLabel(categoryId)} />
+        <SortControls sort={sort} onChange={setSort} showPPI={category.has_ppi} showSinad={isSinadCategory(categoryId)} scoreLabel={getScoreLabel(categoryId, mode)} />
       </div>
 
       {/* Filter sidebar + grid layout */}
@@ -183,6 +253,74 @@ export default function ProductListPage() {
               </div>
             )}
 
+            {/* Headphone Design (only for headphone/IEM categories) */}
+            {headphoneDesigns.length > 0 && (
+              <div className="mb-3 space-y-2">
+                <label className="block text-xs font-semibold text-surface-700 dark:text-surface-300">
+                  Design
+                  {filters.headphoneDesigns.length > 0 && (
+                    <span className="ml-1.5 text-primary-400">({filters.headphoneDesigns.length})</span>
+                  )}
+                </label>
+                <div className="space-y-1">
+                  {headphoneDesigns.map((hd) => (
+                    <label
+                      key={hd.value}
+                      className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={filters.headphoneDesigns.includes(hd.value)}
+                        onChange={() => {
+                          const next = filters.headphoneDesigns.includes(hd.value)
+                            ? filters.headphoneDesigns.filter((d) => d !== hd.value)
+                            : [...filters.headphoneDesigns, hd.value];
+                          setFilters((prev) => ({ ...prev, headphoneDesigns: next }));
+                        }}
+                        className="h-3.5 w-3.5 rounded border-surface-300 text-primary-500 focus:ring-primary-500/40 dark:border-surface-500 dark:bg-surface-700"
+                      />
+                      <span className="truncate">{hd.label}</span>
+                      <span className="ml-auto text-xs text-surface-400">{hd.count}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* IEM Type (only for IEM category) */}
+            {iemTypes.length > 0 && (
+              <div className="mb-3 space-y-2">
+                <label className="block text-xs font-semibold text-surface-700 dark:text-surface-300">
+                  IEM Type
+                  {filters.iemTypes.length > 0 && (
+                    <span className="ml-1.5 text-primary-400">({filters.iemTypes.length})</span>
+                  )}
+                </label>
+                <div className="space-y-1">
+                  {iemTypes.map((it) => (
+                    <label
+                      key={it.value}
+                      className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={filters.iemTypes.includes(it.value)}
+                        onChange={() => {
+                          const next = filters.iemTypes.includes(it.value)
+                            ? filters.iemTypes.filter((t) => t !== it.value)
+                            : [...filters.iemTypes, it.value];
+                          setFilters((prev) => ({ ...prev, iemTypes: next }));
+                        }}
+                        className="h-3.5 w-3.5 rounded border-surface-300 text-primary-500 focus:ring-primary-500/40 dark:border-surface-500 dark:bg-surface-700"
+                      />
+                      <span className="truncate">{it.label}</span>
+                      <span className="ml-auto text-xs text-surface-400">{it.count}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Price range */}
             <div className="space-y-2">
               <label className="block text-xs font-semibold text-surface-700 dark:text-surface-300">
@@ -217,11 +355,11 @@ export default function ProductListPage() {
               </div>
             </div>
 
-            {/* PPI range (only for categories with PPI, hidden in beginner mode) */}
-            {mode !== 'beginner' && category.has_ppi && (
+            {/* PPI / Score range (only for categories with PPI) */}
+            {category.has_ppi && (
               <div className="mt-4 space-y-2">
                 <label className="block text-xs font-semibold text-surface-700 dark:text-surface-300">
-                  {getScoreLabel(categoryId)} Range
+                  {getScoreLabel(categoryId, mode)} Range
                 </label>
                 <div className="flex items-center gap-2">
                   <input
@@ -253,11 +391,11 @@ export default function ProductListPage() {
               </div>
             )}
 
-            {/* SINAD range (only for DAC/Amp categories, hidden in beginner mode) */}
-            {mode !== 'beginner' && isSinadCategory(categoryId) && (
+            {/* SINAD / Score range (only for DAC/Amp categories) */}
+            {isSinadCategory(categoryId) && (
               <div className="mt-4 space-y-2">
                 <label className="block text-xs font-semibold text-surface-700 dark:text-surface-300">
-                  SINAD Range (dB)
+                  {mode === 'beginner' ? 'Score' : 'SINAD'} Range{mode !== 'beginner' ? ' (dB)' : ''}
                 </label>
                 <div className="flex items-center gap-2">
                   <input
@@ -385,6 +523,8 @@ export default function ProductListPage() {
                   speakerTypes: [],
                   sinadMin: null,
                   sinadMax: null,
+                  headphoneDesigns: [],
+                  iemTypes: [],
                 })
               }
               className="mt-4 w-full rounded-md border border-surface-300 bg-white px-3 py-1.5 text-xs font-medium text-surface-600 transition-colors hover:bg-surface-100 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-400 dark:hover:bg-surface-700"
@@ -481,25 +621,38 @@ function ProductCard({ product, showPPI, showSinad = false }: { product: Product
         </span>
       )}
 
-      {/* Name */}
-      <h3 className="mt-1 text-base font-bold text-surface-900 group-hover:text-primary-600 dark:text-surface-100 dark:group-hover:text-primary-400 line-clamp-2">
-        {product.name}
-      </h3>
+      {/* Name + badges */}
+      <div className="mt-1 flex items-start gap-1.5">
+        <h3 className="text-base font-bold text-surface-900 group-hover:text-primary-600 dark:text-surface-100 dark:group-hover:text-primary-400 line-clamp-2">
+          {product.name}
+        </h3>
+        {product.iem_type === 'tws' && (
+          <span className="mt-0.5 inline-flex shrink-0 items-center rounded-full bg-cyan-100 px-1.5 py-0.5 text-[10px] font-bold text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300">
+            TWS
+          </span>
+        )}
+      </div>
 
       {/* Score + Price row */}
       <div className="mt-auto flex items-center justify-between pt-3">
         <div>
-          {showPPI && <PPIBadge score={product.ppi_score} size="sm" label={isSpinormaCategory(product.category_id) ? 'Spinorama' : undefined} />}
+          {showPPI && <PPIBadge score={product.ppi_score} size="sm" label={mode === 'beginner' ? 'Score' : (isSpinormaCategory(product.category_id) ? 'Spinorama' : undefined)} />}
           {showSinad && product.sinad_db !== null && (
             <span className="inline-flex items-center gap-1.5">
-              <PPIBadge score={sinadToScore(product.sinad_db)} size="sm" label="SINAD" />
+              <PPIBadge score={sinadToScore(product.sinad_db)} size="sm" label={mode === 'beginner' ? 'Score' : 'SINAD'} />
               {mode !== 'beginner' && (
                 <span className="text-xs font-medium text-surface-500 dark:text-surface-400">{product.sinad_db} dB</span>
               )}
             </span>
           )}
         </div>
-        <PriceDisplay price={product.price} affiliateUrl={product.affiliate_url} inStock={product.in_stock} />
+        <div className="flex items-center gap-2">
+          <PriceDisplay price={product.price} affiliateUrl={product.affiliate_url} inStock={product.in_stock} discontinued={product.discontinued} />
+          <BestValueBadge
+            score={showSinad && product.sinad_db !== null ? sinadToScore(product.sinad_db) : product.ppi_score}
+            price={product.price}
+          />
+        </div>
       </div>
     </Link>
   );

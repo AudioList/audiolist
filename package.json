@@ -15,14 +15,16 @@
     "sync:stores:iem": "tsx scripts/sync-stores-iem.ts && tsx scripts/process-store-products-iem.ts",
     "sync:stores:headphone": "tsx scripts/sync-stores-headphone.ts && tsx scripts/process-store-products-headphone.ts",
     "sync:amazon": "tsx scripts/amazon-bulk-sync.ts",
-    "clean:products": "tsx scripts/clean-products.ts"
+    "clean:products": "tsx scripts/clean-products.ts",
+    "sync:history": "tsx scripts/snapshot-prices.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.95.2",
     "nanoid": "^5.1.6",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-router-dom": "^7.13.0"
+    "react-router-dom": "^7.13.0",
+    "recharts": "^3.7.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

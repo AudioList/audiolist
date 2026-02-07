@@ -1,11 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import type { Product } from '../../types';
-import { CATEGORY_MAP } from '../../lib/categories';
+import { supabase } from '../../lib/supabase';
+import { CATEGORY_MAP, getScoreLabel } from '../../lib/categories';
 import { useExperienceMode } from '../../context/ExperienceModeContext';
 import PPIBadge from './PPIBadge';
 import PriceDisplay from './PriceDisplay';
 import WhereToBuy from './WhereToBuy';
+import ScoreExplainer from './ScoreExplainer';
+import BestValueBadge from './BestValueBadge';
+import { buildSourceUrl, formatSourceLabel } from '../../lib/sourceUrl';
 
 interface ProductDetailModalProps {
   product: Product | null;
@@ -60,6 +64,34 @@ export default function ProductDetailModal({
   }
 
   const { mode } = useExperienceMode();
+  const [isBestMode, setIsBestMode] = useState(false);
+
+  // Check if this product is the best-scoring variant in a DSP/ANC family
+  useEffect(() => {
+    if (!product?.product_family_id || !['dsp', 'anc'].includes(product.variant_type ?? '')) {
+      setIsBestMode(false);
+      return;
+    }
+
+    async function checkBestMode() {
+      const { data } = await supabase
+        .from('products')
+        .select('id, ppi_score')
+        .eq('product_family_id', product!.product_family_id!)
+        .in('variant_type', ['dsp', 'anc'])
+        .order('ppi_score', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (data && data.id === product!.id) {
+        setIsBestMode(true);
+      } else {
+        setIsBestMode(false);
+      }
+    }
+
+    checkBestMode();
+  }, [product?.id, product?.product_family_id, product?.variant_type]);
 
   if (!product) return null;
 
@@ -94,16 +126,31 @@ export default function ProductDetailModal({
                 </>
               )}
             </div>
-            <div className="mt-1 flex items-center gap-2">
+            <div className="mt-1 flex items-center gap-2 flex-wrap">
               <h2
                 id="product-detail-title"
                 className="text-lg font-bold text-surface-50"
               >
                 {product.name}
               </h2>
+              {product.asr_device_type && product.asr_device_type.toUpperCase().includes('AMP') && (
+                <span className="inline-flex shrink-0 items-center rounded-md bg-violet-900/40 px-2 py-0.5 text-xs font-bold text-violet-300 ring-1 ring-violet-500/40">
+                  DAC/Amp
+                </span>
+              )}
               {mode === 'advanced' && product.asr_recommended && (
                 <span className="inline-flex shrink-0 items-center rounded-md bg-green-900/50 px-2 py-0.5 text-xs font-semibold text-green-400 ring-1 ring-green-500/30">
                   ASR Recommended
+                </span>
+              )}
+              {isBestMode && (
+                <span className="inline-flex shrink-0 items-center rounded-md bg-green-900/40 px-2 py-0.5 text-xs font-bold text-green-300 ring-1 ring-green-500/30">
+                  Best Tuning Mode
+                </span>
+              )}
+              {product.iem_type === 'tws' && (
+                <span className="inline-flex shrink-0 items-center rounded-md bg-cyan-900/40 px-2 py-0.5 text-xs font-bold text-cyan-300 ring-1 ring-cyan-500/30">
+                  TWS
                 </span>
               )}
             </div>
@@ -130,19 +177,37 @@ export default function ProductDetailModal({
 
         {/* Scrollable body */}
         <div className="max-h-[70vh] overflow-y-auto px-6 py-5 space-y-5">
-          {/* Price */}
-          <div className="text-xl">
+          {/* Editorial blurb */}
+          {product.editorial_blurb && (
+            <div className="rounded-lg border-l-4 border-primary-500 bg-primary-50/50 px-4 py-3 dark:border-primary-400 dark:bg-primary-900/10">
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary-700 dark:text-primary-400">
+                Why This Product
+              </p>
+              <p className="mt-1 text-sm leading-relaxed text-surface-700 dark:text-surface-300">
+                {product.editorial_blurb}
+              </p>
+            </div>
+          )}
+
+          {/* Price + value badge */}
+          <div className="flex items-center gap-3 text-xl">
             <PriceDisplay price={product.price} affiliateUrl={product.affiliate_url} />
+            <BestValueBadge score={product.ppi_score} price={product.price} />
           </div>
 
           {/* PPI badge (large) */}
           {categoryHasPpi && (
             <div className="flex items-center gap-3">
               <span className="text-sm font-medium text-surface-400">
-                PPI Score:
+                {getScoreLabel(product.category_id, mode)}:
               </span>
               <PPIBadge score={product.ppi_score} size="lg" />
             </div>
+          )}
+
+          {/* Score explainer (beginner/default) */}
+          {mode !== 'advanced' && categoryHasPpi && product.ppi_score !== null && (
+            <ScoreExplainer scoreType="ppi" score={product.ppi_score} />
           )}
 
           {/* PPI breakdown table */}
@@ -181,19 +246,21 @@ export default function ProductDetailModal({
 
           {/* Metadata badges */}
           <div className="flex flex-wrap gap-2">
-            {mode !== 'beginner' && product.source_domain && (
-              <span className="inline-flex items-center rounded-full bg-surface-800 px-2.5 py-1 text-xs font-medium text-surface-400">
-                Source: {product.source_domain}
-              </span>
-            )}
+            {mode !== 'beginner' && product.source_domain && (() => {
+              const sourceUrl = buildSourceUrl(product.source_domain, product.source_id);
+              return sourceUrl ? (
+                <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 transition-colors" title="View original measurement graph">
+                  Source: {formatSourceLabel(product.source_domain)}
+                </a>
+              ) : (
+                <span className="inline-flex items-center rounded-full bg-surface-800 px-2.5 py-1 text-xs font-medium text-surface-400">
+                  Source: {formatSourceLabel(product.source_domain)}
+                </span>
+              );
+            })()}
             {mode !== 'beginner' && product.rig_type && (
               <span className="inline-flex items-center rounded-full bg-surface-800 px-2.5 py-1 text-xs font-medium text-surface-400">
                 Rig: {product.rig_type}
-              </span>
-            )}
-            {product.quality && (
-              <span className="inline-flex items-center rounded-full bg-primary-900/30 px-2.5 py-1 text-xs font-medium text-primary-400">
-                {product.quality}
               </span>
             )}
           </div>

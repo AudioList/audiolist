@@ -7,6 +7,8 @@ import HomePage from './pages/HomePage';
 import SharedBuildPage from './pages/SharedBuildPage';
 import ProductListPage from './pages/ProductListPage';
 import ProductDetailPage from './pages/ProductDetailPage';
+import QuizPage from './pages/QuizPage';
+import CommunityBuildsPage from './pages/CommunityBuildsPage';
 
 export default function App() {
   return (
@@ -20,6 +22,8 @@ export default function App() {
               <Route path="/build/:shareCode" element={<SharedBuildPage />} />
               <Route path="/products/:category" element={<ProductListPage />} />
               <Route path="/product/:id" element={<ProductDetailPage />} />
+              <Route path="/quiz" element={<QuizPage />} />
+              <Route path="/builds" element={<CommunityBuildsPage />} />
             </Route>
           </Routes>
         </BrowserRouter>

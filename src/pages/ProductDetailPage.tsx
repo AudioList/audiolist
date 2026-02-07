@@ -9,6 +9,12 @@ import { useExperienceMode } from '../context/ExperienceModeContext';
 import PPIBadge from '../components/shared/PPIBadge';
 import PriceDisplay from '../components/shared/PriceDisplay';
 import WhereToBuy from '../components/shared/WhereToBuy';
+import PriceHistoryChart from '../components/shared/PriceHistoryChart';
+import ScoreExplainer from '../components/shared/ScoreExplainer';
+import BestValueBadge from '../components/shared/BestValueBadge';
+import WatchPriceButton from '../components/shared/WatchPriceButton';
+import PopularPairings from '../components/shared/PopularPairings';
+import { buildSourceUrl, formatSourceLabel } from '../lib/sourceUrl';
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -21,6 +27,7 @@ export default function ProductDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [addedCategory, setAddedCategory] = useState<CategoryId | null>(null);
   const [selectedLoad, setSelectedLoad] = useState<AmpLoadOhms>(32);
+  const [isBestMode, setIsBestMode] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -51,6 +58,33 @@ export default function ProductDetailPage() {
 
     fetchProduct();
   }, [id]);
+
+  // Check if this product is the best-scoring variant in a DSP/ANC family
+  useEffect(() => {
+    if (!product?.product_family_id || !['dsp', 'anc'].includes(product.variant_type ?? '')) {
+      setIsBestMode(false);
+      return;
+    }
+
+    async function checkBestMode() {
+      const { data } = await supabase
+        .from('products')
+        .select('id, ppi_score')
+        .eq('product_family_id', product!.product_family_id!)
+        .in('variant_type', ['dsp', 'anc'])
+        .order('ppi_score', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (data && data.id === product!.id) {
+        setIsBestMode(true);
+      } else {
+        setIsBestMode(false);
+      }
+    }
+
+    checkBestMode();
+  }, [product?.id, product?.product_family_id, product?.variant_type]);
 
   function handleAddToBuild(categoryId: CategoryId) {
     if (!product) return;
@@ -159,23 +193,71 @@ export default function ProductDetailPage() {
           </div>
 
           {/* Product name */}
-          <h1 className="text-3xl font-extrabold text-surface-900 dark:text-surface-50">
-            {product.name}
-          </h1>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-3xl font-extrabold text-surface-900 dark:text-surface-50">
+              {product.name}
+            </h1>
+            {product.discontinued && (
+              <span className="inline-flex items-center rounded-lg bg-surface-200 px-2.5 py-1 text-sm font-bold text-surface-600 dark:bg-surface-700 dark:text-surface-300">
+                Discontinued
+              </span>
+            )}
+            {product.asr_device_type && product.asr_device_type.toUpperCase().includes('AMP') && (
+              <span className="inline-flex items-center rounded-lg bg-violet-100 px-2.5 py-1 text-sm font-bold text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
+                DAC/Amp
+              </span>
+            )}
+            {isBestMode && (
+              <span className="inline-flex items-center rounded-lg bg-green-100 px-2.5 py-1 text-sm font-bold text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                Best Tuning Mode
+              </span>
+            )}
+            {product.iem_type === 'tws' && (
+              <span className="inline-flex items-center rounded-lg bg-cyan-100 px-2.5 py-1 text-sm font-bold text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300">
+                TWS
+              </span>
+            )}
+          </div>
+
+          {/* Editorial blurb */}
+          {product.editorial_blurb && (
+            <div className="rounded-lg border-l-4 border-primary-500 bg-primary-50 px-4 py-3 dark:border-primary-400 dark:bg-primary-900/10">
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary-700 dark:text-primary-400">
+                Why This Product
+              </p>
+              <p className="mt-1 text-sm leading-relaxed text-surface-700 dark:text-surface-300">
+                {product.editorial_blurb}
+              </p>
+            </div>
+          )}
 
           {/* Price */}
-          <div className="text-xl">
+          <div className="flex items-center gap-3 text-xl">
             <PriceDisplay price={product.price} affiliateUrl={product.affiliate_url} />
+            <BestValueBadge
+              score={isSinadCategory(product.category_id)
+                ? (product.sinad_db !== null ? sinadToScore(product.sinad_db) : null)
+                : product.ppi_score}
+              price={product.price}
+            />
           </div>
 
           {/* Score badge (large) — PPI for IEM/headphone, Spinorama for speakers */}
           {category?.has_ppi && (
             <div className="flex items-center gap-3">
               <span className="text-sm font-semibold text-surface-700 dark:text-surface-300">
-                {getScoreLabel(product.category_id)}:
+                {getScoreLabel(product.category_id, mode)}:
               </span>
-              <PPIBadge score={product.ppi_score} size="lg" label={getScoreLabel(product.category_id)} />
+              <PPIBadge score={product.ppi_score} size="lg" label={getScoreLabel(product.category_id, mode)} />
             </div>
+          )}
+
+          {/* Score explainer (beginner/default only) */}
+          {mode !== 'advanced' && category?.has_ppi && product.ppi_score !== null && (
+            <ScoreExplainer
+              scoreType={isSpinormaCategory(product.category_id) ? 'spinorama' : 'ppi'}
+              score={product.ppi_score}
+            />
           )}
 
           {/* Spinorama breakdown table (speakers, hidden in beginner mode) */}
@@ -286,6 +368,11 @@ export default function ProductDetailPage() {
               </span>
               <PPIBadge score={sinadToScore(product.sinad_db)} size="lg" label="SINAD" />
             </div>
+          )}
+
+          {/* SINAD score explainer (beginner/default only) */}
+          {mode !== 'advanced' && isSinadCategory(product.category_id) && product.sinad_db !== null && (
+            <ScoreExplainer scoreType="sinad" score={product.sinad_db} />
           )}
 
           {/* SINAD breakdown table (DAC/Amp, hidden in beginner mode) */}
@@ -484,11 +571,23 @@ export default function ProductDetailPage() {
 
           {/* Additional info */}
           <div className="flex flex-wrap gap-3">
-            {mode !== 'beginner' && product.source_domain && (
-              <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" title="Measurement data source">
-                Source: {product.source_domain}
+            {product.asr_device_type && product.asr_device_type.toUpperCase().includes('AMP') && (
+              <span className="inline-flex items-center rounded-full bg-violet-100 px-2.5 py-1 text-xs font-bold text-violet-700 dark:bg-violet-900/30 dark:text-violet-300" title="This device functions as both a DAC and an Amplifier">
+                DAC/Amp Combo
               </span>
             )}
+            {mode !== 'beginner' && product.source_domain && (() => {
+              const sourceUrl = buildSourceUrl(product.source_domain, product.source_id);
+              return sourceUrl ? (
+                <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 transition-colors" title="View original measurement graph">
+                  Source: {formatSourceLabel(product.source_domain)}
+                </a>
+              ) : (
+                <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" title="Measurement data source">
+                  Source: {formatSourceLabel(product.source_domain)}
+                </span>
+              );
+            })()}
             {mode !== 'beginner' && product.rig_type && (
               <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" title="Measurement rig used for testing — 5128 is the newer, more accurate standard">
                 Rig: {product.rig_type}
@@ -497,11 +596,6 @@ export default function ProductDetailPage() {
             {mode !== 'beginner' && product.speaker_type && (
               <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
                 Type: {product.speaker_type}
-              </span>
-            )}
-            {product.quality && (
-              <span className="inline-flex items-center rounded-full bg-primary-100 px-2.5 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-900/30 dark:text-primary-400">
-                {product.quality}
               </span>
             )}
             {mode === 'advanced' && product.asr_recommended && (
@@ -549,12 +643,25 @@ export default function ProductDetailPage() {
                 </svg>
               </a>
             )}
+
+            {/* Watch price */}
+            <WatchPriceButton
+              productId={product.id}
+              productName={product.name}
+              currentPrice={product.price}
+            />
           </div>
         </div>
       </div>
 
       {/* Where to Buy */}
-      <WhereToBuy productId={product.id} />
+      <WhereToBuy productId={product.id} discontinued={product.discontinued} />
+
+      {/* Price History */}
+      <PriceHistoryChart productId={product.id} />
+
+      {/* Popular Pairings */}
+      <PopularPairings productId={product.id} />
     </div>
   );
 }

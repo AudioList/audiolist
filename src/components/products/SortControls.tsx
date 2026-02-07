@@ -54,11 +54,11 @@ export default function SortControls({ sort, onChange, showPPI = false, showSina
   const { mode } = useExperienceMode();
   const options: SortOption[] = [];
 
-  if (mode !== 'beginner' && showPPI) {
-    options.push({ field: 'ppi_score', label: scoreLabel ?? 'PPI Score' });
+  if (showPPI) {
+    options.push({ field: 'ppi_score', label: mode === 'beginner' ? 'Score' : (scoreLabel ?? 'PPI Score') });
   }
-  if (mode !== 'beginner' && showSinad) {
-    options.push({ field: 'sinad_db', label: 'SINAD' });
+  if (showSinad) {
+    options.push({ field: 'sinad_db', label: mode === 'beginner' ? 'Score' : 'SINAD' });
   }
   options.push({ field: 'price', label: 'Price' });
   options.push({ field: 'name', label: 'Name' });

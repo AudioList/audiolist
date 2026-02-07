@@ -30,7 +30,7 @@ export function usePriceListings(
         const { data, error: queryError } = await supabase
           .from('price_listings')
           .select(
-            '*, retailer:retailers!retailer_id(id, name, base_url, is_active)'
+            '*, retailer:retailers!retailer_id(id, name, base_url, is_active, description, ships_from, return_policy, authorized_dealer)'
           )
           .eq('product_id', productId)
           .order('price', { ascending: true });

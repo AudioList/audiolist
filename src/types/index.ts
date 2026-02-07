@@ -37,6 +37,7 @@ export interface Product {
   variant_value: string | null;
   source_type: string | null;
   in_stock: boolean;
+  discontinued: boolean;
   first_seen: string | null;
   // SINAD fields (DAC/Amp)
   sinad_db: number | null;
@@ -61,6 +62,10 @@ export interface Product {
   sm_pred_in_room: number | null;
   speaker_type: string | null;
   spinorama_origin: string | null;
+  editorial_blurb: string | null;
+  headphone_design: 'open' | 'closed' | null;
+  iem_type: 'passive' | 'active' | 'tws' | null;
+  is_best_variant: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -79,6 +84,11 @@ export interface Build {
   id: string;
   share_code: string;
   name: string;
+  description: string;
+  is_public: boolean;
+  upvotes: number;
+  author_name: string | null;
+  tags: string[];
   created_at: string;
   updated_at: string;
 }
@@ -117,6 +127,8 @@ export interface ProductFilters {
   speakerTypes: string[];
   sinadMin: number | null;
   sinadMax: number | null;
+  headphoneDesigns: string[];
+  iemTypes: string[];
 }
 
 export interface ProductSort {
@@ -129,6 +141,10 @@ export interface Retailer {
   name: string;
   base_url: string;
   is_active: boolean;
+  description: string | null;
+  ships_from: string | null;
+  return_policy: string | null;
+  authorized_dealer: boolean;
 }
 
 export interface PriceListing {

@@ -34,6 +34,8 @@ const defaultFilters: ProductFilters = {
   speakerTypes: [],
   sinadMin: null,
   sinadMax: null,
+  headphoneDesigns: [],
+  iemTypes: [],
 };
 
 const defaultSort: ProductSort = {
@@ -54,7 +56,7 @@ export function useProducts({
   const [total, setTotal] = useState(0);
 
   const fetchProducts = useCallback(
-    async (pageNum: number, append: boolean) => {
+    async (pageNum: number, append: boolean, signal?: AbortSignal) => {
       setLoading(true);
       setError(null);
 
@@ -68,6 +70,11 @@ export function useProducts({
           .from('products')
           .select(selectStr, { count: 'exact' })
           .eq('category_id', category);
+
+        // Allow aborting in-flight requests when category/filters change
+        if (signal) {
+          query = query.abortSignal(signal);
+        }
 
         // Retailer filter (via inner join on price_listings)
         if (hasRetailerFilter) {
@@ -123,6 +130,19 @@ export function useProducts({
           query = query.in('speaker_type', filters.speakerTypes);
         }
 
+        // Headphone design (open/closed back)
+        if (filters.headphoneDesigns.length > 0) {
+          query = query.in('headphone_design', filters.headphoneDesigns);
+        }
+
+        // IEM type (passive/active/tws)
+        if (filters.iemTypes.length > 0) {
+          query = query.in('iem_type', filters.iemTypes);
+        }
+
+        // Hide non-best DSP/ANC variants from search results
+        query = query.eq('is_best_variant', true);
+
         // Hide out of stock (DB-level only when no retailer filter;
         // with retailer filter we post-process after overriding in_stock)
         if (filters.hideOutOfStock && !hasRetailerFilter) {
@@ -150,6 +170,9 @@ export function useProducts({
         query = query.range(from, to);
 
         const { data, error: queryError, count } = await query;
+
+        // If this request was aborted (category/filters changed), bail out
+        if (signal?.aborted) return;
 
         if (queryError) throw queryError;
 
@@ -197,18 +220,26 @@ export function useProducts({
         setTotal(count ?? 0);
         setHasMore(newProducts.length === PAGE_SIZE);
       } catch (err) {
+        // Ignore abort errors — they mean a newer request superseded this one
+        if (signal?.aborted) return;
         setError(err instanceof Error ? err.message : 'Failed to load products');
       } finally {
-        setLoading(false);
+        if (!signal?.aborted) {
+          setLoading(false);
+        }
       }
     },
     [category, filters, sort]
   );
 
-  // Reset and fetch on filter/sort/category change
+  // Reset and fetch on filter/sort/category change.
+  // AbortController cancels in-flight requests so stale responses
+  // from a previous category never overwrite the current results.
   useEffect(() => {
+    const controller = new AbortController();
     setPage(0);
-    fetchProducts(0, false);
+    fetchProducts(0, false, controller.signal);
+    return () => controller.abort();
   }, [fetchProducts]);
 
   const loadMore = useCallback(() => {
@@ -331,6 +362,126 @@ export function useSpeakerTypes(): { value: string; label: string; count: number
     }
     fetchTypes();
   }, []);
+
+  return types;
+}
+
+const HEADPHONE_DESIGN_LABELS: Record<string, string> = {
+  open: 'Open-Back',
+  closed: 'Closed-Back',
+};
+
+export function getHeadphoneDesignLabel(design: string): string {
+  return HEADPHONE_DESIGN_LABELS[design] ?? design.charAt(0).toUpperCase() + design.slice(1);
+}
+
+export function useHeadphoneDesigns(category: CategoryId): { value: string; label: string; count: number }[] {
+  const [designs, setDesigns] = useState<{ value: string; label: string; count: number }[]>([]);
+
+  useEffect(() => {
+    // Only fetch for headphone category (IEMs are neither open nor closed back)
+    if (category !== 'headphone') {
+      setDesigns([]);
+      return;
+    }
+
+    async function fetchDesigns() {
+      const PAGE = 1000;
+      const counts = new Map<string, number>();
+      let offset = 0;
+
+      while (true) {
+        const { data } = await supabase
+          .from('products')
+          .select('headphone_design')
+          .eq('category_id', category)
+          .not('headphone_design', 'is', null)
+          .range(offset, offset + PAGE - 1);
+
+        if (!data || data.length === 0) break;
+
+        for (const d of data) {
+          const t = d.headphone_design as string;
+          counts.set(t, (counts.get(t) ?? 0) + 1);
+        }
+
+        if (data.length < PAGE) break;
+        offset += PAGE;
+      }
+
+      const result = [...counts.entries()]
+        .map(([value, count]) => ({
+          value,
+          label: getHeadphoneDesignLabel(value),
+          count,
+        }))
+        .sort((a, b) => b.count - a.count);
+
+      setDesigns(result);
+    }
+    fetchDesigns();
+  }, [category]);
+
+  return designs;
+}
+
+const IEM_TYPE_LABELS: Record<string, string> = {
+  passive: 'Passive (Wired)',
+  active: 'Active',
+  tws: 'TWS',
+};
+
+export function getIemTypeLabel(type: string): string {
+  return IEM_TYPE_LABELS[type] ?? type.charAt(0).toUpperCase() + type.slice(1);
+}
+
+export function useIemTypes(category: CategoryId): { value: string; label: string; count: number }[] {
+  const [types, setTypes] = useState<{ value: string; label: string; count: number }[]>([]);
+
+  useEffect(() => {
+    // Only fetch for IEM category
+    if (category !== 'iem') {
+      setTypes([]);
+      return;
+    }
+
+    async function fetchTypes() {
+      const PAGE = 1000;
+      const counts = new Map<string, number>();
+      let offset = 0;
+
+      while (true) {
+        const { data } = await supabase
+          .from('products')
+          .select('iem_type')
+          .eq('category_id', 'iem')
+          .eq('is_best_variant', true)
+          .not('iem_type', 'is', null)
+          .range(offset, offset + PAGE - 1);
+
+        if (!data || data.length === 0) break;
+
+        for (const d of data) {
+          const t = d.iem_type as string;
+          counts.set(t, (counts.get(t) ?? 0) + 1);
+        }
+
+        if (data.length < PAGE) break;
+        offset += PAGE;
+      }
+
+      const result = [...counts.entries()]
+        .map(([value, count]) => ({
+          value,
+          label: getIemTypeLabel(value),
+          count,
+        }))
+        .sort((a, b) => b.count - a.count);
+
+      setTypes(result);
+    }
+    fetchTypes();
+  }, [category]);
 
   return types;
 }

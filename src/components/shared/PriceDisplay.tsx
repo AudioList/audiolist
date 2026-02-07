@@ -2,6 +2,7 @@ interface PriceDisplayProps {
   price: number | null;
   affiliateUrl?: string | null;
   inStock?: boolean;
+  discontinued?: boolean;
 }
 
 function ExternalLinkIcon() {
@@ -23,7 +24,7 @@ function formatPrice(price: number): string {
   return `$${price.toFixed(2)}`;
 }
 
-export default function PriceDisplay({ price, affiliateUrl, inStock }: PriceDisplayProps) {
+export default function PriceDisplay({ price, affiliateUrl, inStock, discontinued }: PriceDisplayProps) {
   if (price === null) {
     return (
       <span className="text-surface-400 dark:text-surface-500 text-sm italic">
@@ -34,6 +35,10 @@ export default function PriceDisplay({ price, affiliateUrl, inStock }: PriceDisp
 
   const formatted = formatPrice(price);
   const isOOS = inStock === false;
+  const statusLabel = discontinued ? 'Discontinued' : isOOS ? 'Out of Stock' : null;
+  const statusColor = discontinued
+    ? 'text-surface-500 dark:text-surface-400'
+    : 'text-red-500 dark:text-red-400';
 
   if (affiliateUrl) {
     return (
@@ -43,7 +48,7 @@ export default function PriceDisplay({ price, affiliateUrl, inStock }: PriceDisp
           target="_blank"
           rel="noopener noreferrer"
           className={`font-bold transition-colors ${
-            isOOS
+            isOOS || discontinued
               ? 'text-surface-400 line-through hover:text-surface-500 dark:text-surface-500 dark:hover:text-surface-400'
               : 'text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300'
           }`}
@@ -51,9 +56,9 @@ export default function PriceDisplay({ price, affiliateUrl, inStock }: PriceDisp
           {formatted}
           <ExternalLinkIcon />
         </a>
-        {isOOS && (
-          <span className="block text-[10px] font-semibold text-red-500 dark:text-red-400">
-            Out of Stock
+        {statusLabel && (
+          <span className={`block text-[10px] font-semibold ${statusColor}`}>
+            {statusLabel}
           </span>
         )}
       </div>
@@ -62,12 +67,12 @@ export default function PriceDisplay({ price, affiliateUrl, inStock }: PriceDisp
 
   return (
     <div className="text-right">
-      <span className={`font-bold ${isOOS ? 'text-surface-400 line-through dark:text-surface-500' : 'text-surface-900 dark:text-surface-100'}`}>
+      <span className={`font-bold ${isOOS || discontinued ? 'text-surface-400 line-through dark:text-surface-500' : 'text-surface-900 dark:text-surface-100'}`}>
         {formatted}
       </span>
-      {isOOS && (
-        <span className="block text-[10px] font-semibold text-red-500 dark:text-red-400">
-          Out of Stock
+      {statusLabel && (
+        <span className={`block text-[10px] font-semibold ${statusColor}`}>
+          {statusLabel}
         </span>
       )}
     </div>

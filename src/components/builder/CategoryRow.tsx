@@ -1,7 +1,14 @@
 import type { Category, CategoryId, BuildSelection, Product } from '../../types';
 import { useBuild } from '../../context/BuildContext';
 import { useExperienceMode } from '../../context/ExperienceModeContext';
+import { CATEGORY_EXPLAINERS } from '../../lib/categoryExplainers';
 import PriceDisplay from '../shared/PriceDisplay';
+
+/** Returns true when a product functions as both DAC and Amplifier */
+function isDacAmpCombo(product: Product): boolean {
+  const dt = product.asr_device_type;
+  return !!dt && dt.toUpperCase().includes('AMP');
+}
 
 interface CategoryRowProps {
   category: Category;
@@ -45,15 +52,20 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
             <div>
               <span
                 className={`font-bold text-surface-900 dark:text-surface-100 ${isChild ? 'text-sm' : 'text-base'}`}
-                title={mode === 'beginner' ? category.description : undefined}
               >
                 {category.name}
               </span>
-              {category.description && mode !== 'beginner' && (
+              {mode === 'beginner' ? (
+                CATEGORY_EXPLAINERS[category.id]?.shortBlurb && (
+                  <span className="block text-[11px] text-surface-500 dark:text-surface-400 font-normal leading-tight">
+                    {CATEGORY_EXPLAINERS[category.id].shortBlurb}
+                  </span>
+                )
+              ) : mode !== 'advanced' && category.description ? (
                 <span className="block text-[11px] text-surface-500 dark:text-surface-400 font-normal leading-tight">
                   {category.description}
                 </span>
-              )}
+              ) : null}
             </div>
           </div>
         </td>
@@ -62,13 +74,20 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
           <>
             {/* Product name — opens detail modal */}
             <td className="px-4 py-3">
-              <button
-                type="button"
-                onClick={() => onViewDetail(product)}
-                className="text-left text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 hover:underline transition-colors font-semibold"
-              >
-                {product.name}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => onViewDetail(product)}
+                  className="text-left text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 hover:underline transition-colors font-semibold"
+                >
+                  {product.name}
+                </button>
+                {isDacAmpCombo(product) && (
+                  <span className="inline-flex shrink-0 items-center rounded-md bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold text-violet-700 ring-1 ring-violet-300 dark:bg-violet-900/40 dark:text-violet-300 dark:ring-violet-500/40">
+                    DAC/Amp
+                  </span>
+                )}
+              </div>
               {product.brand && (
                 <span className="block text-xs text-surface-500 dark:text-surface-400 mt-0.5">
                   {product.brand}
@@ -160,15 +179,20 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
             <div>
               <span
                 className={`font-bold text-surface-900 dark:text-surface-100 ${isChild ? 'text-sm' : 'text-base'}`}
-                title={mode === 'beginner' ? category.description : undefined}
               >
                 {category.name}
               </span>
-              {category.description && mode !== 'beginner' && (
+              {mode === 'beginner' ? (
+                CATEGORY_EXPLAINERS[category.id]?.shortBlurb && (
+                  <span className="block text-[11px] text-surface-500 dark:text-surface-400 font-normal leading-tight">
+                    {CATEGORY_EXPLAINERS[category.id].shortBlurb}
+                  </span>
+                )
+              ) : mode !== 'advanced' && category.description ? (
                 <span className="block text-[11px] text-surface-500 dark:text-surface-400 font-normal leading-tight">
                   {category.description}
                 </span>
-              )}
+              ) : null}
             </div>
           </div>
           {product && (
@@ -218,13 +242,20 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
         {product ? (
           <div className="space-y-2">
             {/* Product name — opens detail modal */}
-            <button
-              type="button"
-              onClick={() => onViewDetail(product)}
-              className="text-left text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 hover:underline transition-colors font-semibold text-sm"
-            >
-              {product.name}
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => onViewDetail(product)}
+                className="text-left text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 hover:underline transition-colors font-semibold text-sm"
+              >
+                {product.name}
+              </button>
+              {isDacAmpCombo(product) && (
+                <span className="inline-flex shrink-0 items-center rounded-md bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold text-violet-700 ring-1 ring-violet-300 dark:bg-violet-900/40 dark:text-violet-300 dark:ring-violet-500/40">
+                  DAC/Amp
+                </span>
+              )}
+            </div>
             {product.brand && (
               <span className="block text-xs text-surface-500 dark:text-surface-400">
                 {product.brand}

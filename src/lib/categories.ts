@@ -56,11 +56,12 @@ export function getPPILabel(score: number): string {
   return 'Poor';
 }
 
-/** Get the measurement score label for a category */
-export function getScoreLabel(categoryId: CategoryId): string {
-  if (categoryId === 'speaker') return 'Spinorama';
-  if (isSinadCategory(categoryId)) return 'SINAD';
-  return 'PPI Score';
+/** Get the measurement score label for a category.
+ *  In beginner mode, returns simplified labels ("Score" instead of "PPI Score"). */
+export function getScoreLabel(categoryId: CategoryId, mode?: string): string {
+  if (categoryId === 'speaker') return mode === 'beginner' ? 'Score' : 'Spinorama';
+  if (isSinadCategory(categoryId)) return mode === 'beginner' ? 'Score' : 'SINAD';
+  return mode === 'beginner' ? 'Score' : 'PPI Score';
 }
 
 /** Check if a category uses spinorama scoring instead of PPI */

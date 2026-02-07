@@ -3,6 +3,7 @@ import { isSpinormaCategory, sinadToScore } from '../../lib/categories';
 import { useExperienceMode } from '../../context/ExperienceModeContext';
 import PPIBadge from '../shared/PPIBadge';
 import PriceDisplay from '../shared/PriceDisplay';
+import BestValueBadge from '../shared/BestValueBadge';
 
 interface ProductCardProps {
   product: Product;
@@ -68,11 +69,6 @@ export default function ProductCard({
         <div className="flex items-center gap-2">
           <h3 className="truncate text-sm font-bold text-surface-100">{product.name}</h3>
           {/* Badges inline */}
-          {product.quality === 'high' && (
-            <span className="inline-flex shrink-0 items-center rounded-md bg-green-900/50 px-1.5 py-0.5 text-[10px] font-semibold text-green-400 ring-1 ring-green-500/30">
-              HQ
-            </span>
-          )}
           {mode !== 'beginner' && product.rig_type && (
             <span className="inline-flex shrink-0 items-center rounded-md bg-surface-700 px-1.5 py-0.5 text-[10px] font-semibold text-surface-300 ring-1 ring-surface-600">
               {product.rig_type}
@@ -81,6 +77,11 @@ export default function ProductCard({
           {mode === 'advanced' && product.asr_recommended && (
             <span className="inline-flex shrink-0 items-center rounded-md bg-green-900/50 px-1.5 py-0.5 text-[10px] font-semibold text-green-400 ring-1 ring-green-500/30">
               ASR
+            </span>
+          )}
+          {product.asr_device_type && product.asr_device_type.toUpperCase().includes('AMP') && (
+            <span className="inline-flex shrink-0 items-center rounded-md bg-violet-900/40 px-1.5 py-0.5 text-[10px] font-bold text-violet-300 ring-1 ring-violet-500/40">
+              DAC/Amp
             </span>
           )}
         </div>
@@ -111,9 +112,13 @@ export default function ProductCard({
         </div>
       )}
 
-      {/* Price */}
-      <div className="shrink-0 text-right">
-        <PriceDisplay price={product.price} affiliateUrl={product.affiliate_url} inStock={product.in_stock} />
+      {/* Price + Value */}
+      <div className="shrink-0 flex items-center gap-1.5">
+        <BestValueBadge
+          score={showSinad && product.sinad_db !== null ? sinadToScore(product.sinad_db) : product.ppi_score}
+          price={product.price}
+        />
+        <PriceDisplay price={product.price} affiliateUrl={product.affiliate_url} inStock={product.in_stock} discontinued={product.discontinued} />
       </div>
 
       {/* Action button */}

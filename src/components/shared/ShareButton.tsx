@@ -1,7 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 interface ShareButtonProps {
-  onShare: () => Promise<string>;
+  onShare: (opts?: { isPublic?: boolean; authorName?: string }) => Promise<string>;
   disabled?: boolean;
 }
 
@@ -40,42 +40,132 @@ function CheckIcon() {
 
 export default function ShareButton({ onShare, disabled = false }: ShareButtonProps) {
   const [state, setState] = useState<'idle' | 'loading' | 'copied'>('idle');
+  const [showPanel, setShowPanel] = useState(false);
+  const [publishToCommunity, setPublishToCommunity] = useState(false);
+  const [authorName, setAuthorName] = useState('');
+  const panelRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
-  const handleClick = useCallback(async () => {
+  // Close on outside click
+  useEffect(() => {
+    if (!showPanel) return;
+    function handleClick(e: MouseEvent) {
+      if (
+        panelRef.current &&
+        !panelRef.current.contains(e.target as Node) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(e.target as Node)
+      ) {
+        setShowPanel(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showPanel]);
+
+  const handleShare = useCallback(async () => {
     if (state === 'loading' || disabled) return;
 
     setState('loading');
     try {
-      const url = await onShare();
+      const url = await onShare({
+        isPublic: publishToCommunity,
+        authorName: publishToCommunity ? authorName.trim() || undefined : undefined,
+      });
       await navigator.clipboard.writeText(url);
       setState('copied');
+      setShowPanel(false);
       setTimeout(() => setState('idle'), 2000);
     } catch {
       setState('idle');
     }
-  }, [onShare, state, disabled]);
+  }, [onShare, state, disabled, publishToCommunity, authorName]);
+
+  const handleClick = useCallback(() => {
+    if (state === 'copied') return;
+    if (disabled) return;
+    setShowPanel((prev) => !prev);
+  }, [state, disabled]);
 
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      disabled={state === 'loading' || disabled}
-      title={disabled ? 'Add components to your build first' : 'Share your build with a link'}
-      className={`
-        inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium
-        transition-all duration-150
-        ${
-          state === 'copied'
-            ? 'bg-ppi-excellent text-white'
-            : 'bg-primary-600 hover:bg-primary-500 text-white'
-        }
-        disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary-600
-        focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2
-        focus:ring-offset-surface-900
-      `}
-    >
-      {state === 'copied' ? <CheckIcon /> : <LinkIcon />}
-      <span>{state === 'copied' ? 'Copied!' : 'Share Build'}</span>
-    </button>
+    <div className="relative">
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={handleClick}
+        disabled={state === 'loading' || disabled}
+        title={disabled ? 'Add components to your build first' : 'Share your build with a link'}
+        className={`
+          inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium
+          transition-all duration-150
+          ${
+            state === 'copied'
+              ? 'bg-ppi-excellent text-white'
+              : 'bg-primary-600 hover:bg-primary-500 text-white'
+          }
+          disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary-600
+          focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2
+          focus:ring-offset-surface-900
+        `}
+      >
+        {state === 'copied' ? <CheckIcon /> : <LinkIcon />}
+        <span>{state === 'copied' ? 'Copied!' : 'Share Build'}</span>
+      </button>
+
+      {showPanel && (
+        <div
+          ref={panelRef}
+          className="absolute right-0 top-full z-50 mt-2 w-72 rounded-lg border border-surface-200 bg-white p-4 shadow-lg dark:border-surface-600 dark:bg-surface-800"
+        >
+          <p className="mb-3 text-sm font-semibold text-surface-900 dark:text-surface-100">
+            Share Options
+          </p>
+
+          {/* Publish to community toggle */}
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              checked={publishToCommunity}
+              onChange={(e) => setPublishToCommunity(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-surface-300 text-primary-600 focus:ring-primary-500 dark:border-surface-600"
+            />
+            <div>
+              <span className="text-sm font-medium text-surface-800 dark:text-surface-200">
+                Publish to Community
+              </span>
+              <p className="text-xs text-surface-500 dark:text-surface-400">
+                Make this build visible in the Community gallery.
+              </p>
+            </div>
+          </label>
+
+          {/* Author name (shown if publishing) */}
+          {publishToCommunity && (
+            <div className="mt-3">
+              <label className="text-xs font-medium text-surface-600 dark:text-surface-400" htmlFor="author-name">
+                Your name (optional)
+              </label>
+              <input
+                id="author-name"
+                type="text"
+                value={authorName}
+                onChange={(e) => setAuthorName(e.target.value)}
+                placeholder="Anonymous"
+                className="mt-1 w-full rounded-md border border-surface-300 bg-white px-3 py-1.5 text-sm text-surface-900 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-700 dark:text-surface-100"
+              />
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={handleShare}
+            disabled={state === 'loading'}
+            className="mt-4 w-full rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-500 disabled:opacity-50"
+          >
+            {state === 'loading' ? 'Sharing...' : 'Share & Copy Link'}
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

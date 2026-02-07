@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { CategoryId, ProductFilters, ProductSort, Product } from '../../types';
-import { useProducts, useProductBrands, useRetailers, useSpeakerTypes } from '../../hooks/useProducts';
+import { useProducts, useProductBrands, useRetailers, useSpeakerTypes, useHeadphoneDesigns, useIemTypes } from '../../hooks/useProducts';
 import { useBuild } from '../../context/BuildContext';
-import { useExperienceMode } from '../../context/ExperienceModeContext';
 import { CATEGORY_MAP, isSinadCategory } from '../../lib/categories';
 import SearchBar from './SearchBar';
 import SortControls from './SortControls';
@@ -30,10 +29,11 @@ const emptyFilters: ProductFilters = {
   speakerTypes: [],
   sinadMin: null,
   sinadMax: null,
+  headphoneDesigns: [],
+  iemTypes: [],
 };
 
 export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetail }: ProductPickerProps) {
-  const { mode } = useExperienceMode();
   const category = CATEGORY_MAP.get(categoryId);
   const showPPI = category?.has_ppi ?? false;
 
@@ -53,6 +53,8 @@ export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetai
   const brands = useProductBrands(categoryId);
   const retailers = useRetailers(categoryId);
   const speakerTypes = useSpeakerTypes();
+  const headphoneDesigns = useHeadphoneDesigns(categoryId);
+  const iemTypes = useIemTypes(categoryId);
   const { setProduct, getSelection } = useBuild();
   const currentSelection = getSelection(categoryId);
   const backdropRef = useRef<HTMLDivElement>(null);
@@ -67,13 +69,6 @@ export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetai
       });
     }
   }, [isOpen, showPPI, showSinad]);
-
-  // Reset sort when beginner mode hides score-based sort options
-  useEffect(() => {
-    if (mode === 'beginner' && (sort.field === 'ppi_score' || sort.field === 'sinad_db')) {
-      setSort({ field: 'price', direction: 'desc' });
-    }
-  }, [mode, sort.field]);
 
   // ESC key handler
   useEffect(() => {
@@ -184,6 +179,8 @@ export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetai
             brands={brands}
             retailers={retailers}
             speakerTypes={categoryId === 'speaker' ? speakerTypes : undefined}
+            headphoneDesigns={categoryId === 'headphone' ? headphoneDesigns : undefined}
+            iemTypes={categoryId === 'iem' ? iemTypes : undefined}
           />
 
           <div className="min-w-0 flex-1">
