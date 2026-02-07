@@ -1,6 +1,6 @@
 import type { Category, CategoryId, BuildSelection, Product } from '../../types';
 import { useBuild } from '../../context/BuildContext';
-import { getCategoryBorderColor } from '../../lib/categories';
+import { getCategoryBorderColor, getCategoryAccentColor } from '../../lib/categories';
 import PriceDisplay from '../shared/PriceDisplay';
 import CategoryIcon from '../shared/CategoryIcon';
 
@@ -16,6 +16,7 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
   const product = selection?.product;
   const price = selection?.custom_price ?? product?.price ?? null;
   const borderColor = getCategoryBorderColor(category.id);
+  const accentColor = getCategoryAccentColor(category.id);
 
   return (
     <>
@@ -23,10 +24,10 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
       <tr className="hidden md:table-row border-b border-surface-200 dark:border-surface-700 hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors">
         {/* Category icon + name */}
         <td className="px-4 py-3 whitespace-nowrap">
-          <div className="flex items-center gap-2.5">
-            <CategoryIcon categoryId={category.id} className="w-5 h-5 text-surface-500 dark:text-surface-400" />
+          <div className="flex items-center gap-3">
+            <CategoryIcon categoryId={category.id} className="w-8 h-8 shrink-0" />
             <div>
-              <span className={`text-base font-bold text-surface-900 dark:text-surface-100`}>
+              <span className={`text-base font-bold ${accentColor}`}>
                 {category.name}
               </span>
               {category.description && (
@@ -125,10 +126,10 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
       <div className={`md:hidden rounded-lg border-l-4 ${borderColor} border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-800 p-4 shadow-sm`}>
         {/* Card header: icon + category name + action buttons */}
         <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <CategoryIcon categoryId={category.id} className="w-5 h-5 text-surface-500 dark:text-surface-400" />
+          <div className="flex items-center gap-3">
+            <CategoryIcon categoryId={category.id} className="w-8 h-8 shrink-0" />
             <div>
-              <span className="text-base font-bold text-surface-900 dark:text-surface-100">
+              <span className={`text-base font-bold ${accentColor}`}>
                 {category.name}
               </span>
               {category.description && (

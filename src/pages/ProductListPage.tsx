@@ -76,7 +76,7 @@ export default function ProductListPage() {
   return (
     <div className="space-y-6">
       {/* Category tabs */}
-      <nav className="flex flex-wrap gap-1.5" role="tablist" aria-label="Product categories">
+      <nav className="flex flex-wrap gap-2" role="tablist" aria-label="Product categories">
         {CATEGORIES.map((cat) => (
           <button
             key={cat.id}
@@ -85,13 +85,13 @@ export default function ProductListPage() {
             aria-selected={cat.id === categoryId}
             onClick={() => handleCategoryChange(cat.id)}
             title={cat.description}
-            className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${
+            className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
               cat.id === categoryId
-                ? 'bg-primary-600 text-white shadow-sm'
+                ? 'bg-primary-600 text-white shadow-md ring-2 ring-primary-400/30'
                 : 'bg-surface-100 text-surface-700 hover:bg-surface-200 dark:bg-surface-800 dark:text-surface-200 dark:hover:bg-surface-700'
             }`}
           >
-            <CategoryIcon categoryId={cat.id} className="w-4 h-4 inline-block mr-1 -mt-0.5" />
+            <CategoryIcon categoryId={cat.id} className="w-5 h-5 rounded-sm" />
             {cat.name}
           </button>
         ))}

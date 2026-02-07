@@ -90,8 +90,8 @@ export default function HomePage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {/* Share button */}
-          {itemCount > 0 && <ShareButton onShare={handleShare} />}
+          {/* Share button — always visible so users know the feature exists */}
+          <ShareButton onShare={handleShare} disabled={itemCount === 0} />
 
           {/* Clear build */}
           {itemCount > 0 && (

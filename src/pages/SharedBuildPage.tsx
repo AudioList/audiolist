@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import type { BuildItem } from '../types';
 import { supabase } from '../lib/supabase';
-import { CATEGORY_MAP } from '../lib/categories';
+import { CATEGORY_MAP, getCategoryAccentColor } from '../lib/categories';
 import PPIBadge from '../components/shared/PPIBadge';
 import PriceDisplay from '../components/shared/PriceDisplay';
+import CategoryIcon from '../components/shared/CategoryIcon';
 
 interface SharedBuild {
   id: string;
@@ -150,8 +151,13 @@ export default function SharedBuildPage() {
                   key={item.id}
                   className="border-b border-surface-200 dark:border-surface-700"
                 >
-                  <td className="px-4 py-3 font-medium text-surface-900 dark:text-surface-100">
-                    {category?.name ?? item.category_id}
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <CategoryIcon categoryId={item.category_id} className="w-7 h-7 rounded-sm shrink-0" />
+                      <span className={`font-bold ${getCategoryAccentColor(item.category_id)}`}>
+                        {category?.name ?? item.category_id}
+                      </span>
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-surface-700 dark:text-surface-300">
                     {product ? (
@@ -200,8 +206,11 @@ export default function SharedBuildPage() {
                 key={item.id}
                 className="rounded-lg border border-surface-200 bg-surface-50 p-4 dark:border-surface-700 dark:bg-surface-800"
               >
-                <div className="text-xs font-semibold uppercase tracking-wide text-surface-500 dark:text-surface-400">
-                  {category?.name ?? item.category_id}
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide">
+                  <CategoryIcon categoryId={item.category_id} className="w-6 h-6 rounded-sm shrink-0" />
+                  <span className={getCategoryAccentColor(item.category_id)}>
+                    {category?.name ?? item.category_id}
+                  </span>
                 </div>
                 <div className="mt-1 font-medium text-surface-900 dark:text-surface-100">
                   {product ? (

@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { Product, CategoryId } from '../types';
 import { supabase } from '../lib/supabase';
-import { CATEGORY_MAP, getScoreLabel, isSpinormaCategory } from '../lib/categories';
+import { CATEGORY_MAP, getScoreLabel, isSpinormaCategory, getCategoryAccentColor } from '../lib/categories';
 import { useBuild } from '../context/BuildContext';
 import PPIBadge from '../components/shared/PPIBadge';
 import PriceDisplay from '../components/shared/PriceDisplay';
 import WhereToBuy from '../components/shared/WhereToBuy';
+import CategoryIcon from '../components/shared/CategoryIcon';
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -141,14 +142,15 @@ export default function ProductDetailPage() {
             {category && (
               <Link
                 to={`/products/${product.category_id}`}
-                className="hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+                className={`inline-flex items-center gap-1.5 hover:text-primary-600 dark:hover:text-primary-400 transition-colors ${getCategoryAccentColor(product.category_id)}`}
               >
+                <CategoryIcon categoryId={product.category_id} className="w-5 h-5 rounded-sm" />
                 {category.name}
               </Link>
             )}
             {product.brand && (
               <>
-                <span>/</span>
+                <span className="text-surface-400">/</span>
                 <span>{product.brand}</span>
               </>
             )}

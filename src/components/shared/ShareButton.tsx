@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 
 interface ShareButtonProps {
   onShare: () => Promise<string>;
+  disabled?: boolean;
 }
 
 function LinkIcon() {
@@ -37,11 +38,11 @@ function CheckIcon() {
   );
 }
 
-export default function ShareButton({ onShare }: ShareButtonProps) {
+export default function ShareButton({ onShare, disabled = false }: ShareButtonProps) {
   const [state, setState] = useState<'idle' | 'loading' | 'copied'>('idle');
 
   const handleClick = useCallback(async () => {
-    if (state === 'loading') return;
+    if (state === 'loading' || disabled) return;
 
     setState('loading');
     try {
@@ -52,13 +53,14 @@ export default function ShareButton({ onShare }: ShareButtonProps) {
     } catch {
       setState('idle');
     }
-  }, [onShare, state]);
+  }, [onShare, state, disabled]);
 
   return (
     <button
       type="button"
       onClick={handleClick}
-      disabled={state === 'loading'}
+      disabled={state === 'loading' || disabled}
+      title={disabled ? 'Add components to your build first' : 'Share your build with a link'}
       className={`
         inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium
         transition-all duration-150
@@ -67,7 +69,7 @@ export default function ShareButton({ onShare }: ShareButtonProps) {
             ? 'bg-ppi-excellent text-white'
             : 'bg-primary-600 hover:bg-primary-500 text-white'
         }
-        disabled:opacity-50 disabled:cursor-not-allowed
+        disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary-600
         focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2
         focus:ring-offset-surface-900
       `}
