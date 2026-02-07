@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { CategoryId, ProductFilters, ProductSort, Product } from '../types';
-import { CATEGORIES, CATEGORY_MAP, getScoreLabel, isSpinormaCategory } from '../lib/categories';
+import { CATEGORIES, CATEGORY_MAP, getScoreLabel, isSpinormaCategory, getCategoryIcon } from '../lib/categories';
 import { useProducts, useRetailers, useSpeakerTypes } from '../hooks/useProducts';
 import SearchBar from '../components/products/SearchBar';
 import SortControls from '../components/products/SortControls';
@@ -75,7 +75,7 @@ export default function ProductListPage() {
   return (
     <div className="space-y-6">
       {/* Category tabs */}
-      <nav className="flex flex-wrap gap-1" role="tablist" aria-label="Product categories">
+      <nav className="flex flex-wrap gap-1.5" role="tablist" aria-label="Product categories">
         {CATEGORIES.map((cat) => (
           <button
             key={cat.id}
@@ -83,12 +83,14 @@ export default function ProductListPage() {
             role="tab"
             aria-selected={cat.id === categoryId}
             onClick={() => handleCategoryChange(cat.id)}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+            title={cat.description}
+            className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${
               cat.id === categoryId
-                ? 'bg-primary-600 text-white'
-                : 'bg-surface-100 text-surface-600 hover:bg-surface-200 dark:bg-surface-800 dark:text-surface-300 dark:hover:bg-surface-700'
+                ? 'bg-primary-600 text-white shadow-sm'
+                : 'bg-surface-100 text-surface-700 hover:bg-surface-200 dark:bg-surface-800 dark:text-surface-200 dark:hover:bg-surface-700'
             }`}
           >
+            <span className="mr-1" aria-hidden="true">{getCategoryIcon(cat.id)}</span>
             {cat.name}
           </button>
         ))}
@@ -131,7 +133,7 @@ export default function ProductListPage() {
             {/* Speaker Type (only for speaker category) */}
             {categoryId === 'speaker' && speakerTypes.length > 0 && (
               <div className="mb-3 space-y-2">
-                <label className="block text-xs font-medium text-surface-500 dark:text-surface-400">
+                <label className="block text-xs font-semibold text-surface-700 dark:text-surface-300">
                   Speaker Type
                   {filters.speakerTypes.length > 0 && (
                     <span className="ml-1.5 text-primary-400">({filters.speakerTypes.length})</span>
@@ -164,7 +166,7 @@ export default function ProductListPage() {
 
             {/* Price range */}
             <div className="space-y-2">
-              <label className="block text-xs font-medium text-surface-500 dark:text-surface-400">
+              <label className="block text-xs font-semibold text-surface-700 dark:text-surface-300">
                 Price Range
               </label>
               <div className="flex items-center gap-2">
@@ -199,7 +201,7 @@ export default function ProductListPage() {
             {/* PPI range (only for categories with PPI) */}
             {category.has_ppi && (
               <div className="mt-4 space-y-2">
-                <label className="block text-xs font-medium text-surface-500 dark:text-surface-400">
+                <label className="block text-xs font-semibold text-surface-700 dark:text-surface-300">
                   {getScoreLabel(categoryId)} Range
                 </label>
                 <div className="flex items-center gap-2">
@@ -235,7 +237,7 @@ export default function ProductListPage() {
             {/* Retailer filter */}
             {retailers.length > 0 && (
               <div className="mt-4 space-y-2">
-                <label className="block text-xs font-medium text-surface-500 dark:text-surface-400">
+                <label className="block text-xs font-semibold text-surface-700 dark:text-surface-300">
                   Retailer
                   {filters.retailers.length > 0 && (
                     <span className="ml-1.5 text-primary-400">({filters.retailers.length})</span>
@@ -293,7 +295,7 @@ export default function ProductListPage() {
         {/* Product grid */}
         <div className="flex-1">
           {/* Results count */}
-          <div className="mb-4 text-sm text-surface-500 dark:text-surface-400">
+          <div className="mb-4 text-sm font-medium text-surface-700 dark:text-surface-300">
             {loading && products.length === 0
               ? 'Loading...'
               : `${total} ${total === 1 ? 'product' : 'products'} found`}
@@ -367,13 +369,13 @@ function ProductCard({ product, showPPI }: { product: Product; showPPI: boolean 
 
       {/* Brand */}
       {product.brand && (
-        <span className="text-xs font-medium uppercase tracking-wide text-surface-500 dark:text-surface-400">
+        <span className="text-xs font-semibold uppercase tracking-wide text-surface-600 dark:text-surface-300">
           {product.brand}
         </span>
       )}
 
       {/* Name */}
-      <h3 className="mt-1 text-sm font-semibold text-surface-900 group-hover:text-primary-600 dark:text-surface-100 dark:group-hover:text-primary-400 line-clamp-2">
+      <h3 className="mt-1 text-base font-bold text-surface-900 group-hover:text-primary-600 dark:text-surface-100 dark:group-hover:text-primary-400 line-clamp-2">
         {product.name}
       </h3>
 

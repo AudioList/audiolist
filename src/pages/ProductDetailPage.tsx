@@ -137,7 +137,7 @@ export default function ProductDetailPage() {
         {/* Right: Details */}
         <div className="flex-1 space-y-5">
           {/* Brand + category breadcrumb */}
-          <div className="flex flex-wrap items-center gap-2 text-xs font-medium uppercase tracking-wide text-surface-500 dark:text-surface-400">
+          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-surface-600 dark:text-surface-300">
             {category && (
               <Link
                 to={`/products/${product.category_id}`}
@@ -155,7 +155,7 @@ export default function ProductDetailPage() {
           </div>
 
           {/* Product name */}
-          <h1 className="text-2xl font-bold text-surface-900 dark:text-surface-50">
+          <h1 className="text-3xl font-extrabold text-surface-900 dark:text-surface-50">
             {product.name}
           </h1>
 
@@ -167,7 +167,7 @@ export default function ProductDetailPage() {
           {/* Score badge (large) — PPI for IEM/headphone, Spinorama for speakers */}
           {category?.has_ppi && (
             <div className="flex items-center gap-3">
-              <span className="text-sm font-medium text-surface-500 dark:text-surface-400">
+              <span className="text-sm font-semibold text-surface-700 dark:text-surface-300">
                 {getScoreLabel(product.category_id)}:
               </span>
               <PPIBadge score={product.ppi_score} size="lg" label={getScoreLabel(product.category_id)} />
@@ -186,7 +186,7 @@ export default function ProductDetailPage() {
                 </thead>
                 <tbody>
                   <tr className="border-b border-surface-200 dark:border-surface-700">
-                    <td className="px-4 py-2 text-surface-700 dark:text-surface-300">
+                    <td className="px-4 py-2 text-surface-700 dark:text-surface-300" title="Olive Predicted Preference Score — higher is better (scale of 0-10)">
                       Preference Score
                     </td>
                     <td className="px-4 py-2 text-right font-mono text-surface-900 dark:text-surface-100">
@@ -195,7 +195,7 @@ export default function ProductDetailPage() {
                     </td>
                   </tr>
                   <tr className="border-b border-surface-200 dark:border-surface-700">
-                    <td className="px-4 py-2 text-surface-700 dark:text-surface-300">
+                    <td className="px-4 py-2 text-surface-700 dark:text-surface-300" title="Preference score when paired with a subwoofer — often higher than standalone">
                       Score w/ Sub
                     </td>
                     <td className="px-4 py-2 text-right font-mono text-surface-900 dark:text-surface-100">
@@ -204,7 +204,7 @@ export default function ProductDetailPage() {
                     </td>
                   </tr>
                   <tr className="border-b border-surface-200 dark:border-surface-700">
-                    <td className="px-4 py-2 text-surface-700 dark:text-surface-300">
+                    <td className="px-4 py-2 text-surface-700 dark:text-surface-300" title="Low Frequency Extension — how deep the bass goes (lower Hz = deeper bass)">
                       Bass Extension (LFX)
                     </td>
                     <td className="px-4 py-2 text-right font-mono text-surface-900 dark:text-surface-100">
@@ -212,7 +212,7 @@ export default function ProductDetailPage() {
                     </td>
                   </tr>
                   <tr className="border-b border-surface-200 dark:border-surface-700">
-                    <td className="px-4 py-2 text-surface-700 dark:text-surface-300">
+                    <td className="px-4 py-2 text-surface-700 dark:text-surface-300" title="Narrow Band Deviation on axis — lower = smoother frequency response">
                       NBD On-Axis
                     </td>
                     <td className="px-4 py-2 text-right font-mono text-surface-900 dark:text-surface-100">
@@ -220,7 +220,7 @@ export default function ProductDetailPage() {
                     </td>
                   </tr>
                   <tr>
-                    <td className="px-4 py-2 text-surface-700 dark:text-surface-300">
+                    <td className="px-4 py-2 text-surface-700 dark:text-surface-300" title="Predicted In-Room smoothness — lower = more even sound in a typical room">
                       Smoothness (SM PIR)
                     </td>
                     <td className="px-4 py-2 text-right font-mono text-surface-900 dark:text-surface-100">
@@ -244,7 +244,7 @@ export default function ProductDetailPage() {
                 </thead>
                 <tbody>
                   <tr className="border-b border-surface-200 dark:border-surface-700">
-                    <td className="px-4 py-2 text-surface-700 dark:text-surface-300">
+                    <td className="px-4 py-2 text-surface-700 dark:text-surface-300" title="Standard deviation from target curve — lower = closer to ideal tuning">
                       Std Deviation
                     </td>
                     <td className="px-4 py-2 text-right font-mono text-surface-900 dark:text-surface-100">
@@ -252,7 +252,7 @@ export default function ProductDetailPage() {
                     </td>
                   </tr>
                   <tr className="border-b border-surface-200 dark:border-surface-700">
-                    <td className="px-4 py-2 text-surface-700 dark:text-surface-300">
+                    <td className="px-4 py-2 text-surface-700 dark:text-surface-300" title="Frequency response slope — closer to 0 = more balanced bass-to-treble tilt">
                       Slope
                     </td>
                     <td className="px-4 py-2 text-right font-mono text-surface-900 dark:text-surface-100">
@@ -260,7 +260,7 @@ export default function ProductDetailPage() {
                     </td>
                   </tr>
                   <tr>
-                    <td className="px-4 py-2 text-surface-700 dark:text-surface-300">
+                    <td className="px-4 py-2 text-surface-700 dark:text-surface-300" title="Average error from target curve — lower = more accurate sound reproduction">
                       Avg Error
                     </td>
                     <td className="px-4 py-2 text-right font-mono text-surface-900 dark:text-surface-100">
@@ -277,22 +277,22 @@ export default function ProductDetailPage() {
           {/* Additional info */}
           <div className="flex flex-wrap gap-3">
             {product.source_domain && (
-              <span className="inline-flex items-center rounded-full bg-surface-100 px-2.5 py-1 text-xs font-medium text-surface-600 dark:bg-surface-800 dark:text-surface-400">
+              <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" title="Measurement data source">
                 Source: {product.source_domain}
               </span>
             )}
             {product.rig_type && (
-              <span className="inline-flex items-center rounded-full bg-surface-100 px-2.5 py-1 text-xs font-medium text-surface-600 dark:bg-surface-800 dark:text-surface-400">
+              <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" title="Measurement rig used for testing — 5128 is the newer, more accurate standard">
                 Rig: {product.rig_type}
               </span>
             )}
             {product.speaker_type && (
-              <span className="inline-flex items-center rounded-full bg-surface-100 px-2.5 py-1 text-xs font-medium text-surface-600 dark:bg-surface-800 dark:text-surface-400">
+              <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
                 Type: {product.speaker_type}
               </span>
             )}
             {product.quality && (
-              <span className="inline-flex items-center rounded-full bg-primary-100 px-2.5 py-1 text-xs font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-400">
+              <span className="inline-flex items-center rounded-full bg-primary-100 px-2.5 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-900/30 dark:text-primary-400">
                 {product.quality}
               </span>
             )}

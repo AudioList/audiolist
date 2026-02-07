@@ -18,10 +18,10 @@ export default function BuilderTable({ onChooseProduct, onViewDetail }: BuilderT
       <div className="hidden md:block overflow-x-auto rounded-xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 shadow-sm">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-surface-200 dark:bg-surface-800 text-surface-600 dark:text-surface-300 text-left">
-              <th className="px-4 py-3 font-semibold w-48">Component</th>
-              <th className="px-4 py-3 font-semibold">Selection</th>
-              <th className="px-4 py-3 font-semibold text-right w-28">Price</th>
+            <tr className="bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-200 text-left border-b-2 border-surface-300 dark:border-surface-600">
+              <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider w-56">Component</th>
+              <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">Selection</th>
+              <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-right w-28">Price</th>
               <th className="px-4 py-3 w-20">
                 <span className="sr-only">Actions</span>
               </th>

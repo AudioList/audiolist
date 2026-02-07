@@ -26,8 +26,8 @@ function formatPrice(price: number): string {
 export default function PriceDisplay({ price, affiliateUrl, inStock }: PriceDisplayProps) {
   if (price === null) {
     return (
-      <span className="text-surface-500 dark:text-surface-400 text-sm italic">
-        Price N/A
+      <span className="text-surface-400 dark:text-surface-500 text-sm italic">
+        No price
       </span>
     );
   }
@@ -42,17 +42,17 @@ export default function PriceDisplay({ price, affiliateUrl, inStock }: PriceDisp
           href={affiliateUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className={`font-semibold transition-colors ${
+          className={`font-bold transition-colors ${
             isOOS
-              ? 'text-surface-500 hover:text-surface-400'
-              : 'text-primary-400 hover:text-primary-300'
+              ? 'text-surface-400 line-through hover:text-surface-500 dark:text-surface-500 dark:hover:text-surface-400'
+              : 'text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300'
           }`}
         >
           {formatted}
           <ExternalLinkIcon />
         </a>
         {isOOS && (
-          <span className="block text-[10px] font-medium text-red-400">
+          <span className="block text-[10px] font-semibold text-red-500 dark:text-red-400">
             Out of Stock
           </span>
         )}
@@ -62,11 +62,11 @@ export default function PriceDisplay({ price, affiliateUrl, inStock }: PriceDisp
 
   return (
     <div className="text-right">
-      <span className={`font-semibold ${isOOS ? 'text-surface-500' : 'text-surface-100 dark:text-surface-100'}`}>
+      <span className={`font-bold ${isOOS ? 'text-surface-400 line-through dark:text-surface-500' : 'text-surface-900 dark:text-surface-100'}`}>
         {formatted}
       </span>
       {isOOS && (
-        <span className="block text-[10px] font-medium text-red-400">
+        <span className="block text-[10px] font-semibold text-red-500 dark:text-red-400">
           Out of Stock
         </span>
       )}

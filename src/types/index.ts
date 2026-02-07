@@ -7,6 +7,7 @@ export type TargetType = 'df' | 'harman';
 export interface Category {
   id: CategoryId;
   name: string;
+  description: string;
   sort_order: number;
   icon: string;
   has_ppi: boolean;

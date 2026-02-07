@@ -1,5 +1,6 @@
 import type { Category, CategoryId, BuildSelection, Product } from '../../types';
 import { useBuild } from '../../context/BuildContext';
+import { getCategoryIcon, getCategoryBorderColor } from '../../lib/categories';
 import PriceDisplay from '../shared/PriceDisplay';
 
 interface CategoryRowProps {
@@ -13,6 +14,8 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
   const { removeProduct } = useBuild();
   const product = selection?.product;
   const price = selection?.custom_price ?? product?.price ?? null;
+  const icon = getCategoryIcon(category.id);
+  const borderColor = getCategoryBorderColor(category.id);
 
   return (
     <>
@@ -20,9 +23,19 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
       <tr className="hidden md:table-row border-b border-surface-200 dark:border-surface-700 hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors">
         {/* Category icon + name */}
         <td className="px-4 py-3 whitespace-nowrap">
-          <span className="font-medium text-surface-900 dark:text-surface-100">
-            {category.name}
-          </span>
+          <div className="flex items-center gap-2.5">
+            <span className="text-lg" aria-hidden="true">{icon}</span>
+            <div>
+              <span className={`text-base font-bold text-surface-900 dark:text-surface-100`}>
+                {category.name}
+              </span>
+              {category.description && (
+                <span className="block text-[11px] text-surface-500 dark:text-surface-400 font-normal leading-tight">
+                  {category.description}
+                </span>
+              )}
+            </div>
+          </div>
         </td>
 
         {product ? (
@@ -32,10 +45,15 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
               <button
                 type="button"
                 onClick={() => onViewDetail(product)}
-                className="text-left text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 hover:underline transition-colors font-medium"
+                className="text-left text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 hover:underline transition-colors font-semibold"
               >
                 {product.name}
               </button>
+              {product.brand && (
+                <span className="block text-xs text-surface-500 dark:text-surface-400 mt-0.5">
+                  {product.brand}
+                </span>
+              )}
             </td>
 
             {/* Price */}
@@ -50,7 +68,7 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
                 <button
                   type="button"
                   onClick={() => onChoose(category.id)}
-                  className="p-1 rounded text-surface-400 hover:text-primary-500 dark:text-surface-500 dark:hover:text-primary-400 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
+                  className="p-1.5 rounded-md text-surface-400 hover:text-primary-500 dark:text-surface-500 dark:hover:text-primary-400 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
                   aria-label={`Swap ${product.name}`}
                   title="Swap"
                 >
@@ -72,7 +90,7 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
                 <button
                   type="button"
                   onClick={() => removeProduct(category.id)}
-                  className="p-1 rounded text-surface-400 hover:text-red-500 dark:text-surface-500 dark:hover:text-red-400 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
+                  className="p-1.5 rounded-md text-surface-400 hover:text-red-500 dark:text-surface-500 dark:hover:text-red-400 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
                   aria-label={`Remove ${product.name}`}
                   title="Remove"
                 >
@@ -95,28 +113,38 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
             <button
               type="button"
               onClick={() => onChoose(category.id)}
-              className="w-full py-2 px-4 rounded-lg border-2 border-dashed border-surface-300 dark:border-surface-600 text-surface-500 dark:text-surface-400 hover:border-primary-400 dark:hover:border-primary-500 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors text-sm font-medium"
+              className={`w-full py-2.5 px-4 rounded-lg border-2 border-dashed ${borderColor}/40 text-surface-600 dark:text-surface-300 hover:${borderColor} hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors text-sm font-semibold`}
             >
-              Choose a {category.name}
+              + Choose a {category.name}
             </button>
           </td>
         )}
       </tr>
 
       {/* Mobile: card layout */}
-      <div className="md:hidden rounded-lg border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-800 p-4 shadow-sm">
+      <div className={`md:hidden rounded-lg border-l-4 ${borderColor} border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-800 p-4 shadow-sm`}>
         {/* Card header: icon + category name + action buttons */}
         <div className="flex items-center justify-between mb-3">
-          <span className="font-medium text-surface-900 dark:text-surface-100">
-            {category.name}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-lg" aria-hidden="true">{icon}</span>
+            <div>
+              <span className="text-base font-bold text-surface-900 dark:text-surface-100">
+                {category.name}
+              </span>
+              {category.description && (
+                <span className="block text-[11px] text-surface-500 dark:text-surface-400 font-normal leading-tight">
+                  {category.description}
+                </span>
+              )}
+            </div>
+          </div>
           {product && (
             <div className="flex items-center gap-1">
               {/* Swap */}
               <button
                 type="button"
                 onClick={() => onChoose(category.id)}
-                className="p-1 rounded text-surface-400 hover:text-primary-500 dark:text-surface-500 dark:hover:text-primary-400 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
+                className="p-1.5 rounded-md text-surface-400 hover:text-primary-500 dark:text-surface-500 dark:hover:text-primary-400 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
                 aria-label={`Swap ${product.name}`}
               >
                 <svg
@@ -137,7 +165,7 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
               <button
                 type="button"
                 onClick={() => removeProduct(category.id)}
-                className="p-1 rounded text-surface-400 hover:text-red-500 dark:text-surface-500 dark:hover:text-red-400 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
+                className="p-1.5 rounded-md text-surface-400 hover:text-red-500 dark:text-surface-500 dark:hover:text-red-400 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
                 aria-label={`Remove ${product.name}`}
               >
                 <svg
@@ -160,10 +188,15 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
             <button
               type="button"
               onClick={() => onViewDetail(product)}
-              className="text-left text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 hover:underline transition-colors font-medium text-sm"
+              className="text-left text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 hover:underline transition-colors font-semibold text-sm"
             >
               {product.name}
             </button>
+            {product.brand && (
+              <span className="block text-xs text-surface-500 dark:text-surface-400">
+                {product.brand}
+              </span>
+            )}
 
             {/* Price */}
             <div className="flex items-center justify-end">
@@ -174,9 +207,9 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
           <button
             type="button"
             onClick={() => onChoose(category.id)}
-            className="w-full py-2.5 px-4 rounded-lg border-2 border-dashed border-surface-300 dark:border-surface-600 text-surface-500 dark:text-surface-400 hover:border-primary-400 dark:hover:border-primary-500 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors text-sm font-medium"
+            className={`w-full py-2.5 px-4 rounded-lg border-2 border-dashed ${borderColor}/40 text-surface-600 dark:text-surface-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors text-sm font-semibold`}
           >
-            Choose a {category.name}
+            + Choose a {category.name}
           </button>
         )}
       </div>

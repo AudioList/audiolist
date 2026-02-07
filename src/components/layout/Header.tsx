@@ -33,7 +33,7 @@ export default function Header() {
     <header className="sticky top-0 z-50 border-b border-surface-200 bg-white dark:border-surface-800 dark:bg-surface-900">
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4">
         {/* Brand */}
-        <Link to="/" className="text-lg font-bold text-primary-600 dark:text-primary-400">
+        <Link to="/" className="text-xl font-extrabold text-primary-600 dark:text-primary-400 tracking-tight">
           AudioList
         </Link>
 

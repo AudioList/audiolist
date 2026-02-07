@@ -1,4 +1,4 @@
-import { getPPIColor, getPPILabel } from '../../lib/categories';
+import { getPPIColor, getPPILabel, getPPITooltip } from '../../lib/categories';
 
 interface PPIBadgeProps {
   score: number | null;
@@ -20,15 +20,16 @@ export default function PPIBadge({ score, size = 'md', label: scoreLabel }: PPIB
   const colorClasses = getPPIColor(score);
   const qualityLabel = getPPILabel(score);
   const display = score.toFixed(1);
-  const titlePrefix = scoreLabel ?? 'PPI';
+  const isSpinorama = scoreLabel === 'Spinorama';
+  const tooltip = getPPITooltip(score, isSpinorama);
 
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full font-medium ${colorClasses} ${sizeClasses[size]}`}
-      title={`${titlePrefix}: ${display} - ${qualityLabel}`}
+      className={`inline-flex items-center gap-1 rounded-full font-bold shadow-sm ${colorClasses} ${sizeClasses[size]}`}
+      title={tooltip}
     >
       <span>{display}</span>
-      <span className="opacity-80">{qualityLabel}</span>
+      <span className="opacity-80 font-semibold">{qualityLabel}</span>
     </span>
   );
 }

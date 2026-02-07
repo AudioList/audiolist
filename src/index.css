@@ -31,6 +31,16 @@
   --color-ppi-good: #eab308;
   --color-ppi-fair: #f97316;
   --color-ppi-poor: #ef4444;
+
+  /* Category accent colors */
+  --color-accent-iem: #8b5cf6;
+  --color-accent-headphone: #ec4899;
+  --color-accent-dac: #06b6d4;
+  --color-accent-amp: #f59e0b;
+  --color-accent-speaker: #10b981;
+  --color-accent-cable: #6366f1;
+  --color-accent-dap: #14b8a6;
+  --color-accent-mic: #f43f5e;
 }
 
 body {
