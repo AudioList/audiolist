@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { CategoryId, ProductFilters, ProductSort, Product } from '../types';
 import { CATEGORIES, CATEGORY_MAP, getScoreLabel, isSpinormaCategory } from '../lib/categories';
-import { useProducts, useRetailers, useSpeakerTypes } from '../hooks/useProducts';
+import { useProducts, useProductBrands, useRetailers, useSpeakerTypes } from '../hooks/useProducts';
 import SearchBar from '../components/products/SearchBar';
 import SortControls from '../components/products/SortControls';
 import PPIBadge from '../components/shared/PPIBadge';
@@ -47,8 +47,14 @@ export default function ProductListPage() {
   );
 
   const { products, loading, error, hasMore, total, loadMore } = useProducts(hookOptions);
+  const brands = useProductBrands(categoryId);
   const retailers = useRetailers(categoryId);
   const speakerTypes = useSpeakerTypes();
+  const [brandSearch, setBrandSearch] = useState('');
+
+  const visibleBrands = brandSearch
+    ? brands.filter((b) => b.toLowerCase().includes(brandSearch.toLowerCase()))
+    : brands;
 
   function handleCategoryChange(id: CategoryId) {
     navigate(`/products/${id}`);
@@ -65,6 +71,7 @@ export default function ProductListPage() {
       hideOutOfStock: false,
       speakerTypes: [],
     });
+    setBrandSearch('');
     const cat = CATEGORY_MAP.get(id);
     setSort({
       field: cat?.has_ppi ? 'ppi_score' : 'price',
@@ -229,6 +236,51 @@ export default function ProductListPage() {
                     }
                     className="w-full rounded-md border border-surface-300 bg-white px-2 py-1.5 text-sm text-surface-900 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-100"
                   />
+                </div>
+              </div>
+            )}
+
+            {/* Brand filter */}
+            {brands.length > 0 && (
+              <div className="mt-4 space-y-2">
+                <label className="block text-xs font-semibold text-surface-700 dark:text-surface-300">
+                  Brand
+                  {filters.brands.length > 0 && (
+                    <span className="ml-1.5 text-primary-400">({filters.brands.length})</span>
+                  )}
+                </label>
+                {brands.length >= 10 && (
+                  <input
+                    type="text"
+                    placeholder="Search brands..."
+                    value={brandSearch}
+                    onChange={(e) => setBrandSearch(e.target.value)}
+                    className="w-full rounded-md border border-surface-300 bg-white px-2 py-1 text-sm text-surface-900 placeholder-surface-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-100 dark:placeholder-surface-500"
+                  />
+                )}
+                <div className="max-h-48 space-y-1 overflow-y-auto">
+                  {visibleBrands.map((brand) => (
+                    <label
+                      key={brand}
+                      className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={filters.brands.includes(brand)}
+                        onChange={() => {
+                          const next = filters.brands.includes(brand)
+                            ? filters.brands.filter((b) => b !== brand)
+                            : [...filters.brands, brand];
+                          setFilters((prev) => ({ ...prev, brands: next }));
+                        }}
+                        className="h-3.5 w-3.5 rounded border-surface-300 text-primary-500 focus:ring-primary-500/40 dark:border-surface-500 dark:bg-surface-700"
+                      />
+                      <span className="truncate">{brand}</span>
+                    </label>
+                  ))}
+                  {brands.length > 0 && visibleBrands.length === 0 && (
+                    <p className="text-xs text-surface-400 italic">No matching brands</p>
+                  )}
                 </div>
               </div>
             )}
