@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { ProductFilters, CategoryId } from '../../types';
+import { isSpinormaCategory } from '../../lib/categories';
 
 interface FilterSidebarProps {
   filters: ProductFilters;
@@ -12,7 +13,7 @@ interface FilterSidebarProps {
 const BRAND_SEARCH_MIN = 10; // Show search box when there are this many brands
 
 function hasPPI(category: CategoryId): boolean {
-  return category === 'iem' || category === 'headphone';
+  return category === 'iem' || category === 'headphone' || category === 'speaker';
 }
 
 export default function FilterSidebar({
@@ -144,10 +145,10 @@ export default function FilterSidebar({
 
           {measurementOpen && (
             <div className="mt-3 space-y-4">
-              {/* PPI Range */}
+              {/* Score Range */}
               <div>
                 <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-surface-400">
-                  PPI Range
+                  {isSpinormaCategory(category) ? 'Spinorama Range' : 'PPI Range'}
                 </h4>
                 <div className="flex items-center gap-2">
                   <input
@@ -192,21 +193,23 @@ export default function FilterSidebar({
                 </select>
               </div>
 
-              {/* Rig Type */}
-              <div>
-                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-surface-400">
-                  Rig Type
-                </h4>
-                <select
-                  value={filters.rigType ?? ''}
-                  onChange={(e) => update({ rigType: e.target.value || null })}
-                  className="w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
-                >
-                  <option value="">All</option>
-                  <option value="711">711</option>
-                  <option value="5128">5128</option>
-                </select>
-              </div>
+              {/* Rig Type (IEM/headphone only) */}
+              {!isSpinormaCategory(category) && (
+                <div>
+                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-surface-400">
+                    Rig Type
+                  </h4>
+                  <select
+                    value={filters.rigType ?? ''}
+                    onChange={(e) => update({ rigType: e.target.value || null })}
+                    className="w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
+                  >
+                    <option value="">All</option>
+                    <option value="711">711</option>
+                    <option value="5128">5128</option>
+                  </select>
+                </div>
+              )}
             </div>
           )}
         </div>

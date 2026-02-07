@@ -15,7 +15,7 @@ export const CATEGORIES: Category[] = [
   // Main categories continued
   { id: 'dac', name: 'Digital-to-Analog Converter', sort_order: 3, icon: 'cpu', has_ppi: false, parent_category: null },
   { id: 'amp', name: 'Amplifier', sort_order: 4, icon: 'zap', has_ppi: false, parent_category: null },
-  { id: 'speaker', name: 'Speakers', sort_order: 5, icon: 'speaker', has_ppi: false, parent_category: null },
+  { id: 'speaker', name: 'Speakers', sort_order: 5, icon: 'speaker', has_ppi: true, parent_category: null },
   { id: 'cable', name: 'Cables & Accessories', sort_order: 6, icon: 'cable', has_ppi: false, parent_category: null },
   { id: 'dap', name: 'Digital Audio Player', sort_order: 7, icon: 'smartphone', has_ppi: false, parent_category: null },
   { id: 'microphone', name: 'Microphone', sort_order: 8, icon: 'mic', has_ppi: false, parent_category: null },
@@ -68,4 +68,14 @@ export function getPPILabel(score: number): string {
   if (score >= 55) return 'Good';
   if (score >= 40) return 'Fair';
   return 'Poor';
+}
+
+/** Get the measurement score label for a category */
+export function getScoreLabel(categoryId: CategoryId): string {
+  return categoryId === 'speaker' ? 'Spinorama' : 'PPI Score';
+}
+
+/** Check if a category uses spinorama scoring instead of PPI */
+export function isSpinormaCategory(categoryId: CategoryId): boolean {
+  return categoryId === 'speaker';
 }

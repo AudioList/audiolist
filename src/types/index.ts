@@ -37,6 +37,14 @@ export interface Product {
   source_type: string | null;
   in_stock: boolean;
   first_seen: string | null;
+  // Spinorama fields (speakers)
+  pref_score: number | null;
+  pref_score_wsub: number | null;
+  lfx_hz: number | null;
+  nbd_on_axis: number | null;
+  sm_pred_in_room: number | null;
+  speaker_type: string | null;
+  spinorama_origin: string | null;
   created_at: string;
   updated_at: string;
 }

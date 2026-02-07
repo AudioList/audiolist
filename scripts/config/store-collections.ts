@@ -149,4 +149,31 @@ export const STORE_COLLECTIONS: Record<string, StoreConfig> = {
       { handle: '05-speaker', categoryId: 'speaker' },
     ],
   },
+  'www.svsound.com': {
+    retailerId: 'svsound',
+    collections: [
+      { handle: 'svs-bookshelf-speakers', categoryId: 'speaker' },
+      { handle: 'svs-center-channel-speakers', categoryId: 'speaker' },
+      { handle: 'sealed-subwoofers', categoryId: 'speaker' },
+      { handle: 'ported-subwoofers', categoryId: 'speaker' },
+    ],
+  },
+  'us.kef.com': {
+    retailerId: 'kef',
+    collections: [
+      { handle: 'bookshelf-speakers', categoryId: 'speaker' },
+      { handle: 'floorstanding-speakers', categoryId: 'speaker' },
+      { handle: 'centre-channel-speakers', categoryId: 'speaker' },
+      { handle: 'subwoofers', categoryId: 'speaker' },
+      { handle: 'headphones', categoryId: 'headphone' },
+    ],
+  },
+  'www.emotiva.com': {
+    retailerId: 'emotiva',
+    collections: [
+      { handle: 'loudspeakers', categoryId: 'speaker' },
+      { handle: 'amps', categoryId: 'amp' },
+      { handle: 'dacs', categoryId: 'dac' },
+    ],
+  },
 };

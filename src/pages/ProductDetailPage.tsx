@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { Product, CategoryId } from '../types';
 import { supabase } from '../lib/supabase';
-import { CATEGORY_MAP } from '../lib/categories';
+import { CATEGORY_MAP, getScoreLabel, isSpinormaCategory } from '../lib/categories';
 import { useBuild } from '../context/BuildContext';
 import PPIBadge from '../components/shared/PPIBadge';
 import PriceDisplay from '../components/shared/PriceDisplay';
@@ -164,18 +164,76 @@ export default function ProductDetailPage() {
             <PriceDisplay price={product.price} affiliateUrl={product.affiliate_url} />
           </div>
 
-          {/* PPI badge (large) */}
+          {/* Score badge (large) — PPI for IEM/headphone, Spinorama for speakers */}
           {category?.has_ppi && (
             <div className="flex items-center gap-3">
               <span className="text-sm font-medium text-surface-500 dark:text-surface-400">
-                PPI Score:
+                {getScoreLabel(product.category_id)}:
               </span>
-              <PPIBadge score={product.ppi_score} size="lg" />
+              <PPIBadge score={product.ppi_score} size="lg" label={getScoreLabel(product.category_id)} />
             </div>
           )}
 
-          {/* PPI breakdown table */}
-          {category?.has_ppi && product.ppi_score !== null && (
+          {/* Spinorama breakdown table (speakers) */}
+          {category?.has_ppi && product.ppi_score !== null && isSpinormaCategory(product.category_id) && (
+            <div className="rounded-lg border border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-800">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-surface-200 text-left text-surface-500 dark:border-surface-700 dark:text-surface-400">
+                    <th className="px-4 py-2 font-medium">Metric</th>
+                    <th className="px-4 py-2 text-right font-medium">Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-surface-200 dark:border-surface-700">
+                    <td className="px-4 py-2 text-surface-700 dark:text-surface-300">
+                      Preference Score
+                    </td>
+                    <td className="px-4 py-2 text-right font-mono text-surface-900 dark:text-surface-100">
+                      {product.pref_score !== null ? product.pref_score.toFixed(1) : 'N/A'}
+                      <span className="ml-1 text-xs text-surface-500">/ 10</span>
+                    </td>
+                  </tr>
+                  <tr className="border-b border-surface-200 dark:border-surface-700">
+                    <td className="px-4 py-2 text-surface-700 dark:text-surface-300">
+                      Score w/ Sub
+                    </td>
+                    <td className="px-4 py-2 text-right font-mono text-surface-900 dark:text-surface-100">
+                      {product.pref_score_wsub !== null ? product.pref_score_wsub.toFixed(1) : 'N/A'}
+                      <span className="ml-1 text-xs text-surface-500">/ 10</span>
+                    </td>
+                  </tr>
+                  <tr className="border-b border-surface-200 dark:border-surface-700">
+                    <td className="px-4 py-2 text-surface-700 dark:text-surface-300">
+                      Bass Extension (LFX)
+                    </td>
+                    <td className="px-4 py-2 text-right font-mono text-surface-900 dark:text-surface-100">
+                      {product.lfx_hz !== null ? `${product.lfx_hz.toFixed(0)} Hz` : 'N/A'}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-surface-200 dark:border-surface-700">
+                    <td className="px-4 py-2 text-surface-700 dark:text-surface-300">
+                      NBD On-Axis
+                    </td>
+                    <td className="px-4 py-2 text-right font-mono text-surface-900 dark:text-surface-100">
+                      {product.nbd_on_axis !== null ? product.nbd_on_axis.toFixed(2) : 'N/A'}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-2 text-surface-700 dark:text-surface-300">
+                      Smoothness (SM PIR)
+                    </td>
+                    <td className="px-4 py-2 text-right font-mono text-surface-900 dark:text-surface-100">
+                      {product.sm_pred_in_room !== null ? product.sm_pred_in_room.toFixed(2) : 'N/A'}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* PPI breakdown table (IEM/headphone) */}
+          {category?.has_ppi && product.ppi_score !== null && !isSpinormaCategory(product.category_id) && (
             <div className="rounded-lg border border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-800">
               <table className="w-full text-sm">
                 <thead>
@@ -226,6 +284,11 @@ export default function ProductDetailPage() {
             {product.rig_type && (
               <span className="inline-flex items-center rounded-full bg-surface-100 px-2.5 py-1 text-xs font-medium text-surface-600 dark:bg-surface-800 dark:text-surface-400">
                 Rig: {product.rig_type}
+              </span>
+            )}
+            {product.speaker_type && (
+              <span className="inline-flex items-center rounded-full bg-surface-100 px-2.5 py-1 text-xs font-medium text-surface-600 dark:bg-surface-800 dark:text-surface-400">
+                Type: {product.speaker_type}
               </span>
             )}
             {product.quality && (

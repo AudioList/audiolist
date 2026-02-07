@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { CategoryId, ProductFilters, ProductSort, Product } from '../types';
-import { CATEGORIES, CATEGORY_MAP } from '../lib/categories';
+import { CATEGORIES, CATEGORY_MAP, getScoreLabel, isSpinormaCategory } from '../lib/categories';
 import { useProducts, useRetailers } from '../hooks/useProducts';
 import SearchBar from '../components/products/SearchBar';
 import SortControls from '../components/products/SortControls';
@@ -100,7 +100,7 @@ export default function ProductListPage() {
             placeholder={`Search ${category.name}...`}
           />
         </div>
-        <SortControls sort={sort} onChange={setSort} showPPI={category.has_ppi} />
+        <SortControls sort={sort} onChange={setSort} showPPI={category.has_ppi} scoreLabel={getScoreLabel(categoryId)} />
       </div>
 
       {/* Filter sidebar + grid layout */}
@@ -163,7 +163,7 @@ export default function ProductListPage() {
             {category.has_ppi && (
               <div className="mt-4 space-y-2">
                 <label className="block text-xs font-medium text-surface-500 dark:text-surface-400">
-                  PPI Score Range
+                  {getScoreLabel(categoryId)} Range
                 </label>
                 <div className="flex items-center gap-2">
                   <input
@@ -341,7 +341,7 @@ function ProductCard({ product, showPPI }: { product: Product; showPPI: boolean 
 
       {/* PPI + Price row */}
       <div className="mt-auto flex items-center justify-between pt-3">
-        <div>{showPPI && <PPIBadge score={product.ppi_score} size="sm" />}</div>
+        <div>{showPPI && <PPIBadge score={product.ppi_score} size="sm" label={isSpinormaCategory(product.category_id) ? 'Spinorama' : undefined} />}</div>
         <PriceDisplay price={product.price} affiliateUrl={product.affiliate_url} inStock={product.in_stock} />
       </div>
     </Link>

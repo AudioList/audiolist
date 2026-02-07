@@ -1,4 +1,5 @@
 import type { Product } from '../../types';
+import { isSpinormaCategory } from '../../lib/categories';
 import PPIBadge from '../shared/PPIBadge';
 import PriceDisplay from '../shared/PriceDisplay';
 
@@ -54,7 +55,7 @@ export default function ProductCard({
       {/* PPI Badge */}
       {showPPI && (
         <div className="shrink-0">
-          <PPIBadge score={product.ppi_score} size="sm" />
+          <PPIBadge score={product.ppi_score} size="sm" label={isSpinormaCategory(product.category_id) ? 'Spinorama' : undefined} />
         </div>
       )}
 

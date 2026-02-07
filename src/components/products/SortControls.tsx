@@ -4,6 +4,7 @@ interface SortControlsProps {
   sort: ProductSort;
   onChange: (sort: ProductSort) => void;
   showPPI?: boolean;
+  scoreLabel?: string;
 }
 
 function ArrowUp() {
@@ -47,11 +48,11 @@ interface SortOption {
   label: string;
 }
 
-export default function SortControls({ sort, onChange, showPPI = false }: SortControlsProps) {
+export default function SortControls({ sort, onChange, showPPI = false, scoreLabel }: SortControlsProps) {
   const options: SortOption[] = [];
 
   if (showPPI) {
-    options.push({ field: 'ppi_score', label: 'PPI Score' });
+    options.push({ field: 'ppi_score', label: scoreLabel ?? 'PPI Score' });
   }
   options.push({ field: 'price', label: 'Price' });
   options.push({ field: 'name', label: 'Name' });
