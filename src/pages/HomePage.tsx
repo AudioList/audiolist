@@ -9,6 +9,7 @@ import BuilderTable from '../components/builder/BuilderTable';
 import ProductPicker from '../components/products/ProductPicker';
 import ProductDetailModal from '../components/shared/ProductDetailModal';
 import ShareButton from '../components/shared/ShareButton';
+import { getClientHash } from '../hooks/useCommunityBuilds';
 import AdvancedSettings from '../components/builder/AdvancedSettings';
 import SignalChainVisualizer from '../components/builder/SignalChainVisualizer';
 import StarterBuildCards from '../components/builder/StarterBuildCards';
@@ -45,6 +46,14 @@ export default function HomePage() {
   }, [detailProduct]);
 
   const handleShare = useCallback(async (opts?: { isPublic?: boolean; authorName?: string }): Promise<string> => {
+    // Quality gate for community publishing
+    if (opts?.isPublic && !name.trim()) {
+      throw new Error('A build name is required to publish to the community.');
+    }
+    if (opts?.isPublic && items.size === 0) {
+      throw new Error('Add at least one item to publish to the community.');
+    }
+
     const shareCode = nanoid(8);
 
     // Insert the build record
@@ -52,15 +61,19 @@ export default function HomePage() {
       .from('builds')
       .insert({
         share_code: shareCode,
-        name,
-        description,
+        name: name.trim().slice(0, 100),
+        description: description.trim().slice(0, 500),
         is_public: opts?.isPublic ?? false,
-        author_name: opts?.authorName ?? null,
+        author_name: opts?.authorName?.trim().slice(0, 50) ?? null,
+        client_hash: getClientHash(),
       })
       .select('id')
       .single();
 
     if (buildError || !build) {
+      if (buildError?.message?.includes('Rate limit exceeded')) {
+        throw new Error('You are creating builds too quickly. Please wait a few minutes and try again.');
+      }
       throw new Error(buildError?.message ?? 'Failed to create build');
     }
 
@@ -96,6 +109,7 @@ export default function HomePage() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Name your build..."
+            maxLength={100}
             className="w-full border-b-2 border-transparent bg-transparent text-3xl font-extrabold text-surface-900 outline-none transition-colors placeholder:text-surface-300 hover:border-surface-200 focus:border-primary-500 dark:text-surface-50 dark:placeholder:text-surface-600 dark:hover:border-surface-700 dark:focus:border-primary-400"
             aria-label="Build name"
           />
@@ -104,6 +118,7 @@ export default function HomePage() {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Add a description for your build..."
+            maxLength={500}
             className="mt-1 w-full border-b border-transparent bg-transparent text-sm text-surface-600 outline-none transition-colors placeholder:text-surface-400 hover:border-surface-200 focus:border-primary-400 dark:text-surface-300 dark:placeholder:text-surface-500 dark:hover:border-surface-700 dark:focus:border-primary-500"
             aria-label="Build description"
           />

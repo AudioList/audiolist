@@ -31,6 +31,7 @@ export function useCommunityBuilds() {
             '*, build_items(*, product:products!product_id(id, name, brand, price, category_id, image_url))'
           )
           .eq('is_public', true)
+          .eq('is_flagged', false)
           .range(pageNum * PAGE_SIZE, (pageNum + 1) * PAGE_SIZE - 1);
 
         switch (sort) {
@@ -114,7 +115,18 @@ export function getVoterHash(): string {
   return hash;
 }
 
-export async function upvoteBuild(buildId: string): Promise<{ success: boolean; newCount?: number }> {
+/** Generate a stable client hash for rate limiting */
+export function getClientHash(): string {
+  const KEY = 'audiolist_client_hash';
+  let hash = localStorage.getItem(KEY);
+  if (!hash) {
+    hash = crypto.randomUUID();
+    localStorage.setItem(KEY, hash);
+  }
+  return hash;
+}
+
+export async function upvoteBuild(buildId: string): Promise<{ success: boolean; newCount?: number; error?: string }> {
   const voterHash = getVoterHash();
 
   // Insert vote (will fail silently on duplicate due to unique constraint)
@@ -137,7 +149,11 @@ export async function upvoteBuild(buildId: string): Promise<{ success: boolean; 
         .rpc('decrement_upvotes', { build_uuid: buildId });
       return { success: true, newCount: data ?? undefined };
     }
-    return { success: false };
+    // Rate limit or other error
+    if (voteError.message?.includes('rate limit') || voteError.message?.includes('too many votes')) {
+      return { success: false, error: 'Too many votes today. Please try again later.' };
+    }
+    return { success: false, error: voteError.message };
   }
 
   // Increment upvotes on the build

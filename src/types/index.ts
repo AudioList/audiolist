@@ -89,6 +89,9 @@ export interface Build {
   upvotes: number;
   author_name: string | null;
   tags: string[];
+  client_hash: string | null;
+  is_flagged: boolean;
+  flagged_at: string | null;
   created_at: string;
   updated_at: string;
 }

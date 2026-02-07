@@ -43,6 +43,7 @@ export default function ShareButton({ onShare, disabled = false }: ShareButtonPr
   const [showPanel, setShowPanel] = useState(false);
   const [publishToCommunity, setPublishToCommunity] = useState(false);
   const [authorName, setAuthorName] = useState('');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -67,6 +68,7 @@ export default function ShareButton({ onShare, disabled = false }: ShareButtonPr
     if (state === 'loading' || disabled) return;
 
     setState('loading');
+    setErrorMsg(null);
     try {
       const url = await onShare({
         isPublic: publishToCommunity,
@@ -76,8 +78,9 @@ export default function ShareButton({ onShare, disabled = false }: ShareButtonPr
       setState('copied');
       setShowPanel(false);
       setTimeout(() => setState('idle'), 2000);
-    } catch {
+    } catch (err) {
       setState('idle');
+      setErrorMsg(err instanceof Error ? err.message : 'Failed to share build');
     }
   }, [onShare, state, disabled, publishToCommunity, authorName]);
 
@@ -85,6 +88,7 @@ export default function ShareButton({ onShare, disabled = false }: ShareButtonPr
     if (state === 'copied') return;
     if (disabled) return;
     setShowPanel((prev) => !prev);
+    setErrorMsg(null);
   }, [state, disabled]);
 
   return (
@@ -151,9 +155,17 @@ export default function ShareButton({ onShare, disabled = false }: ShareButtonPr
                 value={authorName}
                 onChange={(e) => setAuthorName(e.target.value)}
                 placeholder="Anonymous"
+                maxLength={50}
                 className="mt-1 w-full rounded-md border border-surface-300 bg-white px-3 py-1.5 text-sm text-surface-900 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-700 dark:text-surface-100"
               />
             </div>
+          )}
+
+          {/* Error message */}
+          {errorMsg && (
+            <p className="mt-2 text-xs text-red-600 dark:text-red-400">
+              {errorMsg}
+            </p>
           )}
 
           <button
