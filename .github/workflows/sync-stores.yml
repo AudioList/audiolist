@@ -2,8 +2,8 @@ name: Sync Stores
 
 on:
   schedule:
-    # Run every 20 minutes: fetch new store products, then process them
-    - cron: '*/20 * * * *'
+    # Run every 40 minutes
+    - cron: '*/40 * * * *'
   workflow_dispatch: # Allow manual trigger from GitHub UI
 
 jobs:

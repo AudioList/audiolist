@@ -2,8 +2,8 @@ name: Sync Stores (Category)
 
 on:
   schedule:
-    # Run every 20 minutes
-    - cron: '*/20 * * * *'
+    # Run every 40 minutes
+    - cron: '*/40 * * * *'
   workflow_dispatch:
     inputs:
       group:
