@@ -10,7 +10,11 @@
 import postgres from 'postgres';
 
 const PROJECT_REF = 'sycfaajrlnkyczrauusx';
-const DB_PASSWORD = 'REDACTED_SUPABASE_DB_PASSWORD';
+const DB_PASSWORD = process.env.SUPABASE_DB_PASSWORD;
+if (!DB_PASSWORD) {
+  console.error('Error: SUPABASE_DB_PASSWORD env var is required');
+  process.exit(1);
+}
 
 const connStr = `postgresql://postgres:${DB_PASSWORD}@db.${PROJECT_REF}.supabase.co:5432/postgres`;
 const sql = postgres(connStr, { ssl: 'require' });

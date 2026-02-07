@@ -11,7 +11,11 @@
 const DRY_RUN = process.argv.includes("--dry-run");
 
 const SUPABASE_PROJECT_REF = "sycfaajrlnkyczrauusx";
-const PERSONAL_ACCESS_TOKEN = process.env.SUPABASE_PAT ?? "sbp_49f4b5de9b88b7545a3b42b4620cb2b04c5383fc";
+const PERSONAL_ACCESS_TOKEN = process.env.SUPABASE_PAT;
+if (!PERSONAL_ACCESS_TOKEN) {
+  console.error('Error: SUPABASE_PAT env var is required');
+  process.exit(1);
+}
 
 function timestamp(): string {
   return new Date().toISOString().slice(11, 19);

@@ -42,3 +42,6 @@ squig-rank/
 
 # Supabase local temp
 supabase/.temp/
+
+# Secret key files
+tmp_key*

@@ -1,9 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
+import { getSupabase } from './config/retailers.ts';
 
-const supabase = createClient(
-  'https://sycfaajrlnkyczrauusx.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5Y2ZhYWpybG5reWN6cmF1dXN4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTk5MzQ5OSwiZXhwIjoyMDg1NTY5NDk5fQ.j8snsW9uHHrnBhuMlDt8BKRGpzG4yXLSliJUUSd9Lso'
-);
+const supabase = getSupabase();
 
 async function fix() {
   const PAGE = 1000;
