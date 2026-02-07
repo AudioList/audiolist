@@ -2,7 +2,6 @@ import { useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { CategoryId, ProductFilters, ProductSort, Product } from '../types';
 import { CATEGORIES, CATEGORY_MAP, getScoreLabel, isSpinormaCategory } from '../lib/categories';
-import CategoryIcon from '../components/shared/CategoryIcon';
 import { useProducts, useRetailers, useSpeakerTypes } from '../hooks/useProducts';
 import SearchBar from '../components/products/SearchBar';
 import SortControls from '../components/products/SortControls';
@@ -91,7 +90,6 @@ export default function ProductListPage() {
                 : 'bg-surface-100 text-surface-700 hover:bg-surface-200 dark:bg-surface-800 dark:text-surface-200 dark:hover:bg-surface-700'
             }`}
           >
-            <CategoryIcon categoryId={cat.id} className="w-5 h-5 rounded-sm" />
             {cat.name}
           </button>
         ))}

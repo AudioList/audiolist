@@ -1,5 +1,6 @@
-import type { CategoryId, Product } from '../../types';
-import { CATEGORIES } from '../../lib/categories';
+import { useMemo } from 'react';
+import type { CategoryId, Product, Category } from '../../types';
+import { CATEGORIES, getChildCategories } from '../../lib/categories';
 import { useBuild } from '../../context/BuildContext';
 import CategoryRow from './CategoryRow';
 import TotalRow from './TotalRow';
@@ -9,8 +10,36 @@ interface BuilderTableProps {
   onViewDetail: (product: Product) => void;
 }
 
+interface TreeRow {
+  category: Category;
+  isChild: boolean;
+  childPosition?: 'mid' | 'last';
+}
+
 export default function BuilderTable({ onChooseProduct, onViewDetail }: BuilderTableProps) {
   const { getSelection } = useBuild();
+
+  /** Build a flat list of categories with tree metadata for rendering. */
+  const treeRows = useMemo<TreeRow[]>(() => {
+    const rows: TreeRow[] = [];
+
+    for (const cat of CATEGORIES) {
+      if (cat.parent_category !== null) continue;
+
+      rows.push({ category: cat, isChild: false });
+
+      const children = getChildCategories(cat.id);
+      children.forEach((child, idx) => {
+        rows.push({
+          category: child,
+          isChild: true,
+          childPosition: idx === children.length - 1 ? 'last' : 'mid',
+        });
+      });
+    }
+
+    return rows;
+  }, []);
 
   return (
     <div>
@@ -19,7 +48,7 @@ export default function BuilderTable({ onChooseProduct, onViewDetail }: BuilderT
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-200 text-left border-b-2 border-surface-300 dark:border-surface-600">
-              <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider w-56">Component</th>
+              <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider w-64">Component</th>
               <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">Selection</th>
               <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-right w-28">Price</th>
               <th className="px-4 py-3 w-20">
@@ -28,13 +57,15 @@ export default function BuilderTable({ onChooseProduct, onViewDetail }: BuilderT
             </tr>
           </thead>
           <tbody>
-            {CATEGORIES.map((category) => (
+            {treeRows.map((row) => (
               <CategoryRow
-                key={category.id}
-                category={category}
-                selection={getSelection(category.id)}
+                key={row.category.id}
+                category={row.category}
+                selection={getSelection(row.category.id)}
                 onChoose={onChooseProduct}
                 onViewDetail={onViewDetail}
+                isChild={row.isChild}
+                childPosition={row.childPosition}
               />
             ))}
           </tbody>
@@ -46,13 +77,15 @@ export default function BuilderTable({ onChooseProduct, onViewDetail }: BuilderT
 
       {/* Mobile: card list */}
       <div className="md:hidden flex flex-col gap-3">
-        {CATEGORIES.map((category) => (
+        {treeRows.map((row) => (
           <CategoryRow
-            key={category.id}
-            category={category}
-            selection={getSelection(category.id)}
+            key={row.category.id}
+            category={row.category}
+            selection={getSelection(row.category.id)}
             onChoose={onChooseProduct}
             onViewDetail={onViewDetail}
+            isChild={row.isChild}
+            childPosition={row.childPosition}
           />
         ))}
         <TotalRow />

@@ -1,33 +1,47 @@
 import type { Category, CategoryId, BuildSelection, Product } from '../../types';
 import { useBuild } from '../../context/BuildContext';
-import { getCategoryBorderColor, getCategoryAccentColor } from '../../lib/categories';
 import PriceDisplay from '../shared/PriceDisplay';
-import CategoryIcon from '../shared/CategoryIcon';
 
 interface CategoryRowProps {
   category: Category;
   selection: BuildSelection | undefined;
   onChoose: (categoryId: CategoryId) => void;
   onViewDetail: (product: Product) => void;
+  /** Whether this is a child (accessory) category */
+  isChild?: boolean;
+  /** Position in the child list: 'mid' has a continuing line, 'last' has an elbow */
+  childPosition?: 'mid' | 'last';
 }
 
-export default function CategoryRow({ category, selection, onChoose, onViewDetail }: CategoryRowProps) {
+export default function CategoryRow({ category, selection, onChoose, onViewDetail, isChild = false, childPosition }: CategoryRowProps) {
   const { removeProduct } = useBuild();
   const product = selection?.product;
   const price = selection?.custom_price ?? product?.price ?? null;
-  const borderColor = getCategoryBorderColor(category.id);
-  const accentColor = getCategoryAccentColor(category.id);
 
   return (
     <>
       {/* Desktop: table row */}
       <tr className="hidden md:table-row border-b border-surface-200 dark:border-surface-700 hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors">
-        {/* Category icon + name */}
+        {/* Category name with optional tree connector */}
         <td className="px-4 py-3 whitespace-nowrap">
-          <div className="flex items-center gap-3">
-            <CategoryIcon categoryId={category.id} className="w-8 h-8 shrink-0" />
+          <div className="flex items-center">
+            {isChild && childPosition && (
+              <div className="flex items-center self-stretch shrink-0" style={{ width: '28px' }}>
+                {/* Tree connector: vertical line + horizontal branch */}
+                <div className="relative h-full w-full">
+                  {/* Vertical line — full height for 'mid', half height for 'last' */}
+                  <div
+                    className={`absolute left-[10px] top-0 w-px bg-surface-300 dark:bg-surface-600 ${
+                      childPosition === 'last' ? 'h-1/2' : 'h-full'
+                    }`}
+                  />
+                  {/* Horizontal branch */}
+                  <div className="absolute left-[10px] top-1/2 h-px w-[14px] bg-surface-300 dark:bg-surface-600" />
+                </div>
+              </div>
+            )}
             <div>
-              <span className={`text-base font-bold ${accentColor}`}>
+              <span className={`font-bold text-surface-900 dark:text-surface-100 ${isChild ? 'text-sm' : 'text-base'}`}>
                 {category.name}
               </span>
               {category.description && (
@@ -114,7 +128,7 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
             <button
               type="button"
               onClick={() => onChoose(category.id)}
-              className={`w-full py-2.5 px-4 rounded-lg border-2 border-dashed ${borderColor}/40 text-surface-600 dark:text-surface-300 hover:${borderColor} hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors text-sm font-semibold`}
+              className="w-full py-2.5 px-4 rounded-lg border-2 border-dashed border-surface-300 dark:border-surface-600 text-surface-600 dark:text-surface-300 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors text-sm font-semibold"
             >
               + Choose a {category.name}
             </button>
@@ -123,13 +137,23 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
       </tr>
 
       {/* Mobile: card layout */}
-      <div className={`md:hidden rounded-lg border-l-4 ${borderColor} border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-800 p-4 shadow-sm`}>
-        {/* Card header: icon + category name + action buttons */}
+      <div className={`md:hidden bg-white dark:bg-surface-800 shadow-sm ${
+        isChild
+          ? 'ml-6 rounded-lg border border-surface-200 dark:border-surface-700 p-3'
+          : 'rounded-lg border border-surface-200 dark:border-surface-700 p-4'
+      }`}>
+        {/* Card header: category name + action buttons */}
         <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <CategoryIcon categoryId={category.id} className="w-8 h-8 shrink-0" />
+          <div className="flex items-center gap-2">
+            {isChild && (
+              <div className="w-4 flex items-center justify-center shrink-0">
+                <svg width="12" height="12" viewBox="0 0 12 12" className="text-surface-400 dark:text-surface-500" aria-hidden="true">
+                  <path d="M0 0 L0 6 L12 6" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                </svg>
+              </div>
+            )}
             <div>
-              <span className={`text-base font-bold ${accentColor}`}>
+              <span className={`font-bold text-surface-900 dark:text-surface-100 ${isChild ? 'text-sm' : 'text-base'}`}>
                 {category.name}
               </span>
               {category.description && (
@@ -208,7 +232,7 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
           <button
             type="button"
             onClick={() => onChoose(category.id)}
-            className={`w-full py-2.5 px-4 rounded-lg border-2 border-dashed ${borderColor}/40 text-surface-600 dark:text-surface-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors text-sm font-semibold`}
+            className="w-full py-2.5 px-4 rounded-lg border-2 border-dashed border-surface-300 dark:border-surface-600 text-surface-600 dark:text-surface-300 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors text-sm font-semibold"
           >
             + Choose a {category.name}
           </button>
