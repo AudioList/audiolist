@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { CategoryId, ProductFilters, ProductSort, Product } from '../types';
-import { CATEGORIES, CATEGORY_MAP, getScoreLabel, isSpinormaCategory } from '../lib/categories';
+import { CATEGORIES, CATEGORY_MAP, getScoreLabel, isSpinormaCategory, isSinadCategory, sinadToScore } from '../lib/categories';
 import { useProducts, useProductBrands, useRetailers, useSpeakerTypes } from '../hooks/useProducts';
 import SearchBar from '../components/products/SearchBar';
 import SortControls from '../components/products/SortControls';
@@ -34,10 +34,12 @@ export default function ProductListPage() {
     retailers: [],
     hideOutOfStock: false,
     speakerTypes: [],
+    sinadMin: null,
+    sinadMax: null,
   });
 
   const [sort, setSort] = useState<ProductSort>({
-    field: category.has_ppi ? 'ppi_score' : 'price',
+    field: category.has_ppi ? 'ppi_score' : isSinadCategory(categoryId) ? 'sinad_db' : 'price',
     direction: 'desc',
   });
 
@@ -70,11 +72,13 @@ export default function ProductListPage() {
       retailers: [],
       hideOutOfStock: false,
       speakerTypes: [],
+      sinadMin: null,
+      sinadMax: null,
     });
     setBrandSearch('');
     const cat = CATEGORY_MAP.get(id);
     setSort({
-      field: cat?.has_ppi ? 'ppi_score' : 'price',
+      field: cat?.has_ppi ? 'ppi_score' : isSinadCategory(id) ? 'sinad_db' : 'price',
       direction: 'desc',
     });
   }
@@ -111,7 +115,7 @@ export default function ProductListPage() {
             placeholder={`Search ${category.name}...`}
           />
         </div>
-        <SortControls sort={sort} onChange={setSort} showPPI={category.has_ppi} scoreLabel={getScoreLabel(categoryId)} />
+        <SortControls sort={sort} onChange={setSort} showPPI={category.has_ppi} showSinad={isSinadCategory(categoryId)} scoreLabel={getScoreLabel(categoryId)} />
       </div>
 
       {/* Filter sidebar + grid layout */}
@@ -240,6 +244,42 @@ export default function ProductListPage() {
               </div>
             )}
 
+            {/* SINAD range (only for DAC/Amp categories) */}
+            {isSinadCategory(categoryId) && (
+              <div className="mt-4 space-y-2">
+                <label className="block text-xs font-semibold text-surface-700 dark:text-surface-300">
+                  SINAD Range (dB)
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    placeholder="Min"
+                    value={filters.sinadMin ?? ''}
+                    onChange={(e) =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        sinadMin: e.target.value ? Number(e.target.value) : null,
+                      }))
+                    }
+                    className="w-full rounded-md border border-surface-300 bg-white px-2 py-1.5 text-sm text-surface-900 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-100"
+                  />
+                  <span className="text-surface-400">-</span>
+                  <input
+                    type="number"
+                    placeholder="Max"
+                    value={filters.sinadMax ?? ''}
+                    onChange={(e) =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        sinadMax: e.target.value ? Number(e.target.value) : null,
+                      }))
+                    }
+                    className="w-full rounded-md border border-surface-300 bg-white px-2 py-1.5 text-sm text-surface-900 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-100"
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Brand filter */}
             {brands.length > 0 && (
               <div className="mt-4 space-y-2">
@@ -334,6 +374,8 @@ export default function ProductListPage() {
                   retailers: [],
                   hideOutOfStock: false,
                   speakerTypes: [],
+                  sinadMin: null,
+                  sinadMax: null,
                 })
               }
               className="mt-4 w-full rounded-md border border-surface-300 bg-white px-3 py-1.5 text-xs font-medium text-surface-600 transition-colors hover:bg-surface-100 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-400 dark:hover:bg-surface-700"
@@ -361,7 +403,7 @@ export default function ProductListPage() {
           {/* Grid */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {products.map((product) => (
-              <ProductCard key={product.id} product={product} showPPI={category.has_ppi} />
+              <ProductCard key={product.id} product={product} showPPI={category.has_ppi} showSinad={isSinadCategory(categoryId)} />
             ))}
           </div>
 
@@ -395,7 +437,7 @@ export default function ProductListPage() {
 
 /* ----- ProductCard (local component) ----- */
 
-function ProductCard({ product, showPPI }: { product: Product; showPPI: boolean }) {
+function ProductCard({ product, showPPI, showSinad = false }: { product: Product; showPPI: boolean; showSinad?: boolean }) {
   return (
     <Link
       to={`/product/${product.id}`}
@@ -430,9 +472,17 @@ function ProductCard({ product, showPPI }: { product: Product; showPPI: boolean 
         {product.name}
       </h3>
 
-      {/* PPI + Price row */}
+      {/* Score + Price row */}
       <div className="mt-auto flex items-center justify-between pt-3">
-        <div>{showPPI && <PPIBadge score={product.ppi_score} size="sm" label={isSpinormaCategory(product.category_id) ? 'Spinorama' : undefined} />}</div>
+        <div>
+          {showPPI && <PPIBadge score={product.ppi_score} size="sm" label={isSpinormaCategory(product.category_id) ? 'Spinorama' : undefined} />}
+          {showSinad && product.sinad_db !== null && (
+            <span className="inline-flex items-center gap-1.5">
+              <PPIBadge score={sinadToScore(product.sinad_db)} size="sm" label="SINAD" />
+              <span className="text-xs font-medium text-surface-500 dark:text-surface-400">{product.sinad_db} dB</span>
+            </span>
+          )}
+        </div>
         <PriceDisplay price={product.price} affiliateUrl={product.affiliate_url} inStock={product.in_stock} />
       </div>
     </Link>

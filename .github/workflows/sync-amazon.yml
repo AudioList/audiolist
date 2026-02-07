@@ -1,0 +1,57 @@
+name: Sync Amazon Prices
+
+on:
+  schedule:
+    # Run daily at 6am UTC
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Run mode: daily (discover+refresh), discover (new only), refresh (existing only)'
+        default: 'daily'
+        type: choice
+        options:
+          - daily
+          - discover
+          - refresh
+      time_budget:
+        description: 'Time budget in minutes (default: 300 = 5 hours)'
+        default: '300'
+      concurrency:
+        description: 'Number of concurrent browser workers'
+        default: '6'
+
+concurrency:
+  group: sync-amazon
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium
+
+      - name: Run Amazon sync
+        env:
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: >-
+          npx tsx scripts/amazon-bulk-sync.ts
+          --mode=${{ inputs.mode || 'daily' }}
+          --time-budget=${{ inputs.time_budget || '300' }}
+          --concurrency=${{ inputs.concurrency || '6' }}
+          --delay=3000

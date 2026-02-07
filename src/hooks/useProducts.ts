@@ -32,6 +32,8 @@ const defaultFilters: ProductFilters = {
   retailers: [],
   hideOutOfStock: false,
   speakerTypes: [],
+  sinadMin: null,
+  sinadMax: null,
 };
 
 const defaultSort: ProductSort = {
@@ -96,6 +98,14 @@ export function useProducts({
         }
         if (filters.ppiMax !== null) {
           query = query.lte('ppi_score', filters.ppiMax);
+        }
+
+        // SINAD range (DAC/Amp)
+        if (filters.sinadMin !== null) {
+          query = query.gte('sinad_db', filters.sinadMin);
+        }
+        if (filters.sinadMax !== null) {
+          query = query.lte('sinad_db', filters.sinadMax);
         }
 
         // Quality

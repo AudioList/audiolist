@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ProductFilters, CategoryId } from '../../types';
-import { isSpinormaCategory } from '../../lib/categories';
+import { isSpinormaCategory, isSinadCategory } from '../../lib/categories';
 
 interface FilterSidebarProps {
   filters: ProductFilters;
@@ -51,6 +51,8 @@ export default function FilterSidebar({
       retailers: [],
       hideOutOfStock: false,
       speakerTypes: [],
+      sinadMin: null,
+      sinadMax: null,
     });
   }
 
@@ -75,6 +77,8 @@ export default function FilterSidebar({
     update({ speakerTypes: next });
   }
 
+  const showSinad = isSinadCategory(category);
+
   const hasActiveFilters =
     filters.brands.length > 0 ||
     filters.retailers.length > 0 ||
@@ -83,6 +87,8 @@ export default function FilterSidebar({
     filters.priceMax !== null ||
     filters.ppiMin !== null ||
     filters.ppiMax !== null ||
+    filters.sinadMin !== null ||
+    filters.sinadMax !== null ||
     filters.quality !== null ||
     filters.rigType !== null ||
     filters.hideOutOfStock;
@@ -252,6 +258,38 @@ export default function FilterSidebar({
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* SINAD Filter (DAC/Amp only) */}
+      {showSinad && (
+        <div>
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-surface-400">
+            SINAD Range (dB)
+          </h4>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              placeholder="Min"
+              value={filters.sinadMin ?? ''}
+              onChange={(e) =>
+                update({ sinadMin: e.target.value ? Number(e.target.value) : null })
+              }
+              min={0}
+              className="w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
+            />
+            <span className="text-surface-500 text-sm">-</span>
+            <input
+              type="number"
+              placeholder="Max"
+              value={filters.sinadMax ?? ''}
+              onChange={(e) =>
+                update({ sinadMax: e.target.value ? Number(e.target.value) : null })
+              }
+              min={0}
+              className="w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
+            />
+          </div>
         </div>
       )}
 

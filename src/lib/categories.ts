@@ -58,12 +58,19 @@ export function getPPILabel(score: number): string {
 
 /** Get the measurement score label for a category */
 export function getScoreLabel(categoryId: CategoryId): string {
-  return categoryId === 'speaker' ? 'Spinorama' : 'PPI Score';
+  if (categoryId === 'speaker') return 'Spinorama';
+  if (isSinadCategory(categoryId)) return 'SINAD';
+  return 'PPI Score';
 }
 
 /** Check if a category uses spinorama scoring instead of PPI */
 export function isSpinormaCategory(categoryId: CategoryId): boolean {
   return categoryId === 'speaker';
+}
+
+/** Check if a category uses SINAD scoring (DAC/Amp) */
+export function isSinadCategory(categoryId: CategoryId): boolean {
+  return categoryId === 'dac' || categoryId === 'amp';
 }
 
 /** Get the Tailwind accent color class for a category */
@@ -132,7 +139,7 @@ export function getCategoryBgColor(id: CategoryId): string {
   }
 }
 
-/** Get beginner-friendly tooltip text for a PPI/Spinorama score */
+/** Get beginner-friendly tooltip text for a PPI/Spinorama/SINAD score */
 export function getPPITooltip(score: number, isSpinorama: boolean): string {
   const type = isSpinorama ? 'Spinorama Score' : 'Predicted Preference Index';
   if (score >= 85) return `${type}: ${score.toFixed(1)} — Excellent. Top-tier measured audio quality.`;
@@ -140,4 +147,45 @@ export function getPPITooltip(score: number, isSpinorama: boolean): string {
   if (score >= 55) return `${type}: ${score.toFixed(1)} — Good. Solid performer for the price.`;
   if (score >= 40) return `${type}: ${score.toFixed(1)} — Fair. Noticeable tuning deviations.`;
   return `${type}: ${score.toFixed(1)} — Poor. Significant tuning issues.`;
+}
+
+/**
+ * Convert raw SINAD dB to a 0-100 normalized score for display consistency.
+ * Range: 60 dB -> 0, 120 dB -> 100.
+ * Below 60 dB is poor; above 120 dB is exceptional.
+ */
+export function sinadToScore(sinadDb: number): number {
+  return Math.max(0, Math.min(100, Math.round(((sinadDb - 60) / 60) * 100)));
+}
+
+/** Check if a category is a dedicated amplifier (supports power output display) */
+export function isAmpCategory(categoryId: CategoryId): boolean {
+  return categoryId === 'amp';
+}
+
+/** Standard load impedances for amplifier power output (ohms) */
+export const AMP_LOAD_IMPEDANCES = [4, 8, 16, 32, 50, 300, 600] as const;
+export type AmpLoadOhms = (typeof AMP_LOAD_IMPEDANCES)[number];
+
+/** Map load impedance to the corresponding product column name */
+export function getPowerColumnForLoad(ohms: AmpLoadOhms): string {
+  return `power_${ohms}ohm_mw`;
+}
+
+/** Format power in milliwatts for display — shows W for >= 1000 mW, mW otherwise */
+export function formatPowerMw(mw: number): string {
+  if (mw >= 1000) {
+    const watts = mw / 1000;
+    return watts % 1 === 0 ? `${watts} W` : `${watts.toFixed(1)} W`;
+  }
+  return `${Math.round(mw)} mW`;
+}
+
+/** Get tooltip text for a SINAD score */
+export function getSinadTooltip(sinadDb: number): string {
+  if (sinadDb >= 110) return `SINAD: ${sinadDb} dB — Excellent. Transparent, inaudible distortion.`;
+  if (sinadDb >= 98) return `SINAD: ${sinadDb} dB — Great. Very clean signal, exceeds audibility threshold.`;
+  if (sinadDb >= 85) return `SINAD: ${sinadDb} dB — Good. Clean enough for most listening.`;
+  if (sinadDb >= 70) return `SINAD: ${sinadDb} dB — Fair. Measurable distortion, may be audible in some cases.`;
+  return `SINAD: ${sinadDb} dB — Poor. Significant distortion present.`;
 }

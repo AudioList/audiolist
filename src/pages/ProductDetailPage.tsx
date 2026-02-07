@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { Product, CategoryId } from '../types';
 import { supabase } from '../lib/supabase';
-import { CATEGORY_MAP, getScoreLabel, isSpinormaCategory } from '../lib/categories';
+import { CATEGORY_MAP, getScoreLabel, isSpinormaCategory, isSinadCategory, sinadToScore, isAmpCategory, AMP_LOAD_IMPEDANCES, formatPowerMw } from '../lib/categories';
+import type { AmpLoadOhms } from '../lib/categories';
 import { useBuild } from '../context/BuildContext';
 import PPIBadge from '../components/shared/PPIBadge';
 import PriceDisplay from '../components/shared/PriceDisplay';
@@ -17,6 +18,7 @@ export default function ProductDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [addedCategory, setAddedCategory] = useState<CategoryId | null>(null);
+  const [selectedLoad, setSelectedLoad] = useState<AmpLoadOhms>(32);
 
   useEffect(() => {
     if (!id) return;
@@ -273,6 +275,210 @@ export default function ProductDetailPage() {
               </table>
             </div>
           )}
+
+          {/* SINAD score badge (DAC/Amp) */}
+          {isSinadCategory(product.category_id) && product.sinad_db !== null && (
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-semibold text-surface-700 dark:text-surface-300">
+                SINAD:
+              </span>
+              <PPIBadge score={sinadToScore(product.sinad_db)} size="lg" label="SINAD" />
+            </div>
+          )}
+
+          {/* SINAD breakdown table (DAC/Amp) */}
+          {isSinadCategory(product.category_id) && product.sinad_db !== null && (
+            <div className="rounded-lg border border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-800">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-surface-200 text-left text-surface-500 dark:border-surface-700 dark:text-surface-400">
+                    <th className="px-4 py-2 font-medium">Metric</th>
+                    <th className="px-4 py-2 text-right font-medium">Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-surface-200 dark:border-surface-700">
+                    <td className="px-4 py-2 text-surface-700 dark:text-surface-300" title="Signal-to-Noise and Distortion ratio — higher = cleaner, more transparent signal">
+                      SINAD
+                    </td>
+                    <td className="px-4 py-2 text-right font-mono text-surface-900 dark:text-surface-100">
+                      {product.sinad_db} dB
+                    </td>
+                  </tr>
+                  {product.asr_device_type && (
+                    <tr className="border-b border-surface-200 dark:border-surface-700">
+                      <td className="px-4 py-2 text-surface-700 dark:text-surface-300" title="Device classification from AudioScienceReview">
+                        Device Type
+                      </td>
+                      <td className="px-4 py-2 text-right text-surface-900 dark:text-surface-100">
+                        {product.asr_device_type}
+                      </td>
+                    </tr>
+                  )}
+                  {product.asr_recommended !== null && (
+                    <tr className="border-b border-surface-200 dark:border-surface-700">
+                      <td className="px-4 py-2 text-surface-700 dark:text-surface-300" title="Whether AudioScienceReview recommends this product based on measured performance">
+                        ASR Recommended
+                      </td>
+                      <td className="px-4 py-2 text-right text-surface-900 dark:text-surface-100">
+                        {product.asr_recommended ? (
+                          <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                            Yes
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800 dark:bg-red-900/30 dark:text-red-300">
+                            No
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                  {product.asr_review_date && (
+                    <tr>
+                      <td className="px-4 py-2 text-surface-700 dark:text-surface-300">
+                        Review Date
+                      </td>
+                      <td className="px-4 py-2 text-right text-surface-900 dark:text-surface-100">
+                        {product.asr_review_date}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+              {product.asr_review_url && (
+                <div className="border-t border-surface-200 px-4 py-2 dark:border-surface-700">
+                  <a
+                    href={product.asr_review_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                  >
+                    Read full ASR review &rarr;
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Output Power section (Amps only) */}
+          {isAmpCategory(product.category_id) && (() => {
+            const powerData: { ohms: AmpLoadOhms; mw: number | null }[] = AMP_LOAD_IMPEDANCES.map((ohms) => ({
+              ohms,
+              mw: product[`power_${ohms}ohm_mw` as keyof typeof product] as number | null,
+            }));
+            const hasPowerData = powerData.some((d) => d.mw !== null);
+            const selectedPower = powerData.find((d) => d.ohms === selectedLoad);
+
+            return (
+              <div className="rounded-lg border border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-800">
+                <div className="px-4 py-3 border-b border-surface-200 dark:border-surface-700">
+                  <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300">
+                    Output Power
+                  </h3>
+                  <p className="mt-0.5 text-xs text-surface-500 dark:text-surface-400">
+                    {hasPowerData
+                      ? 'Select a load impedance to view power output'
+                      : 'Power measurements not yet available for this amplifier'}
+                  </p>
+                </div>
+
+                {/* Load impedance selector */}
+                <div className="px-4 py-3">
+                  <div className="flex flex-wrap gap-0" role="group" aria-label="Load impedance selector">
+                    {powerData.map(({ ohms, mw }, index) => {
+                      const isActive = selectedLoad === ohms;
+                      const isFirst = index === 0;
+                      const isLast = index === powerData.length - 1;
+                      const hasData = mw !== null;
+
+                      const roundedClass = isFirst
+                        ? 'rounded-l-lg'
+                        : isLast
+                          ? 'rounded-r-lg'
+                          : '';
+
+                      const colorClass = isActive
+                        ? 'bg-primary-600 text-white border-primary-600 dark:bg-primary-600 dark:border-primary-600'
+                        : hasData
+                          ? 'bg-surface-800 text-surface-300 border-surface-600 hover:bg-surface-700 hover:text-surface-100 dark:bg-surface-800 dark:text-surface-300 dark:border-surface-600 dark:hover:bg-surface-700'
+                          : 'bg-surface-800/50 text-surface-500 border-surface-700 dark:bg-surface-800/50 dark:text-surface-500 dark:border-surface-700';
+
+                      const marginClass = index > 0 ? '-ml-px' : '';
+
+                      return (
+                        <button
+                          key={ohms}
+                          type="button"
+                          onClick={() => setSelectedLoad(ohms)}
+                          className={`inline-flex items-center px-2.5 py-1.5 text-xs font-medium border transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:z-10 ${colorClass} ${roundedClass} ${marginClass}`}
+                          aria-pressed={isActive}
+                        >
+                          {ohms >= 1000 ? `${ohms / 1000}k` : ohms}&Omega;
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Power display for selected load */}
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <span className="text-sm text-surface-500 dark:text-surface-400">
+                      Power @ {selectedLoad}&Omega;:
+                    </span>
+                    {selectedPower?.mw !== null && selectedPower?.mw !== undefined ? (
+                      <span className="text-lg font-bold text-surface-900 dark:text-surface-100">
+                        {formatPowerMw(selectedPower.mw)}
+                      </span>
+                    ) : (
+                      <span className="text-sm italic text-surface-400 dark:text-surface-500">
+                        No data
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Summary row showing all available loads */}
+                {hasPowerData && (
+                  <div className="border-t border-surface-200 dark:border-surface-700">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-surface-200 text-left text-surface-500 dark:border-surface-700 dark:text-surface-400">
+                          <th className="px-4 py-2 font-medium">Load</th>
+                          <th className="px-4 py-2 text-right font-medium">Power</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {powerData
+                          .filter((d) => d.mw !== null)
+                          .map(({ ohms, mw }, idx, arr) => (
+                            <tr
+                              key={ohms}
+                              className={`${idx < arr.length - 1 ? 'border-b border-surface-200 dark:border-surface-700' : ''} ${
+                                selectedLoad === ohms ? 'bg-primary-600/10 dark:bg-primary-600/10' : ''
+                              }`}
+                            >
+                              <td className="px-4 py-2 text-surface-700 dark:text-surface-300">
+                                {ohms}&Omega;
+                              </td>
+                              <td className="px-4 py-2 text-right font-mono text-surface-900 dark:text-surface-100">
+                                {formatPowerMw(mw!)}
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {product.power_source && (
+                  <div className="border-t border-surface-200 px-4 py-2 dark:border-surface-700">
+                    <span className="text-xs text-surface-500 dark:text-surface-400">
+                      Source: {product.power_source}
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Additional info */}
           <div className="flex flex-wrap gap-3">

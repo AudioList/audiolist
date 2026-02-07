@@ -38,6 +38,21 @@ export interface Product {
   source_type: string | null;
   in_stock: boolean;
   first_seen: string | null;
+  // SINAD fields (DAC/Amp)
+  sinad_db: number | null;
+  asr_device_type: string | null;
+  asr_recommended: boolean | null;
+  asr_review_url: string | null;
+  asr_review_date: string | null;
+  // Output power fields (Amp) — milliwatts at various load impedances
+  power_4ohm_mw: number | null;
+  power_8ohm_mw: number | null;
+  power_16ohm_mw: number | null;
+  power_32ohm_mw: number | null;
+  power_50ohm_mw: number | null;
+  power_300ohm_mw: number | null;
+  power_600ohm_mw: number | null;
+  power_source: string | null;
   // Spinorama fields (speakers)
   pref_score: number | null;
   pref_score_wsub: number | null;
@@ -85,7 +100,7 @@ export interface BuildSelection {
   quantity: number;
 }
 
-export type SortField = 'ppi_score' | 'price' | 'name';
+export type SortField = 'ppi_score' | 'price' | 'name' | 'sinad_db';
 export type SortDirection = 'asc' | 'desc';
 
 export interface ProductFilters {
@@ -100,6 +115,8 @@ export interface ProductFilters {
   retailers: string[];
   hideOutOfStock: boolean;
   speakerTypes: string[];
+  sinadMin: number | null;
+  sinadMax: number | null;
 }
 
 export interface ProductSort {

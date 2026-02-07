@@ -13,7 +13,9 @@
     "sync:families": "tsx scripts/parse-variants.ts",
     "admin": "tsx scripts/admin-server.ts",
     "sync:stores:iem": "tsx scripts/sync-stores-iem.ts && tsx scripts/process-store-products-iem.ts",
-    "sync:stores:headphone": "tsx scripts/sync-stores-headphone.ts && tsx scripts/process-store-products-headphone.ts"
+    "sync:stores:headphone": "tsx scripts/sync-stores-headphone.ts && tsx scripts/process-store-products-headphone.ts",
+    "sync:amazon": "tsx scripts/amazon-bulk-sync.ts",
+    "clean:products": "tsx scripts/clean-products.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.95.2",

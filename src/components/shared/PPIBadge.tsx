@@ -21,7 +21,10 @@ export default function PPIBadge({ score, size = 'md', label: scoreLabel }: PPIB
   const qualityLabel = getPPILabel(score);
   const display = score.toFixed(1);
   const isSpinorama = scoreLabel === 'Spinorama';
-  const tooltip = getPPITooltip(score, isSpinorama);
+  const isSinad = scoreLabel === 'SINAD';
+  const tooltip = isSinad
+    ? `SINAD Score: ${display} — ${qualityLabel}. Normalized from raw dB measurement.`
+    : getPPITooltip(score, isSpinorama);
 
   return (
     <span

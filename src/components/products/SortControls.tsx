@@ -4,6 +4,7 @@ interface SortControlsProps {
   sort: ProductSort;
   onChange: (sort: ProductSort) => void;
   showPPI?: boolean;
+  showSinad?: boolean;
   scoreLabel?: string;
 }
 
@@ -48,11 +49,14 @@ interface SortOption {
   label: string;
 }
 
-export default function SortControls({ sort, onChange, showPPI = false, scoreLabel }: SortControlsProps) {
+export default function SortControls({ sort, onChange, showPPI = false, showSinad = false, scoreLabel }: SortControlsProps) {
   const options: SortOption[] = [];
 
   if (showPPI) {
     options.push({ field: 'ppi_score', label: scoreLabel ?? 'PPI Score' });
+  }
+  if (showSinad) {
+    options.push({ field: 'sinad_db', label: 'SINAD' });
   }
   options.push({ field: 'price', label: 'Price' });
   options.push({ field: 'name', label: 'Name' });

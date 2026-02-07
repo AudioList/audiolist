@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { CategoryId, ProductFilters, ProductSort, Product } from '../../types';
 import { useProducts, useProductBrands, useRetailers, useSpeakerTypes } from '../../hooks/useProducts';
 import { useBuild } from '../../context/BuildContext';
-import { CATEGORY_MAP } from '../../lib/categories';
+import { CATEGORY_MAP, isSinadCategory } from '../../lib/categories';
 import SearchBar from './SearchBar';
 import SortControls from './SortControls';
 import FilterSidebar from './FilterSidebar';
@@ -27,6 +27,8 @@ const emptyFilters: ProductFilters = {
   retailers: [],
   hideOutOfStock: false,
   speakerTypes: [],
+  sinadMin: null,
+  sinadMax: null,
 };
 
 export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetail }: ProductPickerProps) {
@@ -34,8 +36,9 @@ export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetai
   const showPPI = category?.has_ppi ?? false;
 
   const [filters, setFilters] = useState<ProductFilters>(emptyFilters);
+  const showSinad = isSinadCategory(categoryId);
   const [sort, setSort] = useState<ProductSort>({
-    field: showPPI ? 'ppi_score' : 'price',
+    field: showPPI ? 'ppi_score' : showSinad ? 'sinad_db' : 'price',
     direction: 'desc',
   });
 
@@ -57,11 +60,11 @@ export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetai
     if (isOpen) {
       setFilters(emptyFilters);
       setSort({
-        field: showPPI ? 'ppi_score' : 'price',
+        field: showPPI ? 'ppi_score' : showSinad ? 'sinad_db' : 'price',
         direction: 'desc',
       });
     }
-  }, [isOpen, showPPI]);
+  }, [isOpen, showPPI, showSinad]);
 
   // ESC key handler
   useEffect(() => {
@@ -160,7 +163,7 @@ export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetai
               placeholder={`Search ${category?.name ?? 'products'}...`}
             />
           </div>
-          <SortControls sort={sort} onChange={setSort} showPPI={showPPI} />
+          <SortControls sort={sort} onChange={setSort} showPPI={showPPI} showSinad={showSinad} />
         </div>
 
         {/* Body: sidebar + grid */}
@@ -193,6 +196,7 @@ export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetai
                     onViewDetail={onViewDetail}
                     isSelected={currentSelection?.product.id === product.id}
                     showPPI={showPPI}
+                    showSinad={isSinadCategory(categoryId)}
                   />
                 ))}
               </div>

@@ -1,5 +1,5 @@
 import type { Product } from '../../types';
-import { isSpinormaCategory } from '../../lib/categories';
+import { isSpinormaCategory, sinadToScore } from '../../lib/categories';
 import PPIBadge from '../shared/PPIBadge';
 import PriceDisplay from '../shared/PriceDisplay';
 
@@ -9,6 +9,7 @@ interface ProductCardProps {
   onViewDetail?: (product: Product) => void;
   isSelected?: boolean;
   showPPI?: boolean;
+  showSinad?: boolean;
 }
 
 export default function ProductCard({
@@ -17,6 +18,7 @@ export default function ProductCard({
   onViewDetail,
   isSelected = false,
   showPPI = false,
+  showSinad = false,
 }: ProductCardProps) {
   return (
     <div
@@ -26,6 +28,35 @@ export default function ProductCard({
           : 'border-surface-700 bg-surface-800 hover:border-surface-500 hover:shadow-lg hover:shadow-black/20'
       }`}
     >
+      {/* Product thumbnail */}
+      <div
+        className={`flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-surface-700 ${onViewDetail ? 'cursor-pointer' : ''}`}
+        onClick={onViewDetail ? () => onViewDetail(product) : undefined}
+      >
+        {product.image_url ? (
+          <img
+            src={product.image_url}
+            alt=""
+            className="h-full w-full object-contain p-0.5"
+            loading="lazy"
+          />
+        ) : (
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            className="h-5 w-5 text-surface-500"
+            aria-hidden="true"
+          >
+            <path
+              fillRule="evenodd"
+              d="M1 5.25A2.25 2.25 0 0 1 3.25 3h13.5A2.25 2.25 0 0 1 19 5.25v9.5A2.25 2.25 0 0 1 16.75 17H3.25A2.25 2.25 0 0 1 1 14.75v-9.5Zm1.5 5.81v3.69c0 .414.336.75.75.75h13.5a.75.75 0 0 0 .75-.75v-2.69l-2.22-2.219a.75.75 0 0 0-1.06 0l-1.91 1.909-4.22-4.22a.75.75 0 0 0-1.06 0L2.5 11.06Zm6-3.06a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Z"
+              clipRule="evenodd"
+            />
+          </svg>
+        )}
+      </div>
+
       {/* Clickable info area */}
       <div
         className={`min-w-0 flex-1 ${onViewDetail ? 'cursor-pointer' : ''}`}
@@ -56,6 +87,14 @@ export default function ProductCard({
       {showPPI && (
         <div className="shrink-0">
           <PPIBadge score={product.ppi_score} size="sm" label={isSpinormaCategory(product.category_id) ? 'Spinorama' : undefined} />
+        </div>
+      )}
+
+      {/* SINAD Badge */}
+      {showSinad && product.sinad_db !== null && (
+        <div className="shrink-0 flex items-center gap-1.5">
+          <PPIBadge score={sinadToScore(product.sinad_db)} size="sm" label="SINAD" />
+          <span className="text-[10px] font-medium text-surface-400">{product.sinad_db} dB</span>
         </div>
       )}
 
