@@ -7,6 +7,14 @@
  *
  * Usage:
  *   SUPABASE_SERVICE_KEY=<key> BESTBUY_API_KEY=<key> npx tsx scripts/sync-prices.ts
+ *
+ * Flags:
+ *   --amazon-only       Only run Amazon scraping (skip Shopify & Best Buy)
+ *   --skip-amazon       Skip Amazon scraping
+ *   --skip-shopify      Skip Shopify catalog fetching
+ *   --skip-bestbuy      Skip Best Buy API calls
+ *   --limit=N           Process only first N products (by PPI score DESC)
+ *   --category=iem      Only process products in this category
  */
 
 import {
@@ -21,6 +29,7 @@ import {
   type ShopifyProduct,
 } from "./scrapers/shopify.ts";
 import { searchBestBuy } from "./scrapers/bestbuy.ts";
+import { searchAmazon, closeBrowser as closeAmazonBrowser } from "./scrapers/amazon.ts";
 import { findBestMatch, MATCH_THRESHOLDS } from "./scrapers/matcher.ts";
 
 // ---------------------------------------------------------------------------
@@ -63,6 +72,23 @@ const PRODUCT_BATCH_SIZE = 1000;
 const UPSERT_BATCH_SIZE = 100;
 const PROGRESS_LOG_INTERVAL = 100;
 const BESTBUY_DELAY_MS = 200; // 5 QPS limit
+const AMAZON_DELAY_MS = 3000; // ~1 request per 3 seconds to be respectful
+
+// CLI flags
+const AMAZON_ONLY = process.argv.includes("--amazon-only");
+const SKIP_AMAZON = process.argv.includes("--skip-amazon");
+const SKIP_SHOPIFY = process.argv.includes("--skip-shopify");
+const SKIP_BESTBUY = process.argv.includes("--skip-bestbuy");
+const PRODUCT_LIMIT = (() => {
+  const idx = process.argv.findIndex((a) => a.startsWith("--limit="));
+  if (idx >= 0) return parseInt(process.argv[idx].split("=")[1], 10);
+  return 0; // 0 = no limit
+})();
+const CATEGORY_FILTER = (() => {
+  const idx = process.argv.findIndex((a) => a.startsWith("--category="));
+  if (idx >= 0) return process.argv[idx].split("=")[1];
+  return ""; // empty = all categories
+})();
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -259,6 +285,7 @@ async function matchProducts(
 
   const shopifyRetailers = retailers.filter((r) => r.api_type === "shopify");
   const bestBuyRetailer = retailers.find((r) => r.api_type === "bestbuy");
+  const amazonRetailer = retailers.find((r) => r.api_type === "amazon");
 
   // Initialize stats
   for (const r of retailers) {
@@ -314,6 +341,7 @@ async function matchProducts(
     }
 
     // --- Shopify retailers ---
+    if (!AMAZON_ONLY && !SKIP_SHOPIFY)
     for (const retailer of shopifyRetailers) {
       const rStats = stats.get(retailer.id)!;
       const candidates = shopifyCandidates.get(retailer.id);
@@ -392,7 +420,7 @@ async function matchProducts(
     }
 
     // --- Best Buy ---
-    if (bestBuyRetailer && bestBuyApiKey) {
+    if (bestBuyRetailer && bestBuyApiKey && !AMAZON_ONLY && !SKIP_BESTBUY) {
       const rStats = stats.get(bestBuyRetailer.id)!;
 
       try {
@@ -471,6 +499,108 @@ async function matchProducts(
         rStats.errors++;
         logError("PHASE-B", `Best Buy match error for "${product.name}"`, err);
         await delay(BESTBUY_DELAY_MS);
+      }
+    }
+
+    // --- Amazon ---
+    if (amazonRetailer && !SKIP_AMAZON) {
+      const rStats = stats.get(amazonRetailer.id)!;
+
+      try {
+        // Use the product name directly — it typically already includes the brand
+        // Only prepend brand if the product name doesn't already contain it
+        let searchQuery = product.name;
+        if (
+          product.brand &&
+          !product.name.toLowerCase().includes(product.brand.toLowerCase())
+        ) {
+          searchQuery = `${product.brand} ${product.name}`;
+        }
+
+        const azResults = await searchAmazon(searchQuery, {
+          maxResults: 5,
+          affiliateTag: amazonRetailer.affiliate_tag ?? undefined,
+        });
+
+        if (azResults.length > 0) {
+          // Build candidates from Amazon results
+          const azCandidates: MatchCandidate[] = azResults
+            .filter((ap) => ap.name && ap.name.length > 3) // Skip truncated names
+            .map((ap) => ({
+              name: ap.name,
+              id: ap.asin,
+            }));
+
+          if (azCandidates.length > 0) {
+            const match = findBestMatch(
+              product.name,
+              azCandidates
+            ) as MatchResult | null;
+
+            if (match && match.score >= MATCH_THRESHOLDS.PENDING_REVIEW) {
+              const isAutoApprove = match.score >= MATCH_THRESHOLDS.AUTO_APPROVE;
+              const status = isAutoApprove ? "approved" : "pending";
+
+              // Find the full Amazon product data
+              const azProduct = azResults.find((ap) => ap.asin === match.id);
+              const price = azProduct?.price ?? null;
+              const inStock = azProduct?.inStock ?? false;
+              const imageUrl = azProduct?.image ?? null;
+
+              // Build the affiliate URL using the ASIN
+              const affiliateUrl = buildAffiliateUrl(
+                amazonRetailer,
+                azProduct?.url ?? `https://www.amazon.com/dp/${match.id}`,
+                match.id,
+                match.id // ASIN as external_id
+              );
+
+              matchRows.push({
+                product_id: product.id,
+                retailer_id: amazonRetailer.id,
+                external_id: match.id,
+                external_name: match.name,
+                external_price: price,
+                match_score: match.score,
+                status,
+              });
+
+              if (isAutoApprove) {
+                rStats.auto++;
+              } else {
+                rStats.pending++;
+              }
+
+              if (isAutoApprove && price !== null && price > 0) {
+                listingRows.push({
+                  product_id: product.id,
+                  retailer_id: amazonRetailer.id,
+                  external_id: match.id,
+                  price,
+                  currency: "USD",
+                  in_stock: inStock,
+                  product_url: azProduct?.url ?? `https://www.amazon.com/dp/${match.id}`,
+                  affiliate_url: affiliateUrl ?? `https://www.amazon.com/dp/${match.id}?tag=${amazonRetailer.affiliate_tag}`,
+                  image_url: imageUrl,
+                  last_checked: new Date().toISOString(),
+                });
+              }
+            } else {
+              rStats.skipped++;
+            }
+          } else {
+            rStats.skipped++;
+          }
+        } else {
+          rStats.skipped++;
+        }
+
+        // Rate limit — Amazon needs a longer delay to avoid blocks
+        await delay(AMAZON_DELAY_MS);
+      } catch (err) {
+        rStats.errors++;
+        logError("PHASE-B", `Amazon match error for "${product.name}"`, err);
+        await delay(AMAZON_DELAY_MS);
       }
     }
   }
@@ -620,6 +750,20 @@ async function main(): Promise<void> {
     log("INIT", "BESTBUY_API_KEY found — Best Buy scraping enabled.");
   }
 
+  if (!SKIP_AMAZON && !AMAZON_ONLY) {
+    log("INIT", "Amazon scraping enabled (Playwright headless browser).");
+  } else if (AMAZON_ONLY) {
+    log("INIT", "Amazon-only mode — skipping Shopify and Best Buy.");
+  } else if (SKIP_AMAZON) {
+    log("INIT", "Amazon scraping disabled (--skip-amazon).");
+  }
+  if (PRODUCT_LIMIT > 0) {
+    log("INIT", `Product limit: ${PRODUCT_LIMIT}`);
+  }
+  if (CATEGORY_FILTER) {
+    log("INIT", `Category filter: ${CATEGORY_FILTER}`);
+  }
+
   // Step 1: Load retailers
   log("INIT", "Loading active retailers from Supabase...");
   const retailers = await getRetailers();
@@ -630,15 +774,33 @@ async function main(): Promise<void> {
   log("INIT", `Loaded ${retailers.length} active retailer(s): ${retailers.map((r) => r.name).join(", ")}`);
 
   // Step 2: Load products
-  const products = await loadAllProducts();
+  let products = await loadAllProducts();
   if (products.length === 0) {
     log("INIT", "No products with brand found. Exiting.");
     return;
   }
 
+  // Apply category filter
+  if (CATEGORY_FILTER) {
+    products = products.filter((p) => p.category_id === CATEGORY_FILTER);
+    log("INIT", `Filtered to ${products.length} products in category "${CATEGORY_FILTER}"`);
+  }
+
+  // Apply product limit
+  if (PRODUCT_LIMIT > 0 && products.length > PRODUCT_LIMIT) {
+    products = products.slice(0, PRODUCT_LIMIT);
+    log("INIT", `Limited to first ${PRODUCT_LIMIT} products (sorted by PPI score DESC)`);
+  }
+
   // Phase A: Fetch Shopify catalogs
   console.log("\n--- Phase A: Fetch Shopify Catalogs ---\n");
-  const shopifyCatalogs = await fetchShopifyCatalogs(retailers);
+  let shopifyCatalogs: Map<string, ShopifyProduct[]>;
+  if (AMAZON_ONLY || SKIP_SHOPIFY) {
+    shopifyCatalogs = new Map();
+    log("PHASE-A", "Skipped (Amazon-only or --skip-shopify mode).");
+  } else {
+    shopifyCatalogs = await fetchShopifyCatalogs(retailers);
+  }
 
   // Phase B: Match products
   console.log("\n--- Phase B: Match Products ---\n");
@@ -659,6 +821,9 @@ async function main(): Promise<void> {
   // Phase D: Denormalize lowest price
   console.log("\n--- Phase D: Denormalize Lowest Price ---\n");
   const productsUpdated = await denormalizeLowestPrices();
+
+  // Clean up Amazon browser
+  await closeAmazonBrowser();
 
   // Final summary
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
