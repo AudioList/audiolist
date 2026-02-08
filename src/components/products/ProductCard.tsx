@@ -93,7 +93,7 @@ export default function ProductCard({
           )}
           {getBestModeLabel(product) && (
             <span className="inline-flex shrink-0 items-center rounded-md bg-green-900/50 px-1.5 py-0.5 text-[0.625rem] font-semibold text-green-400 ring-1 ring-green-500/30">
-              {product.variant_type === 'switch' ? `Switch: ${product.variant_value}` : product.variant_value}
+              {getBestModeLabel(product)}
             </span>
           )}
         </div>
