@@ -192,9 +192,9 @@ export const GUARDED_INDICATOR_BLOCKERS: RegExp[] = [
 /** Patterns that indicate the product is genuinely an IEM (prevent reclassification). */
 export const IEM_NAME_INDICATORS: RegExp[] = [
   /\bin[\s-]?ear\b/i,
-  /\bIEM\b/,
-  /\bearphone\b/i,
-  /\bearbud\b/i,
+  /\bIEMs?\b/,
+  /\bearphones?\b/i,
+  /\bearbuds?\b/i,
   /\bTWS\b/i,
   /\btruly[\s-]?wireless\b/i,
   /\btrue[\s-]?wireless\b/i,

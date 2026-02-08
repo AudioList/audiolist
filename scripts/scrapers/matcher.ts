@@ -230,9 +230,9 @@ export function detectProductCategory(
   }
 
   // --- Tier 3: Name keyword fallback ---
-  // IEM indicators take priority (guard against reclassification)
+  // IEM indicators take priority
   for (const rx of IEM_NAME_INDICATORS) {
-    if (rx.test(name)) return null; // Strong IEM signal -- leave as-is
+    if (rx.test(name)) return 'iem';
   }
   for (const rx of HEADPHONE_NAME_INDICATORS) {
     if (rx.test(name)) return 'headphone';
