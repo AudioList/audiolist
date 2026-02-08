@@ -79,7 +79,7 @@ function StarterBuildCard({ build, onLoad, loading }: StarterBuildCardProps) {
             key={`${item.categoryId}-${item.productId}`}
             className="flex items-start gap-2 rounded-lg bg-surface-50 px-3 py-2 dark:bg-surface-800/50"
           >
-            <span className="mt-0.5 shrink-0 rounded bg-surface-200 px-1.5 py-0.5 text-[10px] font-bold uppercase text-surface-500 dark:bg-surface-700 dark:text-surface-400">
+            <span className="mt-0.5 shrink-0 rounded bg-surface-200 px-1.5 py-0.5 text-[0.625rem] font-bold uppercase text-surface-500 dark:bg-surface-700 dark:text-surface-400">
               {item.categoryId === 'headphone' ? 'HP' : item.categoryId.toUpperCase()}
             </span>
             <div className="min-w-0">

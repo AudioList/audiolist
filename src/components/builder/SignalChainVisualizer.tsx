@@ -118,17 +118,17 @@ function ChainNode({ label, sublabel, productName, productPrice, icon, filled }:
       )}
       {filled && productName ? (
         <>
-          <span className="text-[11px] font-medium text-surface-700 dark:text-surface-200 text-center leading-tight line-clamp-2">
+          <span className="text-[0.6875rem] font-medium text-surface-700 dark:text-surface-200 text-center leading-tight line-clamp-2">
             {productName}
           </span>
           {productPrice !== null && productPrice !== undefined && (
-            <span className="text-[10px] font-mono text-surface-500 dark:text-surface-400">
+            <span className="text-[0.625rem] font-mono text-surface-500 dark:text-surface-400">
               ${productPrice.toFixed(0)}
             </span>
           )}
         </>
       ) : (
-        <span className="text-[10px] italic text-surface-400 dark:text-surface-500">
+        <span className="text-[0.625rem] italic text-surface-400 dark:text-surface-500">
           Not selected
         </span>
       )}

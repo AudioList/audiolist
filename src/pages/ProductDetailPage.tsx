@@ -19,7 +19,7 @@ import { buildSourceUrl, formatSourceLabel } from '../lib/sourceUrl';
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { setProduct } = useBuild();
+  const { setProduct, getSelection, removeProduct } = useBuild();
   const { mode } = useExperienceMode();
 
   const [product, setProductData] = useState<Product | null>(null);
@@ -86,8 +86,15 @@ export default function ProductDetailPage() {
     checkBestMode();
   }, [product?.id, product?.product_family_id, product?.variant_type]);
 
+  const isInBuild = product ? getSelection(product.category_id)?.product.id === product.id : false;
+
   function handleAddToBuild(categoryId: CategoryId) {
     if (!product) return;
+    // Toggle: remove if already in build, add otherwise
+    if (isInBuild) {
+      removeProduct(categoryId);
+      return;
+    }
     setProduct(categoryId, product);
     setAddedCategory(categoryId);
     setTimeout(() => setAddedCategory(null), 2000);
@@ -268,6 +275,7 @@ export default function ProductDetailPage() {
                   <tr className="border-b border-surface-200 text-left text-surface-500 dark:border-surface-700 dark:text-surface-400">
                     <th className="px-4 py-2 font-medium">Metric</th>
                     <th className="px-4 py-2 text-right font-medium">Value</th>
+                    <th className="hidden px-4 py-2 text-right font-medium sm:table-cell">Hint</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -279,6 +287,7 @@ export default function ProductDetailPage() {
                       {product.pref_score !== null ? product.pref_score.toFixed(1) : 'N/A'}
                       <span className="ml-1 text-xs text-surface-500">/ 10</span>
                     </td>
+                    <td className="hidden px-4 py-2 text-right text-xs text-surface-400 sm:table-cell">higher is better</td>
                   </tr>
                   <tr className="border-b border-surface-200 dark:border-surface-700">
                     <td className="px-4 py-2 text-surface-700 dark:text-surface-300" title="Preference score when paired with a subwoofer — often higher than standalone">
@@ -288,6 +297,7 @@ export default function ProductDetailPage() {
                       {product.pref_score_wsub !== null ? product.pref_score_wsub.toFixed(1) : 'N/A'}
                       <span className="ml-1 text-xs text-surface-500">/ 10</span>
                     </td>
+                    <td className="hidden px-4 py-2 text-right text-xs text-surface-400 sm:table-cell">higher is better</td>
                   </tr>
                   <tr className="border-b border-surface-200 dark:border-surface-700">
                     <td className="px-4 py-2 text-surface-700 dark:text-surface-300" title="Low Frequency Extension — how deep the bass goes (lower Hz = deeper bass)">
@@ -296,6 +306,7 @@ export default function ProductDetailPage() {
                     <td className="px-4 py-2 text-right font-mono text-surface-900 dark:text-surface-100">
                       {product.lfx_hz !== null ? `${product.lfx_hz.toFixed(0)} Hz` : 'N/A'}
                     </td>
+                    <td className="hidden px-4 py-2 text-right text-xs text-surface-400 sm:table-cell">lower Hz is deeper</td>
                   </tr>
                   <tr className="border-b border-surface-200 dark:border-surface-700">
                     <td className="px-4 py-2 text-surface-700 dark:text-surface-300" title="Narrow Band Deviation on axis — lower = smoother frequency response">
@@ -304,6 +315,7 @@ export default function ProductDetailPage() {
                     <td className="px-4 py-2 text-right font-mono text-surface-900 dark:text-surface-100">
                       {product.nbd_on_axis !== null ? product.nbd_on_axis.toFixed(2) : 'N/A'}
                     </td>
+                    <td className="hidden px-4 py-2 text-right text-xs text-surface-400 sm:table-cell">lower is better</td>
                   </tr>
                   <tr>
                     <td className="px-4 py-2 text-surface-700 dark:text-surface-300" title="Predicted In-Room smoothness — lower = more even sound in a typical room">
@@ -312,6 +324,7 @@ export default function ProductDetailPage() {
                     <td className="px-4 py-2 text-right font-mono text-surface-900 dark:text-surface-100">
                       {product.sm_pred_in_room !== null ? product.sm_pred_in_room.toFixed(2) : 'N/A'}
                     </td>
+                    <td className="hidden px-4 py-2 text-right text-xs text-surface-400 sm:table-cell">lower is better</td>
                   </tr>
                 </tbody>
               </table>
@@ -326,6 +339,7 @@ export default function ProductDetailPage() {
                   <tr className="border-b border-surface-200 text-left text-surface-500 dark:border-surface-700 dark:text-surface-400">
                     <th className="px-4 py-2 font-medium">Metric</th>
                     <th className="px-4 py-2 text-right font-medium">Value</th>
+                    <th className="hidden px-4 py-2 text-right font-medium sm:table-cell">Hint</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -336,6 +350,7 @@ export default function ProductDetailPage() {
                     <td className="px-4 py-2 text-right font-mono text-surface-900 dark:text-surface-100">
                       {product.ppi_stdev !== null ? product.ppi_stdev.toFixed(2) : 'N/A'}
                     </td>
+                    <td className="hidden px-4 py-2 text-right text-xs text-surface-400 sm:table-cell">lower is better</td>
                   </tr>
                   <tr className="border-b border-surface-200 dark:border-surface-700">
                     <td className="px-4 py-2 text-surface-700 dark:text-surface-300" title="Frequency response slope — closer to 0 = more balanced bass-to-treble tilt">
@@ -344,6 +359,7 @@ export default function ProductDetailPage() {
                     <td className="px-4 py-2 text-right font-mono text-surface-900 dark:text-surface-100">
                       {product.ppi_slope !== null ? product.ppi_slope.toFixed(3) : 'N/A'}
                     </td>
+                    <td className="hidden px-4 py-2 text-right text-xs text-surface-400 sm:table-cell">closer to 0</td>
                   </tr>
                   <tr>
                     <td className="px-4 py-2 text-surface-700 dark:text-surface-300" title="Average error from target curve — lower = more accurate sound reproduction">
@@ -354,6 +370,7 @@ export default function ProductDetailPage() {
                         ? product.ppi_avg_error.toFixed(2)
                         : 'N/A'}
                     </td>
+                    <td className="hidden px-4 py-2 text-right text-xs text-surface-400 sm:table-cell">lower is better</td>
                   </tr>
                 </tbody>
               </table>
@@ -383,6 +400,7 @@ export default function ProductDetailPage() {
                   <tr className="border-b border-surface-200 text-left text-surface-500 dark:border-surface-700 dark:text-surface-400">
                     <th className="px-4 py-2 font-medium">Metric</th>
                     <th className="px-4 py-2 text-right font-medium">Value</th>
+                    <th className="hidden px-4 py-2 text-right font-medium sm:table-cell">Hint</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -393,6 +411,7 @@ export default function ProductDetailPage() {
                     <td className="px-4 py-2 text-right font-mono text-surface-900 dark:text-surface-100">
                       {product.sinad_db} dB
                     </td>
+                    <td className="hidden px-4 py-2 text-right text-xs text-surface-400 sm:table-cell">higher is better</td>
                   </tr>
                   {product.asr_device_type && (
                     <tr className="border-b border-surface-200 dark:border-surface-700">
@@ -607,19 +626,23 @@ export default function ProductDetailPage() {
 
           {/* Action buttons */}
           <div className="flex flex-wrap gap-3 pt-2">
-            {/* Add to build */}
+            {/* Add/Remove from build */}
             <button
               type="button"
               onClick={() => handleAddToBuild(product.category_id)}
               className={`rounded-lg px-5 py-2.5 text-sm font-medium transition-colors ${
                 addedCategory === product.category_id
                   ? 'bg-ppi-excellent text-white'
-                  : 'bg-primary-600 text-white hover:bg-primary-500'
+                  : isInBuild
+                    ? 'bg-red-600 text-white hover:bg-red-500'
+                    : 'bg-primary-600 text-white hover:bg-primary-500'
               }`}
             >
               {addedCategory === product.category_id
                 ? 'Added to Build!'
-                : `Add to Build (${category?.name ?? product.category_id})`}
+                : isInBuild
+                  ? `Remove from Build (${category?.name ?? product.category_id})`
+                  : `Add to Build (${category?.name ?? product.category_id})`}
             </button>
 
             {/* Affiliate / buy link */}

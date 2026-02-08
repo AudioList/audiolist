@@ -144,7 +144,7 @@ export default function FilterSidebar({
               <span className="ml-1.5 text-primary-400">({filters.speakerTypes.length})</span>
             )}
           </h4>
-          <div className="max-h-48 space-y-1 overflow-y-auto pr-1">
+          <div className="max-h-48 space-y-1 overflow-y-auto pr-1" role="group" aria-label="Filter by speaker type">
             {speakerTypes.map((st) => (
               <label
                 key={st.value}
@@ -173,7 +173,7 @@ export default function FilterSidebar({
               <span className="ml-1.5 text-primary-400">({filters.headphoneDesigns.length})</span>
             )}
           </h4>
-          <div className="space-y-1">
+          <div className="space-y-1" role="group" aria-label="Filter by headphone design">
             {headphoneDesigns.map((hd) => (
               <label
                 key={hd.value}
@@ -202,7 +202,7 @@ export default function FilterSidebar({
               <span className="ml-1.5 text-primary-400">({filters.iemTypes.length})</span>
             )}
           </h4>
-          <div className="space-y-1">
+          <div className="space-y-1" role="group" aria-label="Filter by IEM type">
             {iemTypes.map((it) => (
               <label
                 key={it.value}
@@ -397,7 +397,7 @@ export default function FilterSidebar({
             className="mb-2 w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40"
           />
         )}
-        <div className="max-h-80 space-y-1 overflow-y-auto pr-1">
+        <div className="max-h-80 space-y-1 overflow-y-auto pr-1" role="group" aria-label="Filter by brand">
           {visibleBrands.map((brand) => (
             <label
               key={brand}
@@ -430,7 +430,7 @@ export default function FilterSidebar({
               <span className="ml-1.5 text-primary-400">({filters.retailers.length})</span>
             )}
           </h4>
-          <div className="max-h-60 space-y-1 overflow-y-auto pr-1">
+          <div className="max-h-60 space-y-1 overflow-y-auto pr-1" role="group" aria-label="Filter by retailer">
             {retailers.map((retailer) => (
               <label
                 key={retailer.id}

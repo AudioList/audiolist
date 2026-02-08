@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   useCommunityBuilds,
@@ -7,6 +7,7 @@ import {
 } from '../hooks/useCommunityBuilds';
 import type { CategoryId, Product } from '../types';
 import { useBuild } from '../context/BuildContext';
+import { useToast } from '../context/ToastContext';
 import { supabase } from '../lib/supabase';
 
 const SORT_OPTIONS: { value: CommunitySortOption; label: string }[] = [
@@ -19,11 +20,32 @@ const SORT_OPTIONS: { value: CommunitySortOption; label: string }[] = [
 export default function CommunityBuildsPage() {
   const { builds, loading, error, sort, setSort, hasMore, loadMore } = useCommunityBuilds();
   const { setProduct, setName, setDescription, clearBuild } = useBuild();
+  const { addToast } = useToast();
   const [votingId, setVotingId] = useState<string | null>(null);
-  const [votedIds, setVotedIds] = useState<Set<string>>(new Set());
+  const [votedIds, setVotedIds] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem('audiolist_voted_ids');
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch { return new Set(); }
+  });
   const [cloneLoadingId, setCloneLoadingId] = useState<string | null>(null);
   // Track local upvote adjustments
-  const [voteAdjustments, setVoteAdjustments] = useState<Record<string, number>>({});
+  const [voteAdjustments, setVoteAdjustments] = useState<Record<string, number>>(() => {
+    try {
+      const stored = localStorage.getItem('audiolist_vote_adjustments');
+      return stored ? JSON.parse(stored) : {};
+    } catch { return {}; }
+  });
+
+  // Persist votedIds to localStorage
+  useEffect(() => {
+    try { localStorage.setItem('audiolist_voted_ids', JSON.stringify([...votedIds])); } catch {}
+  }, [votedIds]);
+
+  // Persist voteAdjustments to localStorage
+  useEffect(() => {
+    try { localStorage.setItem('audiolist_vote_adjustments', JSON.stringify(voteAdjustments)); } catch {}
+  }, [voteAdjustments]);
 
   const handleVote = useCallback(
     async (buildId: string) => {
@@ -67,6 +89,7 @@ export default function CommunityBuildsPage() {
 
         if (fetchErr || !items) {
           console.error('Failed to fetch build items:', fetchErr?.message);
+          addToast('Failed to clone build. Please try again.', 'error');
           return;
         }
 
@@ -81,10 +104,12 @@ export default function CommunityBuildsPage() {
           }
         }
 
-        // Brief success indicator then could navigate
+        // Brief success indicator
+        addToast(`Cloned "${buildName}" to your build!`, 'success');
         setTimeout(() => setCloneLoadingId(null), 500);
       } catch (err) {
         console.error('Clone error:', err);
+        addToast('Failed to clone build. Please try again.', 'error');
         setCloneLoadingId(null);
       }
     },

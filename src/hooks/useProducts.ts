@@ -523,3 +523,56 @@ export function useProductBrands(category: CategoryId): string[] {
 
   return brands;
 }
+
+// ── Aggregated filter options via RPC (replaces 5 paginated hooks above) ──
+
+interface FilterOptions {
+  brands: string[];
+  retailers: { id: string; name: string }[];
+  iemTypes: { value: string; label: string; count: number }[];
+  speakerTypes: { value: string; label: string; count: number }[];
+  headphoneDesigns: { value: string; label: string; count: number }[];
+}
+
+export function useFilterOptions(category: CategoryId): FilterOptions {
+  const [options, setOptions] = useState<FilterOptions>({
+    brands: [],
+    retailers: [],
+    iemTypes: [],
+    speakerTypes: [],
+    headphoneDesigns: [],
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .rpc('get_filter_options', { p_category_id: category })
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        setOptions({
+          brands: data.brands ?? [],
+          retailers: data.retailers ?? [],
+          iemTypes: (data.iem_types ?? []).map((t: any) => ({
+            value: t.value,
+            label: getIemTypeLabel(t.value),
+            count: t.count,
+          })),
+          speakerTypes: (data.speaker_types ?? []).map((t: any) => ({
+            value: t.value,
+            label: getSpeakerTypeLabel(t.value),
+            count: t.count,
+          })),
+          headphoneDesigns: (data.headphone_designs ?? []).map((t: any) => ({
+            value: t.value,
+            label: getHeadphoneDesignLabel(t.value),
+            count: t.count,
+          })),
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [category]);
+
+  return options;
+}

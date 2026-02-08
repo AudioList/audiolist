@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { CategoryId, ProductFilters, ProductSort, Product } from '../types';
 import { CATEGORIES, CATEGORY_MAP, getScoreLabel, isSpinormaCategory, isSinadCategory, sinadToScore } from '../lib/categories';
 import { useExperienceMode } from '../context/ExperienceModeContext';
-import { useProducts, useProductBrands, useRetailers, useSpeakerTypes, useHeadphoneDesigns, useIemTypes } from '../hooks/useProducts';
+import { useProducts, useFilterOptions } from '../hooks/useProducts';
 import SearchBar from '../components/products/SearchBar';
 import SortControls from '../components/products/SortControls';
 import PPIBadge from '../components/shared/PPIBadge';
@@ -134,11 +134,7 @@ export default function ProductListPage() {
   );
 
   const { products, loading, error, hasMore, total, loadMore } = useProducts(hookOptions);
-  const brands = useProductBrands(categoryId);
-  const retailers = useRetailers(categoryId);
-  const speakerTypes = useSpeakerTypes();
-  const headphoneDesigns = useHeadphoneDesigns(categoryId);
-  const iemTypes = useIemTypes(categoryId);
+  const { brands, retailers, speakerTypes, headphoneDesigns, iemTypes } = useFilterOptions(categoryId);
   const [brandSearch, setBrandSearch] = useState('');
 
   // Restore scroll position after products load (only once, on initial mount)
@@ -165,7 +161,7 @@ export default function ProductListPage() {
   return (
     <div className="space-y-6">
       {/* Category tabs */}
-      <nav className="flex flex-wrap gap-2" role="tablist" aria-label="Product categories">
+      <nav className="flex gap-2 overflow-x-auto pb-1 scrollbar-none" role="tablist" aria-label="Product categories">
         {CATEGORIES.map((cat) => (
           <button
             key={cat.id}
@@ -174,7 +170,7 @@ export default function ProductListPage() {
             aria-selected={cat.id === categoryId}
             onClick={() => handleCategoryChange(cat.id)}
             title={cat.description}
-            className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+            className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
               cat.id === categoryId
                 ? 'bg-primary-600 text-white shadow-md ring-2 ring-primary-400/30'
                 : 'bg-surface-100 text-surface-700 hover:bg-surface-200 dark:bg-surface-800 dark:text-surface-200 dark:hover:bg-surface-700'
@@ -562,6 +558,13 @@ export default function ProductListPage() {
               <p className="text-surface-500 dark:text-surface-400">
                 No products match your filters.
               </p>
+              <button
+                type="button"
+                onClick={() => setFilters(getDefaultFilters())}
+                className="mt-4 rounded-lg bg-primary-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-500"
+              >
+                Clear All Filters
+              </button>
             </div>
           )}
 
@@ -600,6 +603,8 @@ function ProductCard({ product, showPPI, showSinad = false }: { product: Product
           <img
             src={product.image_url}
             alt={product.name}
+            loading="lazy"
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             className="max-h-full max-w-full object-contain"
           />
         </div>
@@ -627,7 +632,7 @@ function ProductCard({ product, showPPI, showSinad = false }: { product: Product
           {product.name}
         </h3>
         {product.iem_type === 'tws' && (
-          <span className="mt-0.5 inline-flex shrink-0 items-center rounded-full bg-cyan-100 px-1.5 py-0.5 text-[10px] font-bold text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300">
+          <span className="mt-0.5 inline-flex shrink-0 items-center rounded-full bg-cyan-100 px-1.5 py-0.5 text-[0.625rem] font-bold text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300">
             TWS
           </span>
         )}

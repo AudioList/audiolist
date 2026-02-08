@@ -56,7 +56,14 @@ function getScoreContext(scoreType: string, score: number): string {
 }
 
 export default function ScoreExplainer({ scoreType, score }: ScoreExplainerProps) {
-  const [expanded, setExpanded] = useState(false);
+  const storageKey = `scoreExplainer_seen_${scoreType}`;
+  const hasSeenBefore = typeof window !== 'undefined' && localStorage.getItem(storageKey) === '1';
+  const [expanded, setExpanded] = useState(!hasSeenBefore);
+
+  // Mark as seen after first render so subsequent visits start collapsed
+  if (!hasSeenBefore && typeof window !== 'undefined') {
+    localStorage.setItem(storageKey, '1');
+  }
   const info = EXPLANATIONS[scoreType];
   if (!info) return null;
 

@@ -70,17 +70,17 @@ export default function ProductCard({
           <h3 className="truncate text-sm font-bold text-surface-100">{product.name}</h3>
           {/* Badges inline */}
           {mode !== 'beginner' && product.rig_type && (
-            <span className="inline-flex shrink-0 items-center rounded-md bg-surface-700 px-1.5 py-0.5 text-[10px] font-semibold text-surface-300 ring-1 ring-surface-600">
+            <span className="inline-flex shrink-0 items-center rounded-md bg-surface-700 px-1.5 py-0.5 text-[0.625rem] font-semibold text-surface-300 ring-1 ring-surface-600">
               {product.rig_type}
             </span>
           )}
           {mode === 'advanced' && product.asr_recommended && (
-            <span className="inline-flex shrink-0 items-center rounded-md bg-green-900/50 px-1.5 py-0.5 text-[10px] font-semibold text-green-400 ring-1 ring-green-500/30">
+            <span className="inline-flex shrink-0 items-center rounded-md bg-green-900/50 px-1.5 py-0.5 text-[0.625rem] font-semibold text-green-400 ring-1 ring-green-500/30">
               ASR
             </span>
           )}
           {product.asr_device_type && product.asr_device_type.toUpperCase().includes('AMP') && (
-            <span className="inline-flex shrink-0 items-center rounded-md bg-violet-900/40 px-1.5 py-0.5 text-[10px] font-bold text-violet-300 ring-1 ring-violet-500/40">
+            <span className="inline-flex shrink-0 items-center rounded-md bg-violet-900/40 px-1.5 py-0.5 text-[0.625rem] font-bold text-violet-300 ring-1 ring-violet-500/40">
               DAC/Amp
             </span>
           )}
@@ -107,7 +107,7 @@ export default function ProductCard({
         <div className="shrink-0 flex items-center gap-1.5">
           <PPIBadge score={sinadToScore(product.sinad_db)} size="sm" label="SINAD" />
           {mode !== 'beginner' && (
-            <span className="text-[10px] font-medium text-surface-400">{product.sinad_db} dB</span>
+            <span className="text-[0.625rem] font-medium text-surface-400">{product.sinad_db} dB</span>
           )}
         </div>
       )}

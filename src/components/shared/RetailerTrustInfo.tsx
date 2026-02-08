@@ -76,7 +76,7 @@ export default function RetailerTrustInfo({ retailer }: RetailerTrustInfoProps) 
               {retailer.name}
             </span>
             {retailer.authorized_dealer && (
-              <span className="inline-flex items-center gap-0.5 rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-400">
+              <span className="inline-flex items-center gap-0.5 rounded-full bg-green-100 px-1.5 py-0.5 text-[0.625rem] font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-400">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 16 16"

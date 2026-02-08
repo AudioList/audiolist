@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import type { CategoryId, Product } from '../types';
 import { useBuild } from '../context/BuildContext';
+import { useToast } from '../context/ToastContext';
 import { supabase } from '../lib/supabase';
 import { getRecommendation, type QuizAnswers, type QuizResult } from '../lib/quizRecommender';
 import type { StarterBuild } from '../lib/starterBuilds';
@@ -104,6 +105,7 @@ const TIER_COLORS: Record<string, { bg: string; text: string; border: string }> 
 export default function QuizPage() {
   const navigate = useNavigate();
   const { setProduct, setName, setDescription, clearBuild } = useBuild();
+  const { addToast } = useToast();
 
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<QuizAnswers>({
@@ -164,6 +166,7 @@ export default function QuizPage() {
 
         if (error || !products) {
           console.error('Failed to fetch quiz build products:', error?.message);
+          addToast('Failed to load build products. Please try again.', 'error');
           setLoading(false);
           return;
         }
@@ -189,6 +192,7 @@ export default function QuizPage() {
         navigate('/');
       } catch (err) {
         console.error('Error loading build:', err);
+        addToast('Something went wrong loading the build.', 'error');
       } finally {
         setLoading(false);
       }
@@ -328,7 +332,7 @@ export default function QuizPage() {
                   key={`${item.categoryId}-${item.productId}`}
                   className="flex items-start gap-3 rounded-lg bg-surface-50 px-4 py-3 dark:bg-surface-800/50"
                 >
-                  <span className="mt-0.5 shrink-0 rounded bg-primary-100 px-2 py-0.5 text-[10px] font-bold uppercase text-primary-700 dark:bg-primary-900/30 dark:text-primary-400">
+                  <span className="mt-0.5 shrink-0 rounded bg-primary-100 px-2 py-0.5 text-[0.625rem] font-bold uppercase text-primary-700 dark:bg-primary-900/30 dark:text-primary-400">
                     {item.categoryId === 'headphone' ? 'HP' : item.categoryId.toUpperCase()}
                   </span>
                   <div className="min-w-0">
@@ -389,7 +393,7 @@ export default function QuizPage() {
                             {alt.name}
                           </span>
                           {tc && (
-                            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${tc.bg} ${tc.text} ${tc.border}`}>
+                            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[0.625rem] font-bold ${tc.bg} ${tc.text} ${tc.border}`}>
                               {alt.tier}
                             </span>
                           )}

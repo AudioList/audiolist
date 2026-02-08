@@ -20,7 +20,7 @@ function PairingCard({ product, count }: { product: Product; count: number }) {
   return (
     <div className="flex w-48 shrink-0 flex-col rounded-lg border border-surface-200 bg-white p-3 dark:border-surface-700 dark:bg-surface-900">
       {/* Category tag */}
-      <span className="mb-1.5 self-start rounded bg-surface-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-surface-500 dark:bg-surface-800 dark:text-surface-400">
+      <span className="mb-1.5 self-start rounded bg-surface-100 px-1.5 py-0.5 text-[0.625rem] font-bold uppercase text-surface-500 dark:bg-surface-800 dark:text-surface-400">
         {category?.name ?? product.category_id}
       </span>
 
@@ -47,7 +47,7 @@ function PairingCard({ product, count }: { product: Product; count: number }) {
               ${product.price.toFixed(0)}
             </span>
           )}
-          <span className="ml-1 text-[10px] text-surface-400 dark:text-surface-500">
+          <span className="ml-1 text-[0.625rem] text-surface-400 dark:text-surface-500">
             {count} {count === 1 ? 'build' : 'builds'}
           </span>
         </div>
@@ -55,7 +55,7 @@ function PairingCard({ product, count }: { product: Product; count: number }) {
           type="button"
           onClick={handleAdd}
           disabled={isInBuild}
-          className="shrink-0 rounded-md bg-primary-600 px-2 py-1 text-[11px] font-medium text-white transition-colors hover:bg-primary-500 disabled:bg-surface-300 disabled:text-surface-500 dark:disabled:bg-surface-700 dark:disabled:text-surface-500"
+          className="shrink-0 rounded-md bg-primary-600 px-2 py-1 text-[0.6875rem] font-medium text-white transition-colors hover:bg-primary-500 disabled:bg-surface-300 disabled:text-surface-500 dark:disabled:bg-surface-700 dark:disabled:text-surface-500"
         >
           {isInBuild ? 'Added' : 'Add'}
         </button>

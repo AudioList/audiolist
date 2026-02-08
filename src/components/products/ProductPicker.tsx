@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { CategoryId, ProductFilters, ProductSort, Product } from '../../types';
-import { useProducts, useProductBrands, useRetailers, useSpeakerTypes, useHeadphoneDesigns, useIemTypes } from '../../hooks/useProducts';
+import { useProducts, useFilterOptions } from '../../hooks/useProducts';
 import { useBuild } from '../../context/BuildContext';
 import { CATEGORY_MAP, isSinadCategory } from '../../lib/categories';
 import SearchBar from './SearchBar';
@@ -50,11 +50,7 @@ export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetai
     sort,
   });
 
-  const brands = useProductBrands(categoryId);
-  const retailers = useRetailers(categoryId);
-  const speakerTypes = useSpeakerTypes();
-  const headphoneDesigns = useHeadphoneDesigns(categoryId);
-  const iemTypes = useIemTypes(categoryId);
+  const { brands, retailers, speakerTypes, headphoneDesigns, iemTypes } = useFilterOptions(categoryId);
   const { setProduct, getSelection } = useBuild();
   const currentSelection = getSelection(categoryId);
   const backdropRef = useRef<HTMLDivElement>(null);
@@ -96,6 +92,53 @@ export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetai
     };
   }, [isOpen]);
 
+  // Focus trap: keep Tab/Shift+Tab within the modal, auto-focus search on open
+  useEffect(() => {
+    if (!isOpen) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+
+    // Auto-focus the search input after a tick (to let DOM render)
+    const focusTimer = setTimeout(() => {
+      const container = backdropRef.current;
+      if (!container) return;
+      const searchInput = container.querySelector<HTMLInputElement>('input[type="text"]');
+      searchInput?.focus();
+    }, 50);
+
+    function handleTab(e: KeyboardEvent) {
+      if (e.key !== 'Tab') return;
+      const container = backdropRef.current;
+      if (!container) return;
+
+      const focusable = container.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleTab);
+    return () => {
+      clearTimeout(focusTimer);
+      document.removeEventListener('keydown', handleTab);
+      previouslyFocused?.focus();
+    };
+  }, [isOpen]);
+
   const handleBackdropClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (e.target === backdropRef.current) {
@@ -123,6 +166,9 @@ export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetai
     <div
       ref={backdropRef}
       onClick={handleBackdropClick}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Choose ${category?.name ?? 'product'}`}
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 backdrop-blur-sm p-4 sm:p-6 md:p-8"
     >
       <div className="relative w-full max-w-5xl rounded-xl border border-surface-700 bg-surface-900 shadow-2xl dark:bg-surface-900">

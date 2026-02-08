@@ -57,12 +57,12 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
               </span>
               {mode === 'beginner' ? (
                 CATEGORY_EXPLAINERS[category.id]?.shortBlurb && (
-                  <span className="block text-[11px] text-surface-500 dark:text-surface-400 font-normal leading-tight">
+                  <span className="block text-[0.6875rem] text-surface-500 dark:text-surface-400 font-normal leading-tight">
                     {CATEGORY_EXPLAINERS[category.id].shortBlurb}
                   </span>
                 )
               ) : mode !== 'advanced' && category.description ? (
-                <span className="block text-[11px] text-surface-500 dark:text-surface-400 font-normal leading-tight">
+                <span className="block text-[0.6875rem] text-surface-500 dark:text-surface-400 font-normal leading-tight">
                   {category.description}
                 </span>
               ) : null}
@@ -83,7 +83,7 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
                   {product.name}
                 </button>
                 {isDacAmpCombo(product) && (
-                  <span className="inline-flex shrink-0 items-center rounded-md bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold text-violet-700 ring-1 ring-violet-300 dark:bg-violet-900/40 dark:text-violet-300 dark:ring-violet-500/40">
+                  <span className="inline-flex shrink-0 items-center rounded-md bg-violet-100 px-1.5 py-0.5 text-[0.625rem] font-bold text-violet-700 ring-1 ring-violet-300 dark:bg-violet-900/40 dark:text-violet-300 dark:ring-violet-500/40">
                     DAC/Amp
                   </span>
                 )}
@@ -184,12 +184,12 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
               </span>
               {mode === 'beginner' ? (
                 CATEGORY_EXPLAINERS[category.id]?.shortBlurb && (
-                  <span className="block text-[11px] text-surface-500 dark:text-surface-400 font-normal leading-tight">
+                  <span className="block text-[0.6875rem] text-surface-500 dark:text-surface-400 font-normal leading-tight">
                     {CATEGORY_EXPLAINERS[category.id].shortBlurb}
                   </span>
                 )
               ) : mode !== 'advanced' && category.description ? (
-                <span className="block text-[11px] text-surface-500 dark:text-surface-400 font-normal leading-tight">
+                <span className="block text-[0.6875rem] text-surface-500 dark:text-surface-400 font-normal leading-tight">
                   {category.description}
                 </span>
               ) : null}
@@ -251,7 +251,7 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
                 {product.name}
               </button>
               {isDacAmpCombo(product) && (
-                <span className="inline-flex shrink-0 items-center rounded-md bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold text-violet-700 ring-1 ring-violet-300 dark:bg-violet-900/40 dark:text-violet-300 dark:ring-violet-500/40">
+                <span className="inline-flex shrink-0 items-center rounded-md bg-violet-100 px-1.5 py-0.5 text-[0.625rem] font-bold text-violet-700 ring-1 ring-violet-300 dark:bg-violet-900/40 dark:text-violet-300 dark:ring-violet-500/40">
                   DAC/Amp
                 </span>
               )}

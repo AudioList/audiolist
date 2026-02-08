@@ -57,7 +57,7 @@ export default function PriceDisplay({ price, affiliateUrl, inStock, discontinue
           <ExternalLinkIcon />
         </a>
         {statusLabel && (
-          <span className={`block text-[10px] font-semibold ${statusColor}`}>
+          <span className={`block text-[0.625rem] font-semibold ${statusColor}`}>
             {statusLabel}
           </span>
         )}
@@ -71,7 +71,7 @@ export default function PriceDisplay({ price, affiliateUrl, inStock, discontinue
         {formatted}
       </span>
       {statusLabel && (
-        <span className={`block text-[10px] font-semibold ${statusColor}`}>
+        <span className={`block text-[0.625rem] font-semibold ${statusColor}`}>
           {statusLabel}
         </span>
       )}
