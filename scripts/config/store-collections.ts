@@ -301,4 +301,40 @@ export const STORE_COLLECTIONS: Record<string, StoreConfig> = {
       { handle: 'microphones', categoryId: 'microphone' },
     ],
   },
+  // --- Multi-brand pro audio retailers (microphones) ---
+  'www.performanceaudio.com': {
+    retailerId: 'performance-audio',
+    collections: [
+      { handle: 'studio-microphones', categoryId: 'microphone' },
+      { handle: 'condenser-microphones', categoryId: 'microphone' },
+      { handle: 'dynamic-microphones', categoryId: 'microphone' },
+      { handle: 'usb-microphones', categoryId: 'microphone' },
+      { handle: 'ribbon-microphones', categoryId: 'microphone' },
+    ],
+  },
+  // --- Brand-direct microphone stores ---
+  'shop.lewitt-audio.com': {
+    retailerId: 'lewitt',
+    collections: [
+      { handle: 'microphones', categoryId: 'microphone' },
+    ],
+  },
+  'www.sontronics.com': {
+    retailerId: 'sontronics',
+    collections: [
+      { handle: 'all-products', categoryId: 'microphone' },
+    ],
+  },
+  'www.syncoaudio.com': {
+    retailerId: 'synco',
+    collections: [
+      { handle: 'products', categoryId: 'microphone' },
+    ],
+  },
+  'www.cloudmicrophones.com': {
+    retailerId: 'cloud-microphones',
+    collections: [
+      { handle: 'microphones', categoryId: 'microphone' },
+    ],
+  },
 };

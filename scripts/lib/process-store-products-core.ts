@@ -7,7 +7,7 @@
 
 import { getSupabase, getRetailers, type Retailer } from '../config/retailers.ts';
 import { extractBrand } from '../brand-config.ts';
-import { normalizeName, buildCandidateIndex, findBestMatchIndexed, extractHeadphoneDesign, extractIemType, extractMicConnection, extractMicType, extractMicPattern, detectCorrectCategory, isJunkProduct, type IndexedCandidate } from '../scrapers/matcher.ts';
+import { normalizeName, buildCandidateIndex, findBestMatchIndexed, extractHeadphoneDesign, extractIemType, extractMicConnection, extractMicType, extractMicPattern, detectCorrectCategory, isJunkProduct, isMicrophoneJunk, type IndexedCandidate } from '../scrapers/matcher.ts';
 import type { CategoryId } from '../config/store-collections.ts';
 import { log, logError } from './log.ts';
 import { extractTagAttributes } from './extract-tags.ts';
@@ -245,6 +245,14 @@ async function processStoreProducts(
       // Skip junk/test products entirely
       if (isJunkProduct(sp.title)) {
         log('JUNK', `Skipping junk product: "${sp.title}"`);
+        spUpdateProcessedOnly.push(sp.id);
+        stats.skipped++;
+        continue;
+      }
+
+      // Skip non-microphone products in microphone category
+      if (categoryId === 'microphone' && isMicrophoneJunk(sp.title)) {
+        log('JUNK', `Skipping non-microphone product: "${sp.title}"`);
         spUpdateProcessedOnly.push(sp.id);
         stats.skipped++;
         continue;

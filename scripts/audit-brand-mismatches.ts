@@ -51,6 +51,10 @@ const FIRST_PARTY_RETAILERS = new Set([
   'tonor',
   'fifine',
   'maono',
+  'lewitt',
+  'sontronics',
+  'synco',
+  'cloud-microphones',
 ]);
 
 async function main() {

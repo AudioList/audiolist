@@ -16,7 +16,7 @@ export async function searchBestBuy(
   apiKey: string
 ): Promise<BestBuyProduct[]> {
   const encodedQuery = encodeURIComponent(query);
-  const filter = `(search=${encodedQuery}&categoryPath.name="Headphones"|categoryPath.name="Portable Audio")`;
+  const filter = `(search=${encodedQuery}&categoryPath.name="Headphones"|categoryPath.name="Portable Audio"|categoryPath.name="Microphones")`;
   const fields =
     "show=sku,name,salePrice,regularPrice,onlineAvailability,url,affiliateUrl,image,manufacturer,modelNumber";
   const url = `https://api.bestbuy.com/v1/products${filter}?${fields}&pageSize=10&format=json&apiKey=${apiKey}`;

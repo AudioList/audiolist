@@ -228,6 +228,9 @@ import {
   // DAC/Amp rules
   DAC_INDICATORS,
   AMP_ONLY_INDICATORS,
+  // Microphone rules
+  MICROPHONE_JUNK_INDICATORS,
+  MICROPHONE_GUARD_INDICATORS,
   // Junk & misplaced
   JUNK_PRODUCT_PATTERNS,
   MISPLACED_OVERRIDES,
@@ -448,6 +451,27 @@ export function detectDacAmpCategory(
  */
 export function isJunkProduct(name: string): boolean {
   return JUNK_PRODUCT_PATTERNS.some((rx) => rx.test(name));
+}
+
+/**
+ * Check if a product in the microphone category is NOT actually a microphone.
+ * Returns true for karaoke machines, sound bars, boom arms, audio interfaces, etc.
+ * Guard patterns prevent false positives on legitimate mics that mention accessories
+ * (e.g. "USB Condenser Microphone with Boom Arm" should NOT be excluded).
+ *
+ * "karaoke" is an unconditional exclusion -- even if the product name contains
+ * mic guard words like "dynamic microphone", karaoke products are always excluded.
+ */
+export function isMicrophoneJunk(name: string): boolean {
+  // Unconditional exclusions (override guards)
+  if (/\bkaraoke\b/i.test(name)) return true;
+  // If a guard indicator matches, the product IS a real microphone
+  if (MICROPHONE_GUARD_INDICATORS.some((rx) => rx.test(name))) return false;
+  // Generic guard: if the name contains "Microphone" (but NOT "Microphone Boom/Handle/Arm/Stand/Cable"),
+  // it's almost certainly a real microphone even if it mentions accessories
+  if (/\bmicrophone\b/i.test(name) && !/\bmicrophone\s+(boom|handle|arm|stand|cable|adapter)/i.test(name)) return false;
+  // Otherwise check junk indicators
+  return MICROPHONE_JUNK_INDICATORS.some((rx) => rx.test(name));
 }
 
 /**

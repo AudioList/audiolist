@@ -410,7 +410,98 @@ export const AMP_ONLY_INDICATORS: RegExp[] = [
 ];
 
 // ===========================================================================
-// 6. JUNK & MISPLACED ITEM OVERRIDES
+// 6. MICROPHONE EXCLUSION RULES
+// ===========================================================================
+
+/**
+ * Products in the microphone category that are NOT actual microphones.
+ * Matches karaoke machines, sound bars, boom arms/stands, audio interfaces,
+ * mic handles, and other accessories that retailers lump into "microphones".
+ */
+export const MICROPHONE_JUNK_INDICATORS: RegExp[] = [
+  // Karaoke machines / speakers / karaoke-branded mics
+  /\bkaraoke\b/i,
+  /\bportable\s+(bluetooth\s+)?speaker\b/i,
+  /\bparty\s+speaker\b/i,
+  // Sound bars
+  /\bsound[\s-]?bar\b/i,
+  // Boom arms and mic stands (not microphones themselves)
+  /\b(mic(rophone)?|boom)\s+(arm|boom|stand)\b/i,
+  /\bmicrophone\s+boom\b/i,
+  /\bboom\s+arm\b/i,
+  /\blow[\s-]?profile\s+microphone\s+arm\b/i,
+  // Audio interfaces / mixers (not microphones)
+  /\baudio\s+(interface|mixer)\b/i,
+  /\bgaming\s+audio\s+interface\b/i,
+  // Mic handles / adapters (accessories, not mics)
+  /\bmicrophone\s+handle\b/i,
+  /\bmic(rophone)?\s+adapter\b/i,
+  // Shock mounts, pop filters, windscreens (accessories)
+  /\bshock\s*mount\b/i,
+  /\bpop\s+filter\b/i,
+  /\bwindscreen\b/i,
+  /\bwind\s*shield\b(?!.*\bmic)/i,
+  // Phantom power / preamps / DI boxes (not microphones)
+  /\bphantom\s+power\s+(supply|adapter)\b/i,
+  /\bmic\s+preamp\b/i,
+  /\binline\s+preamp\b/i,
+  /\bdi\s+box\b/i,
+  /\bdirect\s+box\b/i,
+  /\bcloudlifter\b/i,
+  // Headphones miscategorized in mic collections
+  /\bheadphone\b/i,
+  /\bin[\s-]?ear\s+monitor\b/i,
+  // Cables (not microphones)
+  /\bmic\s+cable\b/i,
+  /\bXLR\s+cable\b/i,
+  /\bmicrophone\s+cable\b/i,
+  // Cases / bags
+  /\bcarrying\s+case\b/i,
+  /\bflight\s+case\b/i,
+  /\bstorage\s+case\b/i,
+  // Pop shields (variant naming)
+  /\bpop\s+shield\b/i,
+  // Speakers / monitors (not mics)
+  /\bstudio\s+monitor\b/i,
+  /\bspeaker\b/i,
+];
+
+/**
+ * Guard: patterns confirming a product IS a genuine microphone.
+ * If these match, MICROPHONE_JUNK_INDICATORS are overridden.
+ * Prevents false positives like "USB Condenser Microphone with Boom Arm"
+ * from being excluded because it mentions "boom arm".
+ */
+export const MICROPHONE_GUARD_INDICATORS: RegExp[] = [
+  /\bcondenser\s+mic/i,
+  /\bdynamic\s+mic/i,
+  /\bribbon\s+mic/i,
+  /\bUSB\s+(condenser\s+)?mic/i,
+  /\bXLR\s+(condenser\s+|dynamic\s+)?mic/i,
+  /\bstudio\s+mic/i,
+  /\brecording\s+mic/i,
+  /\bstreaming\s+mic/i,
+  /\bpodcast(ing)?\s+mic/i,
+  /\bvocal\s+mic/i,
+  /\blavalier\b/i,
+  /\blapel\s+mic/i,
+  /\bshotgun\s+mic/i,
+  /\bwireless\s+mic(rophone)?\s+(system|kit|set)\b/i,
+  /\blarge[\s-]?diaphragm\b/i,
+  /\bsmall[\s-]?diaphragm\b/i,
+  /\bboundary\s+mic/i,
+  /\bdrum\s+mic/i,
+  /\binstrument\s+mic/i,
+  /\bbroadcast\s+mic/i,
+  /\btube\s+mic/i,
+  /\bvalve\s+mic/i,
+  /\bgooseneck\s+mic/i,
+  /\bhandheld\s+mic/i,
+  /\bpencil\s+(condenser\s+)?mic/i,
+];
+
+// ===========================================================================
+// 7. JUNK & MISPLACED ITEM OVERRIDES
 // ===========================================================================
 
 /** Product name patterns that indicate test/placeholder items to delete. */
