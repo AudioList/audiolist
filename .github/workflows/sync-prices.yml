@@ -2,8 +2,8 @@ name: Sync Prices
 
 on:
   schedule:
-    # Run every 40 minutes — job takes ~26 min, gives headroom
-    - cron: '5/40 * * * *'
+    # Run every 2 hours at :05 — job takes ~26 min
+    - cron: '5 */2 * * *'
   workflow_dispatch: # Allow manual trigger from GitHub UI
 
 concurrency:
@@ -13,7 +13,7 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 120
 
     steps:
       - name: Checkout repo
