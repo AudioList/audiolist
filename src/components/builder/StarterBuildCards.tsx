@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import type { CategoryId, Product } from '../../types';
 import { useBuild } from '../../context/BuildContext';
+import { useGlassMode } from '../../context/GlassModeContext';
 import { supabase } from '../../lib/supabase';
 import { STARTER_BUILDS, type StarterBuild } from '../../lib/starterBuilds';
 
@@ -47,12 +48,15 @@ interface StarterBuildCardProps {
 function StarterBuildCard({ build, onLoad, loading }: StarterBuildCardProps) {
   const isLoading = loading === build.id;
   const isOtherLoading = loading !== null && loading !== build.id;
+  const isGlass = useGlassMode();
 
   return (
     <div
-      className={`flex flex-col rounded-xl border border-surface-200 bg-white p-5 transition-shadow hover:shadow-md dark:border-surface-700 dark:bg-surface-900 ${
-        isOtherLoading ? 'opacity-50' : ''
-      }`}
+      className={`flex flex-col p-5 transition-shadow hover:shadow-md ${
+        isGlass
+          ? 'glass-1 rounded-2xl'
+          : 'rounded-xl border border-surface-200 bg-white dark:border-surface-700 dark:bg-surface-900'
+      } ${isOtherLoading ? 'opacity-50' : ''}`}
     >
       {/* Header */}
       <div className="mb-3 flex items-start justify-between gap-2">
@@ -77,7 +81,11 @@ function StarterBuildCard({ build, onLoad, loading }: StarterBuildCardProps) {
         {build.items.map((item) => (
           <div
             key={`${item.categoryId}-${item.productId}`}
-            className="flex items-start gap-2 rounded-lg bg-surface-50 px-3 py-2 dark:bg-surface-800/50"
+            className={`flex items-start gap-2 rounded-lg px-3 py-2 ${
+              isGlass
+                ? 'bg-white/30 dark:bg-white/[0.03]'
+                : 'bg-surface-50 dark:bg-surface-800/50'
+            }`}
           >
             <span className="mt-0.5 shrink-0 rounded bg-surface-200 px-1.5 py-0.5 text-[0.625rem] font-bold uppercase text-surface-500 dark:bg-surface-700 dark:text-surface-400">
               {item.categoryId === 'headphone' ? 'HP' : item.categoryId.toUpperCase()}
@@ -140,6 +148,7 @@ function StarterBuildCard({ build, onLoad, loading }: StarterBuildCardProps) {
 
 export default function StarterBuildCards() {
   const { setProduct, setName, setDescription, clearBuild } = useBuild();
+  const isGlass = useGlassMode();
   const [loading, setLoading] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -207,7 +216,11 @@ export default function StarterBuildCards() {
     <button
       type="button"
       onClick={() => setExpanded((prev) => !prev)}
-      className="group flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-surface-300 bg-surface-50 px-5 py-4 text-sm font-semibold text-surface-600 transition-colors hover:border-primary-400 hover:bg-primary-50 hover:text-primary-600 dark:border-surface-600 dark:bg-surface-800/50 dark:text-surface-300 dark:hover:border-primary-500 dark:hover:bg-primary-900/20 dark:hover:text-primary-400"
+      className={`group flex w-full items-center justify-center gap-2 rounded-xl border border-dashed px-5 py-4 text-sm font-semibold transition-colors ${
+        isGlass
+          ? 'border-white/30 bg-white/30 backdrop-blur-sm text-surface-600 hover:border-primary-400 hover:bg-primary-50/50 hover:text-primary-600 dark:border-white/[0.12] dark:bg-white/[0.03] dark:text-surface-300 dark:hover:border-primary-500 dark:hover:bg-primary-900/20 dark:hover:text-primary-400'
+          : 'border-surface-300 bg-surface-50 text-surface-600 hover:border-primary-400 hover:bg-primary-50 hover:text-primary-600 dark:border-surface-600 dark:bg-surface-800/50 dark:text-surface-300 dark:hover:border-primary-500 dark:hover:bg-primary-900/20 dark:hover:text-primary-400'
+      }`}
     >
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5" aria-hidden="true">
         <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-8-5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5A.75.75 0 0 1 10 5Zm0 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" />

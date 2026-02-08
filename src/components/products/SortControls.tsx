@@ -1,5 +1,6 @@
 import type { ProductSort, SortField } from '../../types';
 import { useExperienceMode } from '../../context/ExperienceModeContext';
+import { useGlassMode } from '../../context/GlassModeContext';
 
 interface SortControlsProps {
   sort: ProductSort;
@@ -52,6 +53,7 @@ interface SortOption {
 
 export default function SortControls({ sort, onChange, showPPI = false, showSinad = false, scoreLabel }: SortControlsProps) {
   const { mode } = useExperienceMode();
+  const isGlass = useGlassMode();
   const options: SortOption[] = [];
 
   if (showPPI) {
@@ -89,8 +91,12 @@ export default function SortControls({ sort, onChange, showPPI = false, showSina
           'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:z-10';
 
         const colorClass = isActive
-          ? 'bg-primary-600 text-white border-primary-600 dark:bg-primary-600 dark:border-primary-600'
-          : 'bg-surface-800 text-surface-300 border-surface-600 hover:bg-surface-700 hover:text-surface-100 dark:bg-surface-800 dark:text-surface-300 dark:border-surface-600 dark:hover:bg-surface-700';
+          ? isGlass
+            ? 'bg-primary-600 text-white border-primary-600 shadow-sm shadow-primary-500/20 dark:bg-primary-600 dark:border-primary-600'
+            : 'bg-primary-600 text-white border-primary-600 dark:bg-primary-600 dark:border-primary-600'
+          : isGlass
+            ? 'bg-white/40 text-surface-300 border-white/30 hover:bg-surface-700 hover:text-surface-100 dark:bg-white/[0.05] dark:border-white/[0.10] dark:hover:bg-surface-700'
+            : 'bg-surface-800 text-surface-300 border-surface-600 hover:bg-surface-700 hover:text-surface-100 dark:bg-surface-800 dark:text-surface-300 dark:border-surface-600 dark:hover:bg-surface-700';
 
         const marginClass = index > 0 ? '-ml-px' : '';
 

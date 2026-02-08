@@ -14,10 +14,12 @@ import AdvancedSettings from '../components/builder/AdvancedSettings';
 import SignalChainVisualizer from '../components/builder/SignalChainVisualizer';
 import StarterBuildCards from '../components/builder/StarterBuildCards';
 import { useExperienceMode } from '../context/ExperienceModeContext';
+import { useGlassMode } from '../context/GlassModeContext';
 
 export default function HomePage() {
   const { items, itemCount, clearBuild, name, description, setName, setDescription } = useBuild();
   const { mode } = useExperienceMode();
+  const isGlass = useGlassMode();
   const [pickerCategory, setPickerCategory] = useState<CategoryId | null>(null);
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const [targetType, setTargetType] = useState<TargetType>('df');
@@ -110,7 +112,7 @@ export default function HomePage() {
             onChange={(e) => setName(e.target.value)}
             placeholder="Name your build..."
             maxLength={100}
-            className="w-full border-b-2 border-transparent bg-transparent text-3xl font-extrabold text-surface-900 outline-none transition-colors placeholder:text-surface-300 hover:border-surface-200 focus:border-primary-500 dark:text-surface-50 dark:placeholder:text-surface-600 dark:hover:border-surface-700 dark:focus:border-primary-400"
+            className={isGlass ? 'w-full border-b-2 border-transparent bg-transparent text-3xl font-extrabold text-surface-900 outline-none transition-colors placeholder:text-surface-300 hover:border-white/30 focus:border-primary-500 dark:text-surface-50 dark:placeholder:text-surface-600 dark:hover:border-white/30 dark:focus:border-primary-400' : 'w-full border-b-2 border-transparent bg-transparent text-3xl font-extrabold text-surface-900 outline-none transition-colors placeholder:text-surface-300 hover:border-surface-200 focus:border-primary-500 dark:text-surface-50 dark:placeholder:text-surface-600 dark:hover:border-surface-700 dark:focus:border-primary-400'}
             aria-label="Build name"
           />
           <input
@@ -133,7 +135,7 @@ export default function HomePage() {
             <button
               type="button"
               onClick={clearBuild}
-              className="rounded-lg border border-surface-300 bg-white px-4 py-2 text-sm font-medium text-surface-700 transition-colors hover:bg-surface-100 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-300 dark:hover:bg-surface-700"
+              className={isGlass ? 'glass-btn-secondary rounded-lg px-4 py-2 text-sm font-medium' : 'rounded-lg border border-surface-300 bg-white px-4 py-2 text-sm font-medium text-surface-700 transition-colors hover:bg-surface-100 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-300 dark:hover:bg-surface-700'}
             >
               Start New Build
             </button>
@@ -144,7 +146,7 @@ export default function HomePage() {
       {/* Quiz CTA + Starter builds (shown when build is empty) */}
       {itemCount === 0 && (
         <>
-          <div className="flex items-center justify-center gap-3 rounded-xl border border-primary-200 bg-primary-50 px-5 py-4 dark:border-primary-800 dark:bg-primary-900/10">
+          <div className={isGlass ? 'flex items-center justify-center gap-3 border border-primary-400/20 bg-primary-50/50 backdrop-blur-sm rounded-2xl px-5 py-4 dark:border-primary-400/20 dark:bg-primary-900/10' : 'flex items-center justify-center gap-3 rounded-xl border border-primary-200 bg-primary-50 px-5 py-4 dark:border-primary-800 dark:bg-primary-900/10'}>
             <div className="text-center">
               <p className="text-sm font-semibold text-primary-800 dark:text-primary-300">
                 New to audio? Take our 1-minute setup quiz.
@@ -155,7 +157,7 @@ export default function HomePage() {
             </div>
             <Link
               to="/quiz"
-              className="shrink-0 rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-500"
+              className={isGlass ? 'glass-btn-primary shrink-0 rounded-lg px-5 py-2.5 text-sm font-semibold' : 'shrink-0 rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-500'}
             >
               Take the Quiz
             </Link>

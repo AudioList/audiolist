@@ -4,6 +4,7 @@ import type { Product } from '../../types';
 import { supabase } from '../../lib/supabase';
 import { CATEGORY_MAP, getScoreLabel } from '../../lib/categories';
 import { useExperienceMode } from '../../context/ExperienceModeContext';
+import { useGlassMode } from '../../context/GlassModeContext';
 import PPIBadge from './PPIBadge';
 import PriceDisplay from './PriceDisplay';
 import WhereToBuy from './WhereToBuy';
@@ -64,6 +65,7 @@ export default function ProductDetailModal({
   }
 
   const { mode } = useExperienceMode();
+  const isGlass = useGlassMode();
   const [isBestMode, setIsBestMode] = useState(false);
 
   // Check if this product is the best-scoring variant in a DSP/ANC family
@@ -102,16 +104,20 @@ export default function ProductDetailModal({
       ref={backdropRef}
       onClick={handleBackdropClick}
       className={`fixed inset-0 z-[60] flex items-center justify-center p-4 transition-all duration-150 ${
-        entered ? 'bg-black/60 backdrop-blur-sm' : 'bg-black/0'
+        entered
+          ? isGlass ? 'bg-black/40 backdrop-blur-md' : 'bg-black/60 backdrop-blur-sm'
+          : 'bg-black/0'
       }`}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="product-detail-title"
-        className={`relative w-full max-w-2xl rounded-xl border border-surface-700 bg-surface-900 shadow-2xl transition-all duration-150 ease-out ${
-          entered ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
-        }`}
+        className={`relative w-full max-w-2xl shadow-2xl transition-all duration-150 ease-out ${
+          isGlass
+            ? 'rounded-2xl border border-white/[0.10] bg-surface-900/90 backdrop-blur-2xl'
+            : 'rounded-xl border border-surface-700 bg-surface-900'
+        } ${entered ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
       >
         {/* Header */}
         <div className="flex items-start justify-between gap-4 border-b border-surface-700 px-6 py-4">
@@ -212,7 +218,7 @@ export default function ProductDetailModal({
 
           {/* PPI breakdown table */}
           {mode !== 'beginner' && categoryHasPpi && product.ppi_score !== null && (
-            <div className="rounded-lg border border-surface-700 bg-surface-800">
+            <div className={isGlass ? "rounded-xl border border-white/[0.08] bg-white/[0.04]" : "rounded-lg border border-surface-700 bg-surface-800"}>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-surface-700 text-left text-surface-400">

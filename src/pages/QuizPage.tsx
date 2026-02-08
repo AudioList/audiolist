@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import type { CategoryId, Product } from '../types';
 import { useBuild } from '../context/BuildContext';
 import { useToast } from '../context/ToastContext';
+import { useGlassMode } from '../context/GlassModeContext';
 import { supabase } from '../lib/supabase';
 import { getRecommendation, type QuizAnswers, type QuizResult } from '../lib/quizRecommender';
 import type { StarterBuild } from '../lib/starterBuilds';
@@ -106,6 +107,7 @@ export default function QuizPage() {
   const navigate = useNavigate();
   const { setProduct, setName, setDescription, clearBuild } = useBuild();
   const { addToast } = useToast();
+  const isGlass = useGlassMode();
 
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<QuizAnswers>({
@@ -223,7 +225,7 @@ export default function QuizPage() {
             </span>
             <span>{Math.round(((step + 1) / totalSteps) * 100)}%</span>
           </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-surface-200 dark:bg-surface-700">
+          <div className={isGlass ? 'h-2 w-full overflow-hidden rounded-full bg-white/30' : 'h-2 w-full overflow-hidden rounded-full bg-surface-200 dark:bg-surface-700'}>
             <div
               className="h-full rounded-full bg-primary-500 transition-all duration-300"
               style={{ width: `${((step + 1) / totalSteps) * 100}%` }}
@@ -254,8 +256,8 @@ export default function QuizPage() {
                   onClick={() => handleSelect(option.value)}
                   className={`w-full rounded-xl border-2 px-5 py-4 text-left transition-all ${
                     isSelected
-                      ? 'border-primary-500 bg-primary-50 dark:border-primary-400 dark:bg-primary-900/20'
-                      : 'border-surface-200 bg-white hover:border-surface-300 hover:bg-surface-50 dark:border-surface-700 dark:bg-surface-900 dark:hover:border-surface-600 dark:hover:bg-surface-800'
+                      ? (isGlass ? 'border-primary-400/50 bg-primary-50/60 backdrop-blur-sm dark:border-primary-400/50 dark:bg-primary-900/20' : 'border-primary-500 bg-primary-50 dark:border-primary-400 dark:bg-primary-900/20')
+                      : (isGlass ? 'border-white/20 bg-white/50 backdrop-blur-sm hover:border-white/40 hover:bg-white/70 dark:border-white/10 dark:bg-white/[0.05] dark:hover:border-white/20 dark:hover:bg-white/[0.1]' : 'border-surface-200 bg-white hover:border-surface-300 hover:bg-surface-50 dark:border-surface-700 dark:bg-surface-900 dark:hover:border-surface-600 dark:hover:bg-surface-800')
                   }`}
                 >
                   <span
@@ -300,7 +302,7 @@ export default function QuizPage() {
       {showResults && result && (
         <div className="space-y-6">
           {/* Recommended build */}
-          <div className="rounded-xl border-2 border-primary-500 bg-white p-6 dark:border-primary-400 dark:bg-surface-900">
+          <div className={isGlass ? 'glass-1 rounded-2xl border-2 border-primary-400/40 p-6' : 'rounded-xl border-2 border-primary-500 bg-white p-6 dark:border-primary-400 dark:bg-surface-900'}>
             <div className="mb-1 flex items-center gap-2">
               <span className="text-xs font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400">
                 Best Match
@@ -385,7 +387,7 @@ export default function QuizPage() {
                   return (
                     <div
                       key={alt.id}
-                      className="flex items-center justify-between rounded-xl border border-surface-200 bg-white px-5 py-4 dark:border-surface-700 dark:bg-surface-900"
+                      className={isGlass ? 'flex items-center justify-between glass-1 rounded-2xl px-5 py-4' : 'flex items-center justify-between rounded-xl border border-surface-200 bg-white px-5 py-4 dark:border-surface-700 dark:bg-surface-900'}
                     >
                       <div>
                         <div className="flex items-center gap-2">

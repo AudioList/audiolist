@@ -5,6 +5,7 @@ import { ExperienceModeProvider } from './context/ExperienceModeContext';
 import { BuildProvider } from './context/BuildContext';
 import { ToastProvider } from './context/ToastContext';
 import Layout from './components/layout/Layout';
+import GlassLayout from './components/layout/GlassLayout';
 import HomePage from './pages/HomePage';
 
 // Lazy-loaded routes for code splitting
@@ -18,7 +19,7 @@ const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 function LoadingSpinner() {
   return (
     <div className="flex min-h-[40vh] items-center justify-center">
-      <div className="h-8 w-8 animate-spin rounded-full border-4 border-surface-200 border-t-primary-500" />
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-white/20 border-t-primary-400" />
     </div>
   );
 }
@@ -40,6 +41,15 @@ export default function App() {
                 <Route path="/quiz" element={<QuizPage />} />
                 <Route path="/builds" element={<CommunityBuildsPage />} />
                 <Route path="*" element={<NotFoundPage />} />
+              </Route>
+              {/* Glass theme routes -- same pages, different layout */}
+              <Route element={<GlassLayout />}>
+                <Route path="/glass" element={<HomePage />} />
+                <Route path="/glass/build/:shareCode" element={<SharedBuildPage />} />
+                <Route path="/glass/products/:category" element={<ProductListPage />} />
+                <Route path="/glass/product/:id" element={<ProductDetailPage />} />
+                <Route path="/glass/quiz" element={<QuizPage />} />
+                <Route path="/glass/builds" element={<CommunityBuildsPage />} />
               </Route>
             </Routes>
           </Suspense>

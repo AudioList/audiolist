@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import type { ProductFilters, CategoryId } from '../../types';
 import { isSpinormaCategory, isSinadCategory } from '../../lib/categories';
 import { useExperienceMode } from '../../context/ExperienceModeContext';
+import { useGlassMode } from '../../context/GlassModeContext';
 
 interface FilterSidebarProps {
   filters: ProductFilters;
@@ -31,6 +32,7 @@ export default function FilterSidebar({
   iemTypes = [],
 }: FilterSidebarProps) {
   const { mode } = useExperienceMode();
+  const isGlass = useGlassMode();
   const [expanded, setExpanded] = useState(false);
   const [brandSearch, setBrandSearch] = useState('');
   const [measurementOpen, setMeasurementOpen] = useState(mode === 'advanced');
@@ -148,7 +150,7 @@ export default function FilterSidebar({
             {speakerTypes.map((st) => (
               <label
                 key={st.value}
-                className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-200 hover:bg-surface-700"
+                className={`flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-200 ${isGlass ? 'hover:bg-white/[0.08]' : 'hover:bg-surface-700'}`}
               >
                 <input
                   type="checkbox"
@@ -177,7 +179,7 @@ export default function FilterSidebar({
             {headphoneDesigns.map((hd) => (
               <label
                 key={hd.value}
-                className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-200 hover:bg-surface-700"
+                className={`flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-200 ${isGlass ? 'hover:bg-white/[0.08]' : 'hover:bg-surface-700'}`}
               >
                 <input
                   type="checkbox"
@@ -206,7 +208,7 @@ export default function FilterSidebar({
             {iemTypes.map((it) => (
               <label
                 key={it.value}
-                className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-200 hover:bg-surface-700"
+                className={`flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-200 ${isGlass ? 'hover:bg-white/[0.08]' : 'hover:bg-surface-700'}`}
               >
                 <input
                   type="checkbox"
@@ -236,7 +238,10 @@ export default function FilterSidebar({
               update({ priceMin: e.target.value ? Number(e.target.value) : null })
             }
             min={0}
-            className="w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
+            className={isGlass
+                ? "w-full rounded-md border border-white/15 bg-white/[0.06] backdrop-blur-sm px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40"
+                : "w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
+              }
           />
           <span className="text-surface-500 text-sm">-</span>
           <input
@@ -247,7 +252,10 @@ export default function FilterSidebar({
               update({ priceMax: e.target.value ? Number(e.target.value) : null })
             }
             min={0}
-            className="w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
+            className={isGlass
+                ? "w-full rounded-md border border-white/15 bg-white/[0.06] backdrop-blur-sm px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40"
+                : "w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
+              }
           />
         </div>
       </div>
@@ -293,7 +301,10 @@ export default function FilterSidebar({
                     }
                     min={0}
                     max={100}
-                    className="w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
+                    className={isGlass
+                ? "w-full rounded-md border border-white/15 bg-white/[0.06] backdrop-blur-sm px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40"
+                : "w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
+              }
                   />
                   <span className="text-surface-500 text-sm">-</span>
                   <input
@@ -305,7 +316,10 @@ export default function FilterSidebar({
                     }
                     min={0}
                     max={100}
-                    className="w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
+                    className={isGlass
+                ? "w-full rounded-md border border-white/15 bg-white/[0.06] backdrop-blur-sm px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40"
+                : "w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
+              }
                   />
                 </div>
               </div>
@@ -318,7 +332,10 @@ export default function FilterSidebar({
                 <select
                   value={filters.quality ?? ''}
                   onChange={(e) => update({ quality: e.target.value || null })}
-                  className="w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
+                  className={isGlass
+                    ? "w-full rounded-md border border-white/15 bg-white/[0.06] backdrop-blur-sm px-2 py-1.5 text-sm text-surface-100 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40"
+                    : "w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
+                  }
                 >
                   <option value="">All</option>
                   <option value="high">High</option>
@@ -335,7 +352,10 @@ export default function FilterSidebar({
                   <select
                     value={filters.rigType ?? ''}
                     onChange={(e) => update({ rigType: e.target.value || null })}
-                    className="w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
+                    className={isGlass
+                    ? "w-full rounded-md border border-white/15 bg-white/[0.06] backdrop-blur-sm px-2 py-1.5 text-sm text-surface-100 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40"
+                    : "w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
+                  }
                   >
                     <option value="">All</option>
                     <option value="711">711</option>
@@ -363,7 +383,10 @@ export default function FilterSidebar({
                 update({ sinadMin: e.target.value ? Number(e.target.value) : null })
               }
               min={0}
-              className="w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
+              className={isGlass
+                ? "w-full rounded-md border border-white/15 bg-white/[0.06] backdrop-blur-sm px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40"
+                : "w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
+              }
             />
             <span className="text-surface-500 text-sm">-</span>
             <input
@@ -374,7 +397,10 @@ export default function FilterSidebar({
                 update({ sinadMax: e.target.value ? Number(e.target.value) : null })
               }
               min={0}
-              className="w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
+              className={isGlass
+                ? "w-full rounded-md border border-white/15 bg-white/[0.06] backdrop-blur-sm px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40"
+                : "w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
+              }
             />
           </div>
         </div>
@@ -394,14 +420,17 @@ export default function FilterSidebar({
             placeholder="Search brands..."
             value={brandSearch}
             onChange={(e) => setBrandSearch(e.target.value)}
-            className="mb-2 w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40"
+            className={isGlass
+              ? "mb-2 w-full rounded-md border border-white/15 bg-white/[0.06] backdrop-blur-sm px-2 py-1 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40"
+              : "mb-2 w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40"
+            }
           />
         )}
         <div className="max-h-80 space-y-1 overflow-y-auto pr-1" role="group" aria-label="Filter by brand">
           {visibleBrands.map((brand) => (
             <label
               key={brand}
-              className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-200 hover:bg-surface-700"
+              className={`flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-200 ${isGlass ? 'hover:bg-white/[0.08]' : 'hover:bg-surface-700'}`}
             >
               <input
                 type="checkbox"
@@ -434,7 +463,7 @@ export default function FilterSidebar({
             {retailers.map((retailer) => (
               <label
                 key={retailer.id}
-                className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-200 hover:bg-surface-700"
+                className={`flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-200 ${isGlass ? 'hover:bg-white/[0.08]' : 'hover:bg-surface-700'}`}
               >
                 <input
                   type="checkbox"
@@ -454,7 +483,10 @@ export default function FilterSidebar({
         <button
           type="button"
           onClick={clearFilters}
-          className="w-full rounded-lg border border-surface-600 bg-surface-800 px-3 py-2 text-sm text-surface-300 transition-colors hover:bg-surface-700 hover:text-surface-100"
+          className={isGlass
+            ? "w-full rounded-lg border border-white/15 bg-white/[0.06] backdrop-blur-sm px-3 py-2 text-sm text-surface-300 transition-colors hover:bg-white/[0.08] hover:text-surface-100"
+            : "w-full rounded-lg border border-surface-600 bg-surface-800 px-3 py-2 text-sm text-surface-300 transition-colors hover:bg-surface-700 hover:text-surface-100"
+          }
         >
           Clear Filters
         </button>
@@ -472,7 +504,10 @@ export default function FilterSidebar({
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
-          className="flex w-full items-center justify-between rounded-lg border border-surface-600 bg-surface-800 px-3 py-2 text-sm font-medium text-surface-200 transition-colors hover:bg-surface-700"
+          className={isGlass
+            ? "flex w-full items-center justify-between rounded-lg border border-white/15 bg-white/[0.06] backdrop-blur-sm px-3 py-2 text-sm font-medium text-surface-200 transition-colors hover:bg-white/[0.08]"
+            : "flex w-full items-center justify-between rounded-lg border border-surface-600 bg-surface-800 px-3 py-2 text-sm font-medium text-surface-200 transition-colors hover:bg-surface-700"
+          }
         >
           <span className="flex items-center gap-2">
             <svg

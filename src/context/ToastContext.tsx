@@ -60,12 +60,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`pointer-events-auto flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium shadow-lg transition-all animate-in slide-in-from-right ${
+            className={`pointer-events-auto flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium shadow-xl transition-all animate-in slide-in-from-right backdrop-blur-xl ${
               toast.type === 'success'
-                ? 'bg-green-600 text-white'
+                ? 'bg-green-600/90 text-white border border-white/20 shadow-green-500/20'
                 : toast.type === 'error'
-                  ? 'bg-red-600 text-white'
-                  : 'bg-surface-800 text-white dark:bg-surface-200 dark:text-surface-900'
+                  ? 'bg-red-600/90 text-white border border-white/20 shadow-red-500/20'
+                  : 'bg-surface-800/90 text-white border border-white/10 dark:bg-surface-200/90 dark:text-surface-900'
             }`}
           >
             <span className="flex-1">{toast.message}</span>

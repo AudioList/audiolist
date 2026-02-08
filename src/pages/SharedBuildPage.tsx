@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import type { BuildItem } from '../types';
 import { supabase } from '../lib/supabase';
 import { CATEGORY_MAP } from '../lib/categories';
+import { useGlassMode } from '../context/GlassModeContext';
 import PPIBadge from '../components/shared/PPIBadge';
 import PriceDisplay from '../components/shared/PriceDisplay';
 import CloneBuildButton from '../components/shared/CloneBuildButton';
@@ -17,6 +18,7 @@ interface SharedBuild {
 
 export default function SharedBuildPage() {
   const { shareCode } = useParams<{ shareCode: string }>();
+  const isGlass = useGlassMode();
   const [build, setBuild] = useState<SharedBuild | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -138,10 +140,10 @@ export default function SharedBuildPage() {
       </div>
 
       {/* Read-only build items */}
-      <div className="overflow-hidden rounded-xl border border-surface-200 bg-white shadow-sm dark:border-surface-700 dark:bg-surface-900">
+      <div className={isGlass ? 'overflow-hidden glass-1 rounded-2xl' : 'overflow-hidden rounded-xl border border-surface-200 bg-white shadow-sm dark:border-surface-700 dark:bg-surface-900'}>
         <table className="hidden w-full text-sm md:table">
           <thead>
-            <tr className="bg-surface-200 text-left text-surface-600 dark:bg-surface-800 dark:text-surface-300">
+            <tr className={isGlass ? 'bg-white/40 text-left text-surface-600 dark:bg-white/[0.04] dark:text-surface-300' : 'bg-surface-200 text-left text-surface-600 dark:bg-surface-800 dark:text-surface-300'}>
               <th className="px-4 py-3 font-semibold w-48">Component</th>
               <th className="px-4 py-3 font-semibold">Selection</th>
               <th className="px-4 py-3 font-semibold text-right w-28">Price</th>
@@ -208,7 +210,7 @@ export default function SharedBuildPage() {
             return (
               <div
                 key={item.id}
-                className="rounded-lg border border-surface-200 bg-surface-50 p-4 dark:border-surface-700 dark:bg-surface-800"
+                className={isGlass ? 'bg-white/30 rounded-xl p-4' : 'rounded-lg border border-surface-200 bg-surface-50 p-4 dark:border-surface-700 dark:bg-surface-800'}
               >
                 <div className="text-xs font-semibold uppercase tracking-wide text-surface-900 dark:text-surface-100">
                   {category?.name ?? item.category_id}
@@ -256,7 +258,7 @@ export default function SharedBuildPage() {
         <CloneBuildButton items={build.items} buildName={build.name} />
         <Link
           to="/"
-          className="inline-block rounded-lg border border-surface-300 bg-white px-6 py-2.5 text-sm font-medium text-surface-700 transition-colors hover:bg-surface-100 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-300 dark:hover:bg-surface-700"
+          className={isGlass ? 'glass-btn-secondary inline-block rounded-lg px-6 py-2.5 text-sm font-medium' : 'inline-block rounded-lg border border-surface-300 bg-white px-6 py-2.5 text-sm font-medium text-surface-700 transition-colors hover:bg-surface-100 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-300 dark:hover:bg-surface-700'}
         >
           Create From Scratch
         </Link>

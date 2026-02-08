@@ -1,3 +1,5 @@
+import { useGlassMode } from '../../context/GlassModeContext';
+
 interface SearchBarProps {
   value: string;
   onChange: (value: string) => void;
@@ -9,6 +11,8 @@ export default function SearchBar({
   onChange,
   placeholder = 'Search products...',
 }: SearchBarProps) {
+  const isGlass = useGlassMode();
+
   return (
     <div className="relative w-full">
       <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
@@ -32,7 +36,10 @@ export default function SearchBar({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-lg border border-surface-600 bg-surface-800 py-2 pl-9 pr-9 text-sm text-surface-100 placeholder-surface-400 transition-colors focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-100 dark:placeholder-surface-400"
+        className={isGlass
+          ? "w-full rounded-xl border border-white/20 bg-white/50 backdrop-blur-sm py-2 pl-9 pr-9 text-sm text-surface-100 placeholder-surface-400 transition-colors focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-400/20 dark:bg-white/[0.05] dark:border-white/[0.10]"
+          : "w-full rounded-lg border border-surface-600 bg-surface-800 py-2 pl-9 pr-9 text-sm text-surface-100 placeholder-surface-400 transition-colors focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-100 dark:placeholder-surface-400"
+        }
       />
 
       {value && (

@@ -1,6 +1,9 @@
 import { Link } from 'react-router-dom';
+import { useGlassMode } from '../context/GlassModeContext';
 
 export default function NotFoundPage() {
+  const isGlass = useGlassMode();
+
   return (
     <div className="flex min-h-[60vh] items-center justify-center">
       <div className="mx-auto max-w-md text-center">
@@ -14,8 +17,8 @@ export default function NotFoundPage() {
           The page you are looking for does not exist or may have been moved.
         </p>
         <Link
-          to="/"
-          className="mt-6 inline-block rounded-lg bg-primary-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-500"
+          to={isGlass ? '/glass' : '/'}
+          className={isGlass ? 'glass-btn-primary mt-6 inline-block rounded-lg px-6 py-2.5 text-sm font-semibold' : 'mt-6 inline-block rounded-lg bg-primary-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-500'}
         >
           Back to Home
         </Link>

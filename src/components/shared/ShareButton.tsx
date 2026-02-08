@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useGlassMode } from '../../context/GlassModeContext';
 
 interface ShareButtonProps {
   onShare: (opts?: { isPublic?: boolean; authorName?: string }) => Promise<string>;
@@ -39,6 +40,7 @@ function CheckIcon() {
 }
 
 export default function ShareButton({ onShare, disabled = false }: ShareButtonProps) {
+  const isGlass = useGlassMode();
   const [state, setState] = useState<'idle' | 'loading' | 'copied'>('idle');
   const [showPanel, setShowPanel] = useState(false);
   const [publishToCommunity, setPublishToCommunity] = useState(false);
@@ -119,7 +121,10 @@ export default function ShareButton({ onShare, disabled = false }: ShareButtonPr
       {showPanel && (
         <div
           ref={panelRef}
-          className="absolute right-0 top-full z-50 mt-2 w-72 rounded-lg border border-surface-200 bg-white p-4 shadow-lg dark:border-surface-600 dark:bg-surface-800"
+          className={isGlass
+            ? "absolute right-0 top-full z-50 mt-2 w-72 glass-2 rounded-xl p-4 shadow-lg"
+            : "absolute right-0 top-full z-50 mt-2 w-72 rounded-lg border border-surface-200 bg-white p-4 shadow-lg dark:border-surface-600 dark:bg-surface-800"
+          }
         >
           <p className="mb-3 text-sm font-semibold text-surface-900 dark:text-surface-100">
             Share Options
@@ -156,7 +161,10 @@ export default function ShareButton({ onShare, disabled = false }: ShareButtonPr
                 onChange={(e) => setAuthorName(e.target.value)}
                 placeholder="Anonymous"
                 maxLength={50}
-                className="mt-1 w-full rounded-md border border-surface-300 bg-white px-3 py-1.5 text-sm text-surface-900 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-700 dark:text-surface-100"
+                className={isGlass
+                  ? "mt-1 w-full glass-input px-3 py-1.5 text-sm text-surface-900 dark:text-surface-100"
+                  : "mt-1 w-full rounded-md border border-surface-300 bg-white px-3 py-1.5 text-sm text-surface-900 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-700 dark:text-surface-100"
+                }
               />
             </div>
           )}
@@ -172,7 +180,10 @@ export default function ShareButton({ onShare, disabled = false }: ShareButtonPr
             type="button"
             onClick={handleShare}
             disabled={state === 'loading'}
-            className="mt-4 w-full rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-500 disabled:opacity-50"
+            className={isGlass
+              ? "mt-4 w-full glass-btn-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              : "mt-4 w-full rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-500 disabled:opacity-50"
+            }
           >
             {state === 'loading' ? 'Sharing...' : 'Share & Copy Link'}
           </button>

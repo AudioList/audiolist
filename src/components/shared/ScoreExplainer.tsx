@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { getPPILabel } from '../../lib/categories';
+import { useGlassMode } from '../../context/GlassModeContext';
 
 const GLOSSARY_URL = 'https://headphones.com/blogs/features/the-glossary-of-audio-measurements-and-terms';
 
@@ -56,6 +57,7 @@ function getScoreContext(scoreType: string, score: number): string {
 }
 
 export default function ScoreExplainer({ scoreType, score }: ScoreExplainerProps) {
+  const isGlass = useGlassMode();
   const storageKey = `scoreExplainer_seen_${scoreType}`;
   const hasSeenBefore = typeof window !== 'undefined' && localStorage.getItem(storageKey) === '1';
   const [expanded, setExpanded] = useState(!hasSeenBefore);
@@ -68,7 +70,7 @@ export default function ScoreExplainer({ scoreType, score }: ScoreExplainerProps
   if (!info) return null;
 
   return (
-    <div className="rounded-lg border border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-800/50">
+    <div className={isGlass ? "glass-1 rounded-xl" : "rounded-lg border border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-800/50"}>
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
+import { useGlassMode } from '../../context/GlassModeContext';
 import ThemeToggle from './ThemeToggle';
 import ExperienceModeToggle from './ExperienceModeToggle';
 
@@ -11,17 +12,22 @@ const navLinks = [
   { to: '/builds', label: 'Community' },
 ] as const;
 
-function NavItem({ to, label }: { to: string; label: string }) {
+function NavItem({ to, label, isGlass }: { to: string; label: string; isGlass: boolean }) {
+  const href = isGlass ? `/glass${to === '/' ? '' : to}` || '/glass' : to;
   return (
     <NavLink
-      to={to}
-      end={to === '/'}
+      to={href}
+      end={href === '/' || href === '/glass'}
       className={({ isActive }) =>
         [
           'rounded-md px-3 py-2 text-sm font-medium transition-colors',
-          isActive
-            ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
-            : 'text-surface-600 hover:bg-surface-100 hover:text-surface-900 dark:text-surface-300 dark:hover:bg-surface-800 dark:hover:text-surface-100',
+          isGlass
+            ? isActive
+              ? 'bg-primary-500/10 text-primary-700 dark:bg-primary-400/10 dark:text-primary-400 rounded-xl'
+              : 'text-surface-600 hover:bg-white/40 hover:text-surface-900 dark:text-surface-300 dark:hover:bg-white/[0.06] dark:hover:text-surface-100'
+            : isActive
+              ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
+              : 'text-surface-600 hover:bg-surface-100 hover:text-surface-900 dark:text-surface-300 dark:hover:bg-surface-800 dark:hover:text-surface-100',
         ].join(' ')
       }
     >
@@ -30,13 +36,18 @@ function NavItem({ to, label }: { to: string; label: string }) {
   );
 }
 
-function ExternalNavItem({ href, label }: { href: string; label: string }) {
+function ExternalNavItem({ href, label, isGlass }: { href: string; label: string; isGlass: boolean }) {
   return (
     <a
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium text-surface-600 transition-colors hover:bg-surface-100 hover:text-surface-900 dark:text-surface-300 dark:hover:bg-surface-800 dark:hover:text-surface-100"
+      className={[
+        'inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+        isGlass
+          ? 'text-surface-600 hover:bg-white/40 hover:text-surface-900 dark:text-surface-300 dark:hover:bg-white/[0.06] dark:hover:text-surface-100'
+          : 'text-surface-600 hover:bg-surface-100 hover:text-surface-900 dark:text-surface-300 dark:hover:bg-surface-800 dark:hover:text-surface-100',
+      ].join(' ')}
     >
       {label}
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 opacity-50" aria-hidden="true">
@@ -49,21 +60,29 @@ function ExternalNavItem({ href, label }: { href: string; label: string }) {
 
 export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const isGlass = useGlassMode();
+  const homeLink = isGlass ? '/glass' : '/';
 
   return (
-    <header className="sticky top-0 z-50 border-b border-surface-200 bg-white dark:border-surface-800 dark:bg-surface-900">
+    <header
+      className={
+        isGlass
+          ? 'sticky top-0 z-50 border-b border-white/20 bg-white/60 backdrop-blur-2xl dark:border-white/10 dark:bg-surface-950/70'
+          : 'sticky top-0 z-50 border-b border-surface-200 bg-white dark:border-surface-800 dark:bg-surface-900'
+      }
+    >
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4">
         {/* Brand */}
-        <Link to="/" className="text-xl font-extrabold text-primary-600 dark:text-primary-400 tracking-tight">
+        <Link to={homeLink} className="text-xl font-extrabold text-primary-600 dark:text-primary-400 tracking-tight">
           AudioList
         </Link>
 
         {/* Desktop nav */}
         <nav className="hidden items-center gap-1 md:flex">
           {navLinks.map((link) => (
-            <NavItem key={link.to} to={link.to} label={link.label} />
+            <NavItem key={link.to} to={link.to} label={link.label} isGlass={isGlass} />
           ))}
-          <ExternalNavItem href={GLOSSARY_URL} label="Glossary" />
+          <ExternalNavItem href={GLOSSARY_URL} label="Glossary" isGlass={isGlass} />
         </nav>
 
         {/* Right section */}
@@ -78,7 +97,12 @@ export default function Header() {
             type="button"
             onClick={() => setMobileOpen((prev) => !prev)}
             aria-label="Toggle navigation menu"
-            className="rounded-lg p-2 text-surface-500 hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-800 md:hidden"
+            className={[
+              'rounded-lg p-2 md:hidden',
+              isGlass
+                ? 'text-surface-500 hover:bg-white/40 dark:text-surface-400 dark:hover:bg-white/[0.06]'
+                : 'text-surface-500 hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-800',
+            ].join(' ')}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -110,32 +134,51 @@ export default function Header() {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <nav className="border-t border-surface-200 bg-white px-4 pb-3 pt-2 dark:border-surface-800 dark:bg-surface-900 md:hidden">
+        <nav
+          className={[
+            'border-t px-4 pb-3 pt-2 md:hidden',
+            isGlass
+              ? 'border-white/20 bg-white/70 backdrop-blur-2xl dark:border-white/10 dark:bg-surface-950/80'
+              : 'border-surface-200 bg-white dark:border-surface-800 dark:bg-surface-900',
+          ].join(' ')}
+        >
           <div className="flex flex-col gap-1">
-            {navLinks.map((link) => (
-              <NavLink
-                key={link.to}
-                to={link.to}
-                end={link.to === '/'}
-                onClick={() => setMobileOpen(false)}
-                className={({ isActive }) =>
-                  [
-                    'rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                    isActive
-                      ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
-                      : 'text-surface-600 hover:bg-surface-100 hover:text-surface-900 dark:text-surface-300 dark:hover:bg-surface-800 dark:hover:text-surface-100',
-                  ].join(' ')
-                }
-              >
-                {link.label}
-              </NavLink>
-            ))}
+            {navLinks.map((link) => {
+              const href = isGlass ? `/glass${link.to === '/' ? '' : link.to}` || '/glass' : link.to;
+              return (
+                <NavLink
+                  key={link.to}
+                  to={href}
+                  end={href === '/' || href === '/glass'}
+                  onClick={() => setMobileOpen(false)}
+                  className={({ isActive }) =>
+                    [
+                      'rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                      isGlass
+                        ? isActive
+                          ? 'bg-primary-500/10 text-primary-700 dark:bg-primary-400/10 dark:text-primary-400 rounded-xl'
+                          : 'text-surface-600 hover:bg-white/40 hover:text-surface-900 dark:text-surface-300 dark:hover:bg-white/[0.06] dark:hover:text-surface-100'
+                        : isActive
+                          ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
+                          : 'text-surface-600 hover:bg-surface-100 hover:text-surface-900 dark:text-surface-300 dark:hover:bg-surface-800 dark:hover:text-surface-100',
+                    ].join(' ')
+                  }
+                >
+                  {link.label}
+                </NavLink>
+              );
+            })}
             <a
               href={GLOSSARY_URL}
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => setMobileOpen(false)}
-              className="inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium text-surface-600 transition-colors hover:bg-surface-100 hover:text-surface-900 dark:text-surface-300 dark:hover:bg-surface-800 dark:hover:text-surface-100"
+              className={[
+                'inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                isGlass
+                  ? 'text-surface-600 hover:bg-white/40 hover:text-surface-900 dark:text-surface-300 dark:hover:bg-white/[0.06] dark:hover:text-surface-100'
+                  : 'text-surface-600 hover:bg-surface-100 hover:text-surface-900 dark:text-surface-300 dark:hover:bg-surface-800 dark:hover:text-surface-100',
+              ].join(' ')}
             >
               Glossary
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 opacity-50" aria-hidden="true">

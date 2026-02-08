@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { TargetType } from '../../types';
+import { useGlassMode } from '../../context/GlassModeContext';
 
 interface AdvancedSettingsProps {
   targetType: TargetType;
@@ -8,9 +9,14 @@ interface AdvancedSettingsProps {
 
 export default function AdvancedSettings({ targetType, onTargetTypeChange }: AdvancedSettingsProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const isGlass = useGlassMode();
 
   return (
-    <div className="rounded-xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 shadow-sm">
+    <div className={`shadow-sm ${
+      isGlass
+        ? 'glass-1 rounded-2xl'
+        : 'rounded-xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900'
+    }`}>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}

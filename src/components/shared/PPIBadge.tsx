@@ -1,4 +1,5 @@
 import { getPPIColor, getPPILabel, getPPITooltip } from '../../lib/categories';
+import { useGlassMode } from '../../context/GlassModeContext';
 
 interface PPIBadgeProps {
   score: number | null;
@@ -13,6 +14,8 @@ const sizeClasses: Record<'sm' | 'md' | 'lg', string> = {
 };
 
 export default function PPIBadge({ score, size = 'md', label: scoreLabel }: PPIBadgeProps) {
+  const isGlass = useGlassMode();
+
   if (score === null) {
     return null;
   }
@@ -28,7 +31,7 @@ export default function PPIBadge({ score, size = 'md', label: scoreLabel }: PPIB
 
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full font-bold shadow-sm ${colorClasses} ${sizeClasses[size]}`}
+      className={`inline-flex items-center gap-1 rounded-full font-bold shadow-sm ${colorClasses} ${sizeClasses[size]}${isGlass ? ' backdrop-blur-sm' : ''}`}
       title={tooltip}
     >
       <span>{display}</span>

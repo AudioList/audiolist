@@ -8,6 +8,7 @@ import {
 import type { CategoryId, Product } from '../types';
 import { useBuild } from '../context/BuildContext';
 import { useToast } from '../context/ToastContext';
+import { useGlassMode } from '../context/GlassModeContext';
 import { supabase } from '../lib/supabase';
 
 const SORT_OPTIONS: { value: CommunitySortOption; label: string }[] = [
@@ -21,6 +22,7 @@ export default function CommunityBuildsPage() {
   const { builds, loading, error, sort, setSort, hasMore, loadMore } = useCommunityBuilds();
   const { setProduct, setName, setDescription, clearBuild } = useBuild();
   const { addToast } = useToast();
+  const isGlass = useGlassMode();
   const [votingId, setVotingId] = useState<string | null>(null);
   const [votedIds, setVotedIds] = useState<Set<string>>(() => {
     try {
@@ -130,7 +132,7 @@ export default function CommunityBuildsPage() {
         </div>
 
         {/* Sort controls */}
-        <div className="flex items-center gap-1 rounded-lg bg-surface-100 p-1 dark:bg-surface-800">
+        <div className={isGlass ? 'flex items-center gap-1 rounded-lg bg-white/40 backdrop-blur-sm p-1 dark:bg-white/[0.05]' : 'flex items-center gap-1 rounded-lg bg-surface-100 p-1 dark:bg-surface-800'}>
           {SORT_OPTIONS.map((opt) => (
             <button
               key={opt.value}
@@ -138,7 +140,7 @@ export default function CommunityBuildsPage() {
               onClick={() => setSort(opt.value)}
               className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                 sort === opt.value
-                  ? 'bg-white text-surface-900 shadow-sm dark:bg-surface-700 dark:text-surface-100'
+                  ? (isGlass ? 'bg-white/70 text-surface-900 shadow-sm dark:bg-white/[0.1] dark:text-surface-100' : 'bg-white text-surface-900 shadow-sm dark:bg-surface-700 dark:text-surface-100')
                   : 'text-surface-500 hover:text-surface-700 dark:text-surface-400 dark:hover:text-surface-200'
               }`}
             >
@@ -182,7 +184,7 @@ export default function CommunityBuildsPage() {
           return (
             <div
               key={build.id}
-              className="flex flex-col rounded-xl border border-surface-200 bg-white p-5 transition-shadow hover:shadow-md dark:border-surface-700 dark:bg-surface-900"
+              className={isGlass ? 'flex flex-col glass-1 rounded-2xl p-5 transition-shadow hover:shadow-md' : 'flex flex-col rounded-xl border border-surface-200 bg-white p-5 transition-shadow hover:shadow-md dark:border-surface-700 dark:bg-surface-900'}
             >
               {/* Header */}
               <div className="mb-2 flex items-start justify-between gap-2">
@@ -207,7 +209,7 @@ export default function CommunityBuildsPage() {
                   disabled={isVoting}
                   className={`flex shrink-0 items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
                     hasVoted
-                      ? 'border-primary-500 bg-primary-50 text-primary-700 dark:border-primary-400 dark:bg-primary-900/20 dark:text-primary-400'
+                      ? (isGlass ? 'border-primary-400/40 bg-primary-50/60 backdrop-blur-sm text-primary-700 dark:border-primary-400/40 dark:bg-primary-900/20 dark:text-primary-400' : 'border-primary-500 bg-primary-50 text-primary-700 dark:border-primary-400 dark:bg-primary-900/20 dark:text-primary-400')
                       : 'border-surface-200 text-surface-500 hover:border-surface-300 hover:text-surface-700 dark:border-surface-700 dark:text-surface-400 dark:hover:border-surface-600 dark:hover:text-surface-200'
                   }`}
                   aria-label={hasVoted ? 'Remove upvote' : 'Upvote build'}
@@ -271,7 +273,7 @@ export default function CommunityBuildsPage() {
                     type="button"
                     onClick={() => handleClone(build.id, build.name)}
                     disabled={isCloning}
-                    className="rounded-md border border-surface-200 px-2.5 py-1.5 text-xs font-medium text-surface-600 transition-colors hover:bg-surface-50 dark:border-surface-700 dark:text-surface-400 dark:hover:bg-surface-800"
+                    className={isGlass ? 'rounded-md border border-white/20 bg-white/30 px-2.5 py-1.5 text-xs font-medium text-surface-600 transition-colors hover:bg-white/50 dark:border-white/10 dark:text-surface-400 dark:hover:bg-white/[0.1]' : 'rounded-md border border-surface-200 px-2.5 py-1.5 text-xs font-medium text-surface-600 transition-colors hover:bg-surface-50 dark:border-surface-700 dark:text-surface-400 dark:hover:bg-surface-800'}
                   >
                     {isCloning ? 'Cloning...' : 'Clone'}
                   </button>

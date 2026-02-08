@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom';
 import { useWatchlist } from '../../hooks/useWatchlist';
+import { useGlassMode } from '../../context/GlassModeContext';
 
 export default function PriceAlertBanner() {
+  const isGlass = useGlassMode();
   const { alerts, dismissAlert } = useWatchlist();
 
   if (alerts.length === 0) return null;
@@ -11,7 +13,10 @@ export default function PriceAlertBanner() {
       {alerts.map((item) => (
         <div
           key={item.productId}
-          className="flex items-center gap-3 rounded-lg border border-green-300 bg-green-50 px-4 py-3 dark:border-green-700 dark:bg-green-900/20"
+          className={isGlass
+            ? "flex items-center gap-3 rounded-xl border border-green-400/30 bg-green-50/60 backdrop-blur-sm px-4 py-3 dark:border-green-700 dark:bg-green-900/20"
+            : "flex items-center gap-3 rounded-lg border border-green-300 bg-green-50 px-4 py-3 dark:border-green-700 dark:bg-green-900/20"
+          }
         >
           {/* Bell icon */}
           <svg

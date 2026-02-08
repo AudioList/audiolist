@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { CategoryId, ProductFilters, ProductSort, Product } from '../types';
 import { CATEGORIES, CATEGORY_MAP, getScoreLabel, isSpinormaCategory, isSinadCategory, sinadToScore } from '../lib/categories';
 import { useExperienceMode } from '../context/ExperienceModeContext';
+import { useGlassMode } from '../context/GlassModeContext';
 import { useProducts, useFilterOptions } from '../hooks/useProducts';
 import SearchBar from '../components/products/SearchBar';
 import SortControls from '../components/products/SortControls';
@@ -73,6 +74,8 @@ export default function ProductListPage() {
   const { category: categoryParam } = useParams<{ category: string }>();
   const navigate = useNavigate();
   const { mode } = useExperienceMode();
+
+  const isGlass = useGlassMode();
 
   const categoryId = (
     CATEGORY_MAP.has(categoryParam as CategoryId)
@@ -172,8 +175,8 @@ export default function ProductListPage() {
             title={cat.description}
             className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
               cat.id === categoryId
-                ? 'bg-primary-600 text-white shadow-md ring-2 ring-primary-400/30'
-                : 'bg-surface-100 text-surface-700 hover:bg-surface-200 dark:bg-surface-800 dark:text-surface-200 dark:hover:bg-surface-700'
+                ? (isGlass ? 'bg-primary-500/90 shadow-lg shadow-primary-500/25 backdrop-blur-sm text-white' : 'bg-primary-600 text-white shadow-md ring-2 ring-primary-400/30')
+                : (isGlass ? 'bg-white/50 hover:bg-white/70 text-surface-700 dark:bg-white/[0.05] dark:text-surface-200 dark:hover:bg-white/[0.1]' : 'bg-surface-100 text-surface-700 hover:bg-surface-200 dark:bg-surface-800 dark:text-surface-200 dark:hover:bg-surface-700')
             }`}
           >
             {cat.name}
@@ -197,7 +200,7 @@ export default function ProductListPage() {
       <div className="flex flex-col gap-6 lg:flex-row">
         {/* Filter sidebar */}
         <aside className="w-full shrink-0 lg:w-56">
-          <div className="rounded-xl border border-surface-200 bg-white p-4 dark:border-surface-700 dark:bg-surface-900">
+          <div className={isGlass ? 'glass-1 rounded-2xl p-4' : 'rounded-xl border border-surface-200 bg-white p-4 dark:border-surface-700 dark:bg-surface-900'}>
             <h3 className="mb-3 text-sm font-semibold text-surface-900 dark:text-surface-100">
               Filters
             </h3>
@@ -523,7 +526,7 @@ export default function ProductListPage() {
                   iemTypes: [],
                 })
               }
-              className="mt-4 w-full rounded-md border border-surface-300 bg-white px-3 py-1.5 text-xs font-medium text-surface-600 transition-colors hover:bg-surface-100 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-400 dark:hover:bg-surface-700"
+              className={isGlass ? 'glass-btn-secondary mt-4 w-full rounded-md px-3 py-1.5 text-xs font-medium' : 'mt-4 w-full rounded-md border border-surface-300 bg-white px-3 py-1.5 text-xs font-medium text-surface-600 transition-colors hover:bg-surface-100 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-400 dark:hover:bg-surface-700'}
             >
               Clear Filters
             </button>
@@ -561,7 +564,7 @@ export default function ProductListPage() {
               <button
                 type="button"
                 onClick={() => setFilters(getDefaultFilters())}
-                className="mt-4 rounded-lg bg-primary-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-500"
+                className={isGlass ? 'glass-btn-primary mt-4 rounded-lg px-5 py-2 text-sm font-semibold' : 'mt-4 rounded-lg bg-primary-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-500'}
               >
                 Clear All Filters
               </button>
@@ -575,7 +578,7 @@ export default function ProductListPage() {
                 type="button"
                 onClick={loadMore}
                 disabled={loading}
-                className="rounded-lg border border-surface-300 bg-white px-6 py-2 text-sm font-medium text-surface-700 transition-colors hover:bg-surface-100 disabled:opacity-50 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-300 dark:hover:bg-surface-700"
+                className={isGlass ? 'glass-btn-secondary rounded-lg px-6 py-2 text-sm font-medium disabled:opacity-50' : 'rounded-lg border border-surface-300 bg-white px-6 py-2 text-sm font-medium text-surface-700 transition-colors hover:bg-surface-100 disabled:opacity-50 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-300 dark:hover:bg-surface-700'}
               >
                 {loading ? 'Loading...' : 'Load More'}
               </button>
@@ -591,11 +594,12 @@ export default function ProductListPage() {
 
 function ProductCard({ product, showPPI, showSinad = false }: { product: Product; showPPI: boolean; showSinad?: boolean }) {
   const { mode } = useExperienceMode();
+  const isGlass = useGlassMode();
 
   return (
     <Link
       to={`/product/${product.id}`}
-      className="group flex flex-col rounded-xl border border-surface-200 bg-white p-4 shadow-sm transition-all hover:border-primary-400 hover:shadow-md dark:border-surface-700 dark:bg-surface-900 dark:hover:border-primary-500"
+      className={isGlass ? 'group flex flex-col glass-1 rounded-2xl p-4 transition-all hover:border-primary-400 hover:shadow-md' : 'group flex flex-col rounded-xl border border-surface-200 bg-white p-4 shadow-sm transition-all hover:border-primary-400 hover:shadow-md dark:border-surface-700 dark:bg-surface-900 dark:hover:border-primary-500'}
     >
       {/* Image placeholder */}
       {product.image_url ? (
@@ -609,7 +613,7 @@ function ProductCard({ product, showPPI, showSinad = false }: { product: Product
           />
         </div>
       ) : (
-        <div className="mb-3 flex h-32 items-center justify-center rounded-lg bg-surface-100 dark:bg-surface-800">
+        <div className={isGlass ? 'mb-3 flex h-32 items-center justify-center bg-white/30 rounded-xl' : 'mb-3 flex h-32 items-center justify-center rounded-lg bg-surface-100 dark:bg-surface-800'}>
           <span className="text-3xl text-surface-300 dark:text-surface-600" aria-hidden="true">
             ?
           </span>

@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import type { CategoryId, Product } from '../../types';
 import { useBuild } from '../../context/BuildContext';
 import { usePopularPairings } from '../../hooks/usePopularPairings';
+import { useGlassMode } from '../../context/GlassModeContext';
 import { CATEGORY_MAP } from '../../lib/categories';
 
 interface PopularPairingsProps {
@@ -9,6 +10,7 @@ interface PopularPairingsProps {
 }
 
 function PairingCard({ product, count }: { product: Product; count: number }) {
+  const isGlass = useGlassMode();
   const { setProduct, getSelection } = useBuild();
   const category = CATEGORY_MAP.get(product.category_id);
   const isInBuild = !!getSelection(product.category_id);
@@ -18,7 +20,7 @@ function PairingCard({ product, count }: { product: Product; count: number }) {
   }
 
   return (
-    <div className="flex w-48 shrink-0 flex-col rounded-lg border border-surface-200 bg-white p-3 dark:border-surface-700 dark:bg-surface-900">
+    <div className={isGlass ? "flex w-48 shrink-0 flex-col glass-1 rounded-xl p-3" : "flex w-48 shrink-0 flex-col rounded-lg border border-surface-200 bg-white p-3 dark:border-surface-700 dark:bg-surface-900"}>
       {/* Category tag */}
       <span className="mb-1.5 self-start rounded bg-surface-100 px-1.5 py-0.5 text-[0.625rem] font-bold uppercase text-surface-500 dark:bg-surface-800 dark:text-surface-400">
         {category?.name ?? product.category_id}

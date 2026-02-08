@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { CategoryId, Product, Category } from '../../types';
 import { CATEGORIES, getChildCategories } from '../../lib/categories';
 import { useBuild } from '../../context/BuildContext';
+import { useGlassMode } from '../../context/GlassModeContext';
 import CategoryRow from './CategoryRow';
 import TotalRow from './TotalRow';
 
@@ -41,13 +42,22 @@ export default function BuilderTable({ onChooseProduct, onViewDetail }: BuilderT
     return rows;
   }, []);
 
+  const isGlass = useGlassMode();
+
   return (
     <div>
       {/* Desktop: HTML table */}
-      <div className="hidden md:block overflow-x-auto rounded-xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 shadow-sm">
+      <div className={`hidden md:block overflow-x-auto shadow-sm ${
+        isGlass
+          ? 'glass-1 rounded-2xl'
+          : 'rounded-xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900'
+      }`}>
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-200 text-left border-b-2 border-surface-300 dark:border-surface-600">
+            <tr className={isGlass
+              ? 'bg-white/40 dark:bg-white/[0.04] text-surface-700 dark:text-surface-200 text-left border-b-2 border-white/20 dark:border-white/[0.06]'
+              : 'bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-200 text-left border-b-2 border-surface-300 dark:border-surface-600'
+            }>
               <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider w-64">Component</th>
               <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider">Selection</th>
               <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-right w-28">Price</th>
@@ -92,7 +102,11 @@ export default function BuilderTable({ onChooseProduct, onViewDetail }: BuilderT
       </div>
 
       {/* Compatibility note */}
-      <div className="mt-4 rounded-lg border border-ppi-excellent/30 bg-ppi-excellent/5 dark:bg-ppi-excellent/10 px-4 py-3">
+      <div className={`mt-4 rounded-lg border px-4 py-3 ${
+        isGlass
+          ? 'border-ppi-excellent/30 bg-ppi-excellent/5 dark:bg-ppi-excellent/10 backdrop-blur-sm'
+          : 'border-ppi-excellent/30 bg-ppi-excellent/5 dark:bg-ppi-excellent/10'
+      }`}>
         <div className="flex items-center gap-2">
           <svg
             xmlns="http://www.w3.org/2000/svg"

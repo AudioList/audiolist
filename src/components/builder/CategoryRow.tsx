@@ -1,6 +1,7 @@
 import type { Category, CategoryId, BuildSelection, Product } from '../../types';
 import { useBuild } from '../../context/BuildContext';
 import { useExperienceMode } from '../../context/ExperienceModeContext';
+import { useGlassMode } from '../../context/GlassModeContext';
 import { CATEGORY_EXPLAINERS } from '../../lib/categoryExplainers';
 import PriceDisplay from '../shared/PriceDisplay';
 
@@ -24,13 +25,18 @@ interface CategoryRowProps {
 export default function CategoryRow({ category, selection, onChoose, onViewDetail, isChild = false, childPosition }: CategoryRowProps) {
   const { removeProduct } = useBuild();
   const { mode } = useExperienceMode();
+  const isGlass = useGlassMode();
   const product = selection?.product;
   const price = selection?.custom_price ?? product?.price ?? null;
 
   return (
     <>
       {/* Desktop: table row */}
-      <tr className="hidden md:table-row border-b border-surface-200 dark:border-surface-700 hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors">
+      <tr className={`hidden md:table-row transition-colors ${
+        isGlass
+          ? 'border-b border-white/15 dark:border-white/[0.06] hover:bg-white/30 dark:hover:bg-white/[0.03]'
+          : 'border-b border-surface-200 dark:border-surface-700 hover:bg-surface-50 dark:hover:bg-surface-800/50'
+      }`}>
         {/* Category name with optional tree connector */}
         <td className="px-4 py-3 whitespace-nowrap">
           <div className="flex items-center">
@@ -152,7 +158,11 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
             <button
               type="button"
               onClick={() => onChoose(category.id)}
-              className="w-full py-2.5 px-4 rounded-lg border-2 border-dashed border-surface-300 dark:border-surface-600 text-surface-600 dark:text-surface-300 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors text-sm font-semibold"
+              className={`w-full py-2.5 px-4 rounded-lg border-2 border-dashed text-sm font-semibold transition-colors ${
+                isGlass
+                  ? 'border-white/30 dark:border-white/[0.12] text-surface-600 dark:text-surface-300 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50/50 dark:hover:bg-primary-900/20'
+                  : 'border-surface-300 dark:border-surface-600 text-surface-600 dark:text-surface-300 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20'
+              }`}
             >
               + Choose a {category.name}
             </button>
@@ -161,10 +171,14 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
       </tr>
 
       {/* Mobile: card layout */}
-      <div className={`md:hidden bg-white dark:bg-surface-800 shadow-sm ${
-        isChild
-          ? 'ml-6 rounded-lg border border-surface-200 dark:border-surface-700 p-3'
-          : 'rounded-lg border border-surface-200 dark:border-surface-700 p-4'
+      <div className={`md:hidden shadow-sm ${
+        isGlass
+          ? isChild
+            ? 'ml-6 glass-1 rounded-2xl p-3'
+            : 'glass-1 rounded-2xl p-4'
+          : isChild
+            ? 'ml-6 rounded-lg border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-800 p-3'
+            : 'rounded-lg border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-800 p-4'
       }`}>
         {/* Card header: category name + action buttons */}
         <div className="flex items-center justify-between mb-3">
@@ -271,7 +285,11 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
           <button
             type="button"
             onClick={() => onChoose(category.id)}
-            className="w-full py-2.5 px-4 rounded-lg border-2 border-dashed border-surface-300 dark:border-surface-600 text-surface-600 dark:text-surface-300 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors text-sm font-semibold"
+            className={`w-full py-2.5 px-4 rounded-lg border-2 border-dashed text-sm font-semibold transition-colors ${
+              isGlass
+                ? 'border-white/30 dark:border-white/[0.12] text-surface-600 dark:text-surface-300 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50/50 dark:hover:bg-primary-900/20'
+                : 'border-surface-300 dark:border-surface-600 text-surface-600 dark:text-surface-300 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20'
+            }`}
           >
             + Choose a {category.name}
           </button>

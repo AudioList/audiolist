@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useWatchlist } from '../../hooks/useWatchlist';
+import { useGlassMode } from '../../context/GlassModeContext';
 
 interface WatchPriceButtonProps {
   productId: string;
@@ -12,6 +13,7 @@ export default function WatchPriceButton({
   productName,
   currentPrice,
 }: WatchPriceButtonProps) {
+  const isGlass = useGlassMode();
   const { isWatching, addProduct, removeProduct, getWatchItem, updatePrice } = useWatchlist();
   const watching = isWatching(productId);
   const watchItem = getWatchItem(productId);
@@ -73,7 +75,9 @@ export default function WatchPriceButton({
         className={`inline-flex items-center gap-1.5 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
           watching
             ? 'border-amber-500 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-600 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/30'
-            : 'border-surface-300 bg-white text-surface-700 hover:bg-surface-100 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-300 dark:hover:bg-surface-700'
+            : isGlass
+              ? 'border-white/30 bg-white/50 backdrop-blur-sm text-surface-700 hover:bg-white/60 dark:text-surface-300'
+              : 'border-surface-300 bg-white text-surface-700 hover:bg-surface-100 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-300 dark:hover:bg-surface-700'
         }`}
         aria-label={watching ? 'Stop watching price' : 'Watch for price drop'}
       >
@@ -102,7 +106,10 @@ export default function WatchPriceButton({
       {showPopover && (
         <div
           ref={popoverRef}
-          className="absolute left-0 top-full z-50 mt-2 w-64 rounded-lg border border-surface-200 bg-white p-3 shadow-lg dark:border-surface-600 dark:bg-surface-800"
+          className={isGlass
+            ? "absolute left-0 top-full z-50 mt-2 w-64 glass-2 rounded-xl p-3 shadow-lg"
+            : "absolute left-0 top-full z-50 mt-2 w-64 rounded-lg border border-surface-200 bg-white p-3 shadow-lg dark:border-surface-600 dark:bg-surface-800"
+          }
         >
           <p className="mb-2 text-xs font-medium text-surface-600 dark:text-surface-300">
             Alert me when price drops to:

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { CategoryId, ProductFilters, ProductSort, Product } from '../../types';
 import { useProducts, useFilterOptions } from '../../hooks/useProducts';
 import { useBuild } from '../../context/BuildContext';
+import { useGlassMode } from '../../context/GlassModeContext';
 import { CATEGORY_MAP, isSinadCategory } from '../../lib/categories';
 import SearchBar from './SearchBar';
 import SortControls from './SortControls';
@@ -34,6 +35,7 @@ const emptyFilters: ProductFilters = {
 };
 
 export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetail }: ProductPickerProps) {
+  const isGlass = useGlassMode();
   const category = CATEGORY_MAP.get(categoryId);
   const showPPI = category?.has_ppi ?? false;
 
@@ -169,9 +171,15 @@ export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetai
       role="dialog"
       aria-modal="true"
       aria-label={`Choose ${category?.name ?? 'product'}`}
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 backdrop-blur-sm p-4 sm:p-6 md:p-8"
+      className={isGlass
+        ? "fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 backdrop-blur-md p-4 sm:p-6 md:p-8"
+        : "fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 backdrop-blur-sm p-4 sm:p-6 md:p-8"
+      }
     >
-      <div className="relative w-full max-w-5xl rounded-xl border border-surface-700 bg-surface-900 shadow-2xl dark:bg-surface-900">
+      <div className={isGlass
+        ? "relative w-full max-w-5xl rounded-2xl border border-white/[0.10] bg-surface-900/90 backdrop-blur-2xl shadow-2xl"
+        : "relative w-full max-w-5xl rounded-xl border border-surface-700 bg-surface-900 shadow-2xl dark:bg-surface-900"
+      }>
         {/* Header */}
         <div className="flex items-center justify-between border-b border-surface-700 px-5 py-4">
           <div>

@@ -1,3 +1,5 @@
+import { useGlassMode } from '../../context/GlassModeContext';
+
 interface BestValueBadgeProps {
   score: number | null;
   price: number | null;
@@ -8,12 +10,17 @@ interface BestValueBadgeProps {
  * Simple static threshold for MVP: score >= 70 and price <= $200.
  */
 export default function BestValueBadge({ score, price }: BestValueBadgeProps) {
+  const isGlass = useGlassMode();
+
   if (score === null || price === null || price <= 0) return null;
   if (score < 70 || price > 200) return null;
 
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full border border-green-300 bg-green-50 px-2 py-0.5 text-xs font-semibold text-green-700 dark:border-green-700 dark:bg-green-900/20 dark:text-green-400"
+      className={isGlass
+        ? "inline-flex items-center gap-1 rounded-full border border-green-400/30 bg-green-50/60 backdrop-blur-sm px-2 py-0.5 text-xs font-semibold text-green-700 dark:border-green-700 dark:bg-green-900/20 dark:text-green-400"
+        : "inline-flex items-center gap-1 rounded-full border border-green-300 bg-green-50 px-2 py-0.5 text-xs font-semibold text-green-700 dark:border-green-700 dark:bg-green-900/20 dark:text-green-400"
+      }
       title={`High performance (${score.toFixed(0)}) at a great price ($${price.toFixed(0)})`}
     >
       <svg

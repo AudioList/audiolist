@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
 import type { Retailer } from '../../types';
+import { useGlassMode } from '../../context/GlassModeContext';
 
 interface RetailerTrustInfoProps {
   retailer: Retailer;
 }
 
 export default function RetailerTrustInfo({ retailer }: RetailerTrustInfoProps) {
+  const isGlass = useGlassMode();
   const [open, setOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -68,7 +70,10 @@ export default function RetailerTrustInfo({ retailer }: RetailerTrustInfoProps) 
       {open && (
         <div
           ref={popoverRef}
-          className="absolute left-0 top-full z-50 mt-1.5 w-64 rounded-lg border border-surface-200 bg-white p-3 shadow-lg dark:border-surface-600 dark:bg-surface-800"
+          className={isGlass
+            ? "absolute left-0 top-full z-50 mt-1.5 w-64 glass-2 rounded-xl p-3 shadow-lg"
+            : "absolute left-0 top-full z-50 mt-1.5 w-64 rounded-lg border border-surface-200 bg-white p-3 shadow-lg dark:border-surface-600 dark:bg-surface-800"
+          }
         >
           {/* Retailer name */}
           <div className="mb-2 flex items-center gap-2">

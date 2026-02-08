@@ -9,6 +9,7 @@ import {
   Legend,
 } from 'recharts';
 import { usePriceHistory } from '../../hooks/usePriceHistory';
+import { useGlassMode } from '../../context/GlassModeContext';
 
 interface PriceHistoryChartProps {
   productId: string;
@@ -39,6 +40,7 @@ function formatTooltipDate(dateStr: string): string {
 }
 
 export default function PriceHistoryChart({ productId }: PriceHistoryChartProps) {
+  const isGlass = useGlassMode();
   const { history, loading, error } = usePriceHistory(productId);
 
   // Group data by date and pivot retailers into columns
@@ -75,7 +77,7 @@ export default function PriceHistoryChart({ productId }: PriceHistoryChartProps)
 
   if (loading) {
     return (
-      <div className="rounded-xl border border-surface-200 bg-white p-5 dark:border-surface-700 dark:bg-surface-900">
+      <div className={isGlass ? "glass-1 rounded-2xl p-5" : "rounded-xl border border-surface-200 bg-white p-5 dark:border-surface-700 dark:bg-surface-900"}>
         <div className="mb-3 h-5 w-32 animate-pulse rounded bg-surface-200 dark:bg-surface-700" />
         <div className="h-48 animate-pulse rounded bg-surface-100 dark:bg-surface-800" />
       </div>
@@ -88,7 +90,7 @@ export default function PriceHistoryChart({ productId }: PriceHistoryChartProps)
 
   if (chartData.length === 0) {
     return (
-      <div className="rounded-xl border border-surface-200 bg-white p-5 dark:border-surface-700 dark:bg-surface-900">
+      <div className={isGlass ? "glass-1 rounded-2xl p-5" : "rounded-xl border border-surface-200 bg-white p-5 dark:border-surface-700 dark:bg-surface-900"}>
         <h3 className="mb-2 text-base font-bold text-surface-900 dark:text-surface-100">
           Price History
         </h3>
@@ -100,7 +102,7 @@ export default function PriceHistoryChart({ productId }: PriceHistoryChartProps)
   }
 
   return (
-    <div className="rounded-xl border border-surface-200 bg-white p-5 dark:border-surface-700 dark:bg-surface-900">
+    <div className={isGlass ? "glass-1 rounded-2xl p-5" : "rounded-xl border border-surface-200 bg-white p-5 dark:border-surface-700 dark:bg-surface-900"}>
       <h3 className="mb-4 text-base font-bold text-surface-900 dark:text-surface-100">
         Price History (Last 90 Days)
       </h3>

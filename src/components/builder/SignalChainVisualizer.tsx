@@ -1,4 +1,5 @@
 import type { CategoryId, BuildSelection } from '../../types';
+import { useGlassMode } from '../../context/GlassModeContext';
 
 interface SignalChainVisualizerProps {
   items: Map<CategoryId, BuildSelection>;
@@ -97,12 +98,17 @@ interface NodeProps {
 }
 
 function ChainNode({ label, sublabel, productName, productPrice, icon, filled }: NodeProps) {
+  const isGlass = useGlassMode();
   return (
     <div
       className={`flex flex-col items-center gap-1.5 rounded-xl border-2 px-4 py-3 min-w-[100px] max-w-[160px] transition-colors ${
-        filled
-          ? 'border-primary-500 bg-primary-50 dark:border-primary-400 dark:bg-primary-900/20'
-          : 'border-dashed border-surface-300 bg-surface-50 dark:border-surface-600 dark:bg-surface-800/50'
+        isGlass
+          ? filled
+            ? 'border-primary-400/50 bg-primary-50/60 backdrop-blur-sm dark:border-primary-400/30 dark:bg-primary-900/20'
+            : 'border-dashed border-white/30 bg-white/30 backdrop-blur-sm dark:border-white/[0.12] dark:bg-white/[0.03]'
+          : filled
+            ? 'border-primary-500 bg-primary-50 dark:border-primary-400 dark:bg-primary-900/20'
+            : 'border-dashed border-surface-300 bg-surface-50 dark:border-surface-600 dark:bg-surface-800/50'
       }`}
     >
       <div className={`${filled ? 'text-primary-600 dark:text-primary-400' : 'text-surface-400 dark:text-surface-500'}`}>
@@ -137,6 +143,7 @@ function ChainNode({ label, sublabel, productName, productPrice, icon, filled }:
 }
 
 export default function SignalChainVisualizer({ items }: SignalChainVisualizerProps) {
+  const isGlass = useGlassMode();
   // Determine which output is selected
   const output = OUTPUT_CATEGORIES.find((cat) => items.has(cat.categoryId));
   const outputSelection = output ? items.get(output.categoryId) : undefined;
@@ -290,7 +297,11 @@ export default function SignalChainVisualizer({ items }: SignalChainVisualizerPr
   };
 
   return (
-    <div className="rounded-xl border border-surface-200 bg-white p-4 dark:border-surface-700 dark:bg-surface-900">
+    <div className={`p-4 ${
+      isGlass
+        ? 'glass-1 rounded-2xl'
+        : 'rounded-xl border border-surface-200 bg-white dark:border-surface-700 dark:bg-surface-900'
+    }`}>
       <h3 className="mb-3 text-sm font-bold text-surface-900 dark:text-surface-100">
         Signal Chain
       </h3>

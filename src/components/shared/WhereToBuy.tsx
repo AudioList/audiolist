@@ -1,4 +1,5 @@
 import { usePriceListings } from '../../hooks/usePriceListings';
+import { useGlassMode } from '../../context/GlassModeContext';
 import RetailerTrustInfo from './RetailerTrustInfo';
 
 interface WhereToBuyProps {
@@ -34,6 +35,7 @@ function relativeTime(dateString: string): string {
 }
 
 export default function WhereToBuy({ productId, discontinued }: WhereToBuyProps) {
+  const isGlass = useGlassMode();
   const { listings, loading, error } = usePriceListings(productId);
 
   // Find the most recent last_checked across all listings
@@ -44,7 +46,7 @@ export default function WhereToBuy({ productId, discontinued }: WhereToBuyProps)
     : null;
 
   return (
-    <div className="rounded-xl border border-surface-200 bg-white dark:border-surface-700 dark:bg-surface-900">
+    <div className={isGlass ? "glass-1 rounded-2xl" : "rounded-xl border border-surface-200 bg-white dark:border-surface-700 dark:bg-surface-900"}>
       {/* Header */}
       <div className="flex items-center gap-2 border-b border-surface-200 px-5 py-4 dark:border-surface-700">
         <svg
@@ -149,7 +151,10 @@ export default function WhereToBuy({ productId, discontinued }: WhereToBuyProps)
                               href={buyUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary-500"
+                              className={isGlass
+                                ? "inline-flex items-center gap-1 rounded-xl bg-primary-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary-500 shadow-sm shadow-primary-500/20"
+                                : "inline-flex items-center gap-1 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary-500"
+                              }
                             >
                               Buy
                               <svg

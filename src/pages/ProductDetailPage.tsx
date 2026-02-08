@@ -6,6 +6,7 @@ import { CATEGORY_MAP, getScoreLabel, isSpinormaCategory, isSinadCategory, sinad
 import type { AmpLoadOhms } from '../lib/categories';
 import { useBuild } from '../context/BuildContext';
 import { useExperienceMode } from '../context/ExperienceModeContext';
+import { useGlassMode } from '../context/GlassModeContext';
 import PPIBadge from '../components/shared/PPIBadge';
 import PriceDisplay from '../components/shared/PriceDisplay';
 import WhereToBuy from '../components/shared/WhereToBuy';
@@ -21,6 +22,7 @@ export default function ProductDetailPage() {
   const navigate = useNavigate();
   const { setProduct, getSelection, removeProduct } = useBuild();
   const { mode } = useExperienceMode();
+  const isGlass = useGlassMode();
 
   const [product, setProductData] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
@@ -116,7 +118,7 @@ export default function ProductDetailPage() {
   if (error || !product) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
-        <div className="rounded-xl border border-surface-200 bg-white p-8 text-center dark:border-surface-700 dark:bg-surface-900">
+        <div className={isGlass ? 'glass-1 rounded-2xl p-8 text-center' : 'rounded-xl border border-surface-200 bg-white p-8 text-center dark:border-surface-700 dark:bg-surface-900'}>
           <h2 className="text-xl font-bold text-surface-900 dark:text-surface-100">
             Product not found
           </h2>
@@ -126,7 +128,7 @@ export default function ProductDetailPage() {
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="mt-6 inline-block rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-500"
+            className={isGlass ? 'glass-btn-primary mt-6 inline-block rounded-lg px-5 py-2.5 text-sm font-medium' : 'mt-6 inline-block rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-500'}
           >
             Go Back
           </button>
@@ -165,7 +167,7 @@ export default function ProductDetailPage() {
 
       <div className="flex flex-col gap-8 lg:flex-row">
         {/* Left: Image / placeholder */}
-        <div className="flex h-64 w-full shrink-0 items-center justify-center rounded-xl border border-surface-200 bg-surface-100 dark:border-surface-700 dark:bg-surface-800 lg:h-80 lg:w-80">
+        <div className={isGlass ? 'flex h-64 w-full shrink-0 items-center justify-center glass-1 rounded-2xl lg:h-80 lg:w-80' : 'flex h-64 w-full shrink-0 items-center justify-center rounded-xl border border-surface-200 bg-surface-100 dark:border-surface-700 dark:bg-surface-800 lg:h-80 lg:w-80'}>
           {product.image_url ? (
             <img
               src={product.image_url}
@@ -228,7 +230,7 @@ export default function ProductDetailPage() {
 
           {/* Editorial blurb */}
           {product.editorial_blurb && (
-            <div className="rounded-lg border-l-4 border-primary-500 bg-primary-50 px-4 py-3 dark:border-primary-400 dark:bg-primary-900/10">
+            <div className={isGlass ? 'border-l-4 border-primary-400/60 bg-primary-50/50 backdrop-blur-sm rounded-xl px-4 py-3 dark:border-primary-400/60 dark:bg-primary-900/10' : 'rounded-lg border-l-4 border-primary-500 bg-primary-50 px-4 py-3 dark:border-primary-400 dark:bg-primary-900/10'}>
               <p className="text-xs font-semibold uppercase tracking-wide text-primary-700 dark:text-primary-400">
                 Why This Product
               </p>
@@ -269,17 +271,17 @@ export default function ProductDetailPage() {
 
           {/* Spinorama breakdown table (speakers, hidden in beginner mode) */}
           {mode !== 'beginner' && category?.has_ppi && product.ppi_score !== null && isSpinormaCategory(product.category_id) && (
-            <div className="rounded-lg border border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-800">
+            <div className={isGlass ? 'glass-1 rounded-xl' : 'rounded-lg border border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-800'}>
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-surface-200 text-left text-surface-500 dark:border-surface-700 dark:text-surface-400">
+                  <tr className={isGlass ? 'border-b bg-white/40 text-left text-surface-500 dark:bg-white/[0.04] dark:text-surface-400 border-white/15 dark:border-white/[0.06]' : 'border-b border-surface-200 text-left text-surface-500 dark:border-surface-700 dark:text-surface-400'}>
                     <th className="px-4 py-2 font-medium">Metric</th>
                     <th className="px-4 py-2 text-right font-medium">Value</th>
                     <th className="hidden px-4 py-2 text-right font-medium sm:table-cell">Hint</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr className="border-b border-surface-200 dark:border-surface-700">
+                  <tr className={isGlass ? 'border-b border-white/15 dark:border-white/[0.06]' : 'border-b border-surface-200 dark:border-surface-700'}>
                     <td className="px-4 py-2 text-surface-700 dark:text-surface-300" title="Olive Predicted Preference Score — higher is better (scale of 0-10)">
                       Preference Score
                     </td>
@@ -289,7 +291,7 @@ export default function ProductDetailPage() {
                     </td>
                     <td className="hidden px-4 py-2 text-right text-xs text-surface-400 sm:table-cell">higher is better</td>
                   </tr>
-                  <tr className="border-b border-surface-200 dark:border-surface-700">
+                  <tr className={isGlass ? 'border-b border-white/15 dark:border-white/[0.06]' : 'border-b border-surface-200 dark:border-surface-700'}>
                     <td className="px-4 py-2 text-surface-700 dark:text-surface-300" title="Preference score when paired with a subwoofer — often higher than standalone">
                       Score w/ Sub
                     </td>
@@ -299,7 +301,7 @@ export default function ProductDetailPage() {
                     </td>
                     <td className="hidden px-4 py-2 text-right text-xs text-surface-400 sm:table-cell">higher is better</td>
                   </tr>
-                  <tr className="border-b border-surface-200 dark:border-surface-700">
+                  <tr className={isGlass ? 'border-b border-white/15 dark:border-white/[0.06]' : 'border-b border-surface-200 dark:border-surface-700'}>
                     <td className="px-4 py-2 text-surface-700 dark:text-surface-300" title="Low Frequency Extension — how deep the bass goes (lower Hz = deeper bass)">
                       Bass Extension (LFX)
                     </td>
@@ -308,7 +310,7 @@ export default function ProductDetailPage() {
                     </td>
                     <td className="hidden px-4 py-2 text-right text-xs text-surface-400 sm:table-cell">lower Hz is deeper</td>
                   </tr>
-                  <tr className="border-b border-surface-200 dark:border-surface-700">
+                  <tr className={isGlass ? 'border-b border-white/15 dark:border-white/[0.06]' : 'border-b border-surface-200 dark:border-surface-700'}>
                     <td className="px-4 py-2 text-surface-700 dark:text-surface-300" title="Narrow Band Deviation on axis — lower = smoother frequency response">
                       NBD On-Axis
                     </td>
@@ -333,17 +335,17 @@ export default function ProductDetailPage() {
 
           {/* PPI breakdown table (IEM/headphone, hidden in beginner mode) */}
           {mode !== 'beginner' && category?.has_ppi && product.ppi_score !== null && !isSpinormaCategory(product.category_id) && (
-            <div className="rounded-lg border border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-800">
+            <div className={isGlass ? 'glass-1 rounded-xl' : 'rounded-lg border border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-800'}>
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-surface-200 text-left text-surface-500 dark:border-surface-700 dark:text-surface-400">
+                  <tr className={isGlass ? 'border-b bg-white/40 text-left text-surface-500 dark:bg-white/[0.04] dark:text-surface-400 border-white/15 dark:border-white/[0.06]' : 'border-b border-surface-200 text-left text-surface-500 dark:border-surface-700 dark:text-surface-400'}>
                     <th className="px-4 py-2 font-medium">Metric</th>
                     <th className="px-4 py-2 text-right font-medium">Value</th>
                     <th className="hidden px-4 py-2 text-right font-medium sm:table-cell">Hint</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr className="border-b border-surface-200 dark:border-surface-700">
+                  <tr className={isGlass ? 'border-b border-white/15 dark:border-white/[0.06]' : 'border-b border-surface-200 dark:border-surface-700'}>
                     <td className="px-4 py-2 text-surface-700 dark:text-surface-300" title="Standard deviation from target curve — lower = closer to ideal tuning">
                       Std Deviation
                     </td>
@@ -352,7 +354,7 @@ export default function ProductDetailPage() {
                     </td>
                     <td className="hidden px-4 py-2 text-right text-xs text-surface-400 sm:table-cell">lower is better</td>
                   </tr>
-                  <tr className="border-b border-surface-200 dark:border-surface-700">
+                  <tr className={isGlass ? 'border-b border-white/15 dark:border-white/[0.06]' : 'border-b border-surface-200 dark:border-surface-700'}>
                     <td className="px-4 py-2 text-surface-700 dark:text-surface-300" title="Frequency response slope — closer to 0 = more balanced bass-to-treble tilt">
                       Slope
                     </td>
@@ -394,17 +396,17 @@ export default function ProductDetailPage() {
 
           {/* SINAD breakdown table (DAC/Amp, hidden in beginner mode) */}
           {mode !== 'beginner' && isSinadCategory(product.category_id) && product.sinad_db !== null && (
-            <div className="rounded-lg border border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-800">
+            <div className={isGlass ? 'glass-1 rounded-xl' : 'rounded-lg border border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-800'}>
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-surface-200 text-left text-surface-500 dark:border-surface-700 dark:text-surface-400">
+                  <tr className={isGlass ? 'border-b bg-white/40 text-left text-surface-500 dark:bg-white/[0.04] dark:text-surface-400 border-white/15 dark:border-white/[0.06]' : 'border-b border-surface-200 text-left text-surface-500 dark:border-surface-700 dark:text-surface-400'}>
                     <th className="px-4 py-2 font-medium">Metric</th>
                     <th className="px-4 py-2 text-right font-medium">Value</th>
                     <th className="hidden px-4 py-2 text-right font-medium sm:table-cell">Hint</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr className="border-b border-surface-200 dark:border-surface-700">
+                  <tr className={isGlass ? 'border-b border-white/15 dark:border-white/[0.06]' : 'border-b border-surface-200 dark:border-surface-700'}>
                     <td className="px-4 py-2 text-surface-700 dark:text-surface-300" title="Signal-to-Noise and Distortion ratio — higher = cleaner, more transparent signal">
                       SINAD
                     </td>
@@ -414,7 +416,7 @@ export default function ProductDetailPage() {
                     <td className="hidden px-4 py-2 text-right text-xs text-surface-400 sm:table-cell">higher is better</td>
                   </tr>
                   {product.asr_device_type && (
-                    <tr className="border-b border-surface-200 dark:border-surface-700">
+                    <tr className={isGlass ? 'border-b border-white/15 dark:border-white/[0.06]' : 'border-b border-surface-200 dark:border-surface-700'}>
                       <td className="px-4 py-2 text-surface-700 dark:text-surface-300" title="Device classification from AudioScienceReview">
                         Device Type
                       </td>
@@ -424,7 +426,7 @@ export default function ProductDetailPage() {
                     </tr>
                   )}
                   {product.asr_recommended !== null && (
-                    <tr className="border-b border-surface-200 dark:border-surface-700">
+                    <tr className={isGlass ? 'border-b border-white/15 dark:border-white/[0.06]' : 'border-b border-surface-200 dark:border-surface-700'}>
                       <td className="px-4 py-2 text-surface-700 dark:text-surface-300" title="Whether AudioScienceReview recommends this product based on measured performance">
                         ASR Recommended
                       </td>
@@ -635,7 +637,7 @@ export default function ProductDetailPage() {
                   ? 'bg-ppi-excellent text-white'
                   : isInBuild
                     ? 'bg-red-600 text-white hover:bg-red-500'
-                    : 'bg-primary-600 text-white hover:bg-primary-500'
+                    : (isGlass ? 'glass-btn-primary' : 'bg-primary-600 text-white hover:bg-primary-500')
               }`}
             >
               {addedCategory === product.category_id
@@ -651,7 +653,7 @@ export default function ProductDetailPage() {
                 href={product.affiliate_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-surface-300 bg-white px-5 py-2.5 text-sm font-medium text-surface-700 transition-colors hover:bg-surface-100 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-300 dark:hover:bg-surface-700"
+                className={isGlass ? 'glass-btn-secondary inline-flex items-center gap-1.5 rounded-lg px-5 py-2.5 text-sm font-medium' : 'inline-flex items-center gap-1.5 rounded-lg border border-surface-300 bg-white px-5 py-2.5 text-sm font-medium text-surface-700 transition-colors hover:bg-surface-100 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-300 dark:hover:bg-surface-700'}
               >
                 Buy Now
                 <svg
