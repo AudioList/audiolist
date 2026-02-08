@@ -5,6 +5,7 @@ import { useGlassMode } from '../../context/GlassModeContext';
 import PPIBadge from '../shared/PPIBadge';
 import PriceDisplay from '../shared/PriceDisplay';
 import BestValueBadge from '../shared/BestValueBadge';
+import { getDisplayName, getBestModeLabel } from '../../lib/productUtils';
 
 interface ProductCardProps {
   product: Product;
@@ -73,7 +74,7 @@ export default function ProductCard({
         onClick={onViewDetail ? () => onViewDetail(product) : undefined}
       >
         <div className="flex items-center gap-2">
-          <h3 className="truncate text-sm font-bold text-surface-100">{product.name}</h3>
+          <h3 className="truncate text-sm font-bold text-surface-100">{getDisplayName(product)}</h3>
           {/* Badges inline */}
           {mode !== 'beginner' && product.rig_type && (
             <span className="inline-flex shrink-0 items-center rounded-md bg-surface-700 px-1.5 py-0.5 text-[0.625rem] font-semibold text-surface-300 ring-1 ring-surface-600">
@@ -88,6 +89,11 @@ export default function ProductCard({
           {product.asr_device_type && product.asr_device_type.toUpperCase().includes('AMP') && (
             <span className="inline-flex shrink-0 items-center rounded-md bg-violet-900/40 px-1.5 py-0.5 text-[0.625rem] font-bold text-violet-300 ring-1 ring-violet-500/40">
               DAC/Amp
+            </span>
+          )}
+          {getBestModeLabel(product) && (
+            <span className="inline-flex shrink-0 items-center rounded-md bg-green-900/50 px-1.5 py-0.5 text-[0.625rem] font-semibold text-green-400 ring-1 ring-green-500/30">
+              {product.variant_type === 'switch' ? `Switch: ${product.variant_value}` : product.variant_value}
             </span>
           )}
         </div>

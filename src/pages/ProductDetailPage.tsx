@@ -16,6 +16,7 @@ import BestValueBadge from '../components/shared/BestValueBadge';
 import WatchPriceButton from '../components/shared/WatchPriceButton';
 import PopularPairings from '../components/shared/PopularPairings';
 import { buildSourceUrl, formatSourceLabel } from '../lib/sourceUrl';
+import { getDisplayName, getBestModeLabel } from '../lib/productUtils';
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -29,7 +30,6 @@ export default function ProductDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [addedCategory, setAddedCategory] = useState<CategoryId | null>(null);
   const [selectedLoad, setSelectedLoad] = useState<AmpLoadOhms>(32);
-  const [isBestMode, setIsBestMode] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -61,34 +61,8 @@ export default function ProductDetailPage() {
     fetchProduct();
   }, [id]);
 
-  // Check if this product is the best-scoring variant in a DSP/ANC family
-  useEffect(() => {
-    if (!product?.product_family_id || !['dsp', 'anc'].includes(product.variant_type ?? '')) {
-      setIsBestMode(false);
-      return;
-    }
-
-    async function checkBestMode() {
-      const { data } = await supabase
-        .from('products')
-        .select('id, ppi_score')
-        .eq('product_family_id', product!.product_family_id!)
-        .in('variant_type', ['dsp', 'anc'])
-        .order('ppi_score', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (data && data.id === product!.id) {
-        setIsBestMode(true);
-      } else {
-        setIsBestMode(false);
-      }
-    }
-
-    checkBestMode();
-  }, [product?.id, product?.product_family_id, product?.variant_type]);
-
   const isInBuild = product ? getSelection(product.category_id)?.product.id === product.id : false;
+  const bestModeLabel = product ? getBestModeLabel(product) : null;
 
   function handleAddToBuild(categoryId: CategoryId) {
     if (!product) return;
@@ -204,7 +178,7 @@ export default function ProductDetailPage() {
           {/* Product name */}
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-3xl font-extrabold text-surface-900 dark:text-surface-50">
-              {product.name}
+              {getDisplayName(product)}
             </h1>
             {product.discontinued && (
               <span className="inline-flex items-center rounded-lg bg-surface-200 px-2.5 py-1 text-sm font-bold text-surface-600 dark:bg-surface-700 dark:text-surface-300">
@@ -216,9 +190,9 @@ export default function ProductDetailPage() {
                 DAC/Amp
               </span>
             )}
-            {isBestMode && (
+            {bestModeLabel && (
               <span className="inline-flex items-center rounded-lg bg-green-100 px-2.5 py-1 text-sm font-bold text-green-700 dark:bg-green-900/30 dark:text-green-300">
-                Best Tuning Mode
+                {bestModeLabel}
               </span>
             )}
             {product.iem_type === 'tws' && (

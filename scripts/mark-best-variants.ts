@@ -21,7 +21,7 @@ async function main() {
   const supabase = getSupabase();
 
   console.log('=================================================================');
-  console.log('  Mark Best Variants (DSP/ANC families)');
+  console.log('  Mark Best Variants (DSP/ANC/Switch families)');
   console.log(`  Mode: ${DRY ? 'DRY RUN' : 'LIVE'}`);
   console.log('=================================================================\n');
 
@@ -41,7 +41,7 @@ async function main() {
       .from('products')
       .select('id, name, ppi_score, product_family_id, variant_type, is_best_variant')
       .not('product_family_id', 'is', null)
-      .in('variant_type', ['dsp', 'anc'])
+      .in('variant_type', ['dsp', 'anc', 'switch'])
       .range(offset, offset + BATCH - 1);
 
     if (error) {
@@ -54,10 +54,10 @@ async function main() {
     if (data.length < BATCH) break;
   }
 
-  console.log(`Loaded ${products.length} DSP/ANC variant products\n`);
+  console.log(`Loaded ${products.length} DSP/ANC/Switch variant products\n`);
 
   if (products.length === 0) {
-    console.log('No DSP/ANC variants found in families.');
+    console.log('No DSP/ANC/Switch variants found in families.');
     return;
   }
 

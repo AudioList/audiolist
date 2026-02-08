@@ -4,6 +4,7 @@ import { useExperienceMode } from '../../context/ExperienceModeContext';
 import { useGlassMode } from '../../context/GlassModeContext';
 import { CATEGORY_EXPLAINERS } from '../../lib/categoryExplainers';
 import PriceDisplay from '../shared/PriceDisplay';
+import { getDisplayName, getBestModeLabel } from '../../lib/productUtils';
 
 /** Returns true when a product functions as both DAC and Amplifier */
 function isDacAmpCombo(product: Product): boolean {
@@ -86,7 +87,7 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
                   onClick={() => onViewDetail(product)}
                   className="text-left text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 hover:underline transition-colors font-semibold"
                 >
-                  {product.name}
+                  {getDisplayName(product)}
                 </button>
                 {isDacAmpCombo(product) && (
                   <span className="inline-flex shrink-0 items-center rounded-md bg-violet-100 px-1.5 py-0.5 text-[0.625rem] font-bold text-violet-700 ring-1 ring-violet-300 dark:bg-violet-900/40 dark:text-violet-300 dark:ring-violet-500/40">
@@ -97,6 +98,11 @@ export default function CategoryRow({ category, selection, onChoose, onViewDetai
               {product.brand && (
                 <span className="block text-xs text-surface-500 dark:text-surface-400 mt-0.5">
                   {product.brand}
+                </span>
+              )}
+              {getBestModeLabel(product) && (
+                <span className="block text-[0.625rem] font-medium text-green-600 dark:text-green-400 mt-0.5">
+                  {getBestModeLabel(product)}
                 </span>
               )}
             </td>

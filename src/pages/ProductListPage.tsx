@@ -10,6 +10,7 @@ import SortControls from '../components/products/SortControls';
 import PPIBadge from '../components/shared/PPIBadge';
 import PriceDisplay from '../components/shared/PriceDisplay';
 import BestValueBadge from '../components/shared/BestValueBadge';
+import { getDisplayName, getBestModeLabel } from '../lib/productUtils';
 
 const DEFAULT_CATEGORY: CategoryId = 'iem';
 
@@ -633,11 +634,16 @@ function ProductCard({ product, showPPI, showSinad = false }: { product: Product
       {/* Name + badges */}
       <div className="mt-1 flex items-start gap-1.5">
         <h3 className="text-base font-bold text-surface-900 group-hover:text-primary-600 dark:text-surface-100 dark:group-hover:text-primary-400 line-clamp-2">
-          {product.name}
+          {getDisplayName(product)}
         </h3>
         {product.iem_type === 'tws' && (
           <span className="mt-0.5 inline-flex shrink-0 items-center rounded-full bg-cyan-100 px-1.5 py-0.5 text-[0.625rem] font-bold text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300">
             TWS
+          </span>
+        )}
+        {getBestModeLabel(product) && (
+          <span className="mt-0.5 inline-flex shrink-0 items-center rounded-full bg-green-100 px-1.5 py-0.5 text-[0.625rem] font-bold text-green-700 dark:bg-green-900/30 dark:text-green-300">
+            {product.variant_type === 'switch' ? `Switch: ${product.variant_value}` : product.variant_value}
           </span>
         )}
       </div>

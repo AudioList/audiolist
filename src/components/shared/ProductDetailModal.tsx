@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import type { Product } from '../../types';
-import { supabase } from '../../lib/supabase';
 import { CATEGORY_MAP, getScoreLabel } from '../../lib/categories';
 import { useExperienceMode } from '../../context/ExperienceModeContext';
 import { useGlassMode } from '../../context/GlassModeContext';
@@ -11,6 +10,7 @@ import WhereToBuy from './WhereToBuy';
 import ScoreExplainer from './ScoreExplainer';
 import BestValueBadge from './BestValueBadge';
 import { buildSourceUrl, formatSourceLabel } from '../../lib/sourceUrl';
+import { getDisplayName, getBestModeLabel } from '../../lib/productUtils';
 
 interface ProductDetailModalProps {
   product: Product | null;
@@ -66,36 +66,12 @@ export default function ProductDetailModal({
 
   const { mode } = useExperienceMode();
   const isGlass = useGlassMode();
-  const [isBestMode, setIsBestMode] = useState(false);
 
-  // Check if this product is the best-scoring variant in a DSP/ANC family
-  useEffect(() => {
-    if (!product?.product_family_id || !['dsp', 'anc'].includes(product.variant_type ?? '')) {
-      setIsBestMode(false);
-      return;
-    }
 
-    async function checkBestMode() {
-      const { data } = await supabase
-        .from('products')
-        .select('id, ppi_score')
-        .eq('product_family_id', product!.product_family_id!)
-        .in('variant_type', ['dsp', 'anc'])
-        .order('ppi_score', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (data && data.id === product!.id) {
-        setIsBestMode(true);
-      } else {
-        setIsBestMode(false);
-      }
-    }
-
-    checkBestMode();
-  }, [product?.id, product?.product_family_id, product?.variant_type]);
 
   if (!product) return null;
+
+  const bestModeLabel = getBestModeLabel(product);
 
   const category = CATEGORY_MAP.get(product.category_id);
 
@@ -137,7 +113,7 @@ export default function ProductDetailModal({
                 id="product-detail-title"
                 className="text-lg font-bold text-surface-50"
               >
-                {product.name}
+                {getDisplayName(product)}
               </h2>
               {product.asr_device_type && product.asr_device_type.toUpperCase().includes('AMP') && (
                 <span className="inline-flex shrink-0 items-center rounded-md bg-violet-900/40 px-2 py-0.5 text-xs font-bold text-violet-300 ring-1 ring-violet-500/40">
@@ -149,9 +125,9 @@ export default function ProductDetailModal({
                   ASR Recommended
                 </span>
               )}
-              {isBestMode && (
+              {bestModeLabel && (
                 <span className="inline-flex shrink-0 items-center rounded-md bg-green-900/40 px-2 py-0.5 text-xs font-bold text-green-300 ring-1 ring-green-500/30">
-                  Best Tuning Mode
+                  {bestModeLabel}
                 </span>
               )}
               {product.iem_type === 'tws' && (

@@ -25,6 +25,9 @@ const KNOWN_DSP_SUFFIXES = new Set([
   'bass+', 'treble+', 'harman', 'neutral', 'default', 'studio',
 ]);
 
+/** Matches dip switch position codes: 3-5 chars of D/U (e.g., DDDU, UDDD, DDUU) */
+const DIP_SWITCH_SUFFIX_RE = /^[DU]{3,5}$/;
+
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
@@ -289,6 +292,134 @@ async function main(): Promise<void> {
   }
 
   log(`  Created ${suffixFamiliesCreated} suffix-style DSP families`);
+
+  // Step 3c: Dip-switch suffix mode detection (third pass)
+  // Look for singleton products that differ only by a trailing word that is a dip switch code.
+  // Example: "Brand Model DDDU" + "Brand Model UDDD" + "Brand Model DDUU"
+  log('Step 3c: Detecting dip-switch suffix modes...');
+  let switchFamiliesCreated = 0;
+
+  // Group all products by category for dip-switch suffix analysis
+  const byCategoryForSwitch = new Map<string, ProductRow[]>();
+  for (const product of allProducts) {
+    const group = byCategoryForSwitch.get(product.category_id);
+    if (group) group.push(product);
+    else byCategoryForSwitch.set(product.category_id, [product]);
+  }
+
+  for (const [catId, catProducts] of byCategoryForSwitch) {
+    // Build a map: "all words except last" -> list of products with that prefix
+    const prefixMap = new Map<string, { product: ProductRow; lastWord: string }[]>();
+
+    for (const product of catProducts) {
+      const words = product.name.trim().split(/\s+/);
+      if (words.length < 2) continue;
+
+      const lastWord = words[words.length - 1];
+      const prefix = words.slice(0, -1).join(' ');
+      const prefixKey = prefix.toLowerCase();
+
+      const group = prefixMap.get(prefixKey);
+      const entry = { product, lastWord };
+      if (group) group.push(entry);
+      else prefixMap.set(prefixKey, [entry]);
+    }
+
+    for (const [prefixKey, group] of prefixMap) {
+      if (group.length < 2) continue;
+
+      // Check if at least one trailing word is a dip switch code
+      const hasSwitchSuffix = group.some(({ lastWord }) =>
+        DIP_SWITCH_SUFFIX_RE.test(lastWord)
+      );
+      if (!hasSwitchSuffix) continue;
+
+      // Check that enough trailing words look like dip switch codes
+      const switchMembers = group.filter(({ lastWord }) =>
+        DIP_SWITCH_SUFFIX_RE.test(lastWord)
+      );
+      if (switchMembers.length < 2) continue; // Need at least 2 dip switch suffix members
+
+      // Check if these products are already in a family via the primary grouping
+      const familyKey = `${prefixKey}||${catId}`;
+      const existingFamily = familyMap.get(familyKey);
+      if (existingFamily && existingFamily.members.length >= 2) continue; // Already grouped
+
+      // Create a new family group for these dip-switch suffix products
+      const baseName = group[0].product.name.trim().split(/\s+/).slice(0, -1).join(' ');
+      const newFamilyKey = `switch_suffix:${prefixKey}||${catId}`;
+
+      // Check if the base name itself (without suffix) is also a product
+      const baseKey = `${baseName.toLowerCase().trim()}||${catId}`;
+
+      const familyGroup: FamilyGroup = {
+        baseName,
+        categoryId: catId,
+        members: [],
+      };
+
+      for (const { product, lastWord } of group) {
+        const isSwitchSuffix = DIP_SWITCH_SUFFIX_RE.test(lastWord);
+
+        // Override the parse result to include switch variant info
+        if (isSwitchSuffix) {
+          const existingResult = parseResults.get(product.id)!;
+          const newResult: ParseResult = {
+            baseName,
+            variants: [{ type: 'switch' as VariantType, value: lastWord }, ...existingResult.variants],
+          };
+          parseResults.set(product.id, newResult);
+        }
+
+        familyGroup.members.push({
+          id: product.id,
+          name: product.name,
+          ppiScore: product.ppi_score,
+          variants: parseResults.get(product.id)!.variants,
+          hasVariants: true,
+        });
+      }
+
+      // Also check for a base product with the exact prefix name (no suffix)
+      for (const product of catProducts) {
+        if (product.name.toLowerCase().trim() === prefixKey && !familyGroup.members.some(m => m.id === product.id)) {
+          familyGroup.members.push({
+            id: product.id,
+            name: product.name,
+            ppiScore: product.ppi_score,
+            variants: [],
+            hasVariants: false,
+          });
+        }
+      }
+
+      if (familyGroup.members.length >= 2) {
+        // Remove these products from any existing singleton groups
+        for (const member of familyGroup.members) {
+          const oldResult = parseResults.get(member.id)!;
+          const oldKey = `${oldResult.baseName.toLowerCase().trim()}||${catId}`;
+          const oldGroup = familyMap.get(oldKey);
+          if (oldGroup) {
+            oldGroup.members = oldGroup.members.filter(m => m.id !== member.id);
+            if (oldGroup.members.length === 0) {
+              familyMap.delete(oldKey);
+            }
+          }
+        }
+
+        familyMap.set(newFamilyKey, familyGroup);
+        switchFamiliesCreated++;
+        log(`    Dip-switch suffix family: "${baseName}" (${catId}): ${familyGroup.members.length} members`);
+        for (const mem of familyGroup.members) {
+          const varStr = parseResults.get(mem.id)!.variants.map(v => `${v.type}="${v.value}"`).join(', ') || '(base)';
+          log(`      - "${mem.name}" -> ${varStr}`);
+        }
+      }
+    }
+  }
+
+  log(`  Created ${switchFamiliesCreated} dip-switch suffix families`);
+
 
   // Only families with 2+ members are real families
   const realFamilies = Array.from(familyMap.values()).filter((f) => f.members.length >= 2);
