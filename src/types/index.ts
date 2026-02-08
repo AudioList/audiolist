@@ -169,3 +169,15 @@ export interface PriceListing {
   last_checked: string;
   retailer?: Retailer;
 }
+
+export interface StoreProductBundle {
+  id: string;
+  retailer_id: string;
+  title: string;
+  price: number | null;
+  in_stock: boolean;
+  product_url: string | null;
+  affiliate_url: string | null;
+  image_url: string | null;
+  retailer?: Retailer;
+}

@@ -304,7 +304,7 @@ export default function ProductDetailModal({
           </div>
 
           {/* Where to Buy */}
-          <WhereToBuy productId={product.id} />
+          <WhereToBuy productId={product.id} productName={product.name} />
         </div>
       </div>
     </div>

@@ -1,9 +1,14 @@
+import { Fragment, useMemo } from 'react';
 import { usePriceListings } from '../../hooks/usePriceListings';
+import { useBundleListings } from '../../hooks/useBundleListings';
 import { useGlassMode } from '../../context/GlassModeContext';
+import { extractBundleDescription } from '../../lib/bundleUtils';
 import RetailerTrustInfo from './RetailerTrustInfo';
+import type { StoreProductBundle } from '../../types';
 
 interface WhereToBuyProps {
   productId: string;
+  productName?: string;
   discontinued?: boolean;
 }
 
@@ -34,9 +39,120 @@ function relativeTime(dateString: string): string {
   return 'just now';
 }
 
-export default function WhereToBuy({ productId, discontinued }: WhereToBuyProps) {
+function BundleRow({
+  bundle,
+  productName,
+  isGlass,
+}: {
+  bundle: StoreProductBundle;
+  productName: string;
+  isGlass: boolean;
+}) {
+  const description = extractBundleDescription(bundle.title, productName);
+  const buyUrl = bundle.affiliate_url ?? bundle.product_url;
+  const hasUrl = buyUrl !== null;
+
+  return (
+    <tr
+      className={
+        isGlass
+          ? 'border-b border-white/[0.06] last:border-b-0 bg-white/[0.02]'
+          : 'border-b border-surface-100 last:border-b-0 dark:border-surface-800 bg-surface-50/50 dark:bg-surface-800/30'
+      }
+    >
+      <td className="py-2 pr-4 pl-6">
+        <div className="flex items-start gap-1.5">
+          <span
+            className="mt-0.5 text-surface-300 dark:text-surface-600 select-none"
+            aria-hidden="true"
+          >
+            &#x2514;
+          </span>
+          <div className="min-w-0">
+            <span className="inline-flex items-center rounded-full bg-violet-100 px-1.5 py-0.5 text-[0.6rem] font-semibold text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 mr-1.5">
+              Bundle
+            </span>
+            <span className="text-xs text-surface-600 dark:text-surface-400">
+              {description}
+            </span>
+          </div>
+        </div>
+      </td>
+      <td className="py-2 pr-4 font-mono text-xs text-surface-700 dark:text-surface-300">
+        {bundle.price ? formatPrice(bundle.price, 'USD') : '--'}
+      </td>
+      <td className="py-2 pr-4">
+        {bundle.in_stock ? (
+          <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-[0.625rem] font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
+            In Stock
+          </span>
+        ) : (
+          <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[0.625rem] font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400">
+            Out of Stock
+          </span>
+        )}
+      </td>
+      <td className="py-2 text-right">
+        {hasUrl ? (
+          <a
+            href={buyUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={
+              isGlass
+                ? 'inline-flex items-center gap-1 rounded-xl bg-violet-600 px-3 py-1 text-[0.625rem] font-medium text-white transition-colors hover:bg-violet-500 shadow-sm shadow-violet-500/20'
+                : 'inline-flex items-center gap-1 rounded-lg bg-violet-600 px-3 py-1 text-[0.625rem] font-medium text-white transition-colors hover:bg-violet-500'
+            }
+          >
+            Buy Bundle
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 16 16"
+              fill="currentColor"
+              className="h-2.5 w-2.5"
+              aria-hidden="true"
+            >
+              <path d="M6.22 8.72a.75.75 0 0 0 1.06 1.06l5.22-5.22v1.69a.75.75 0 0 0 1.5 0v-3.5a.75.75 0 0 0-.75-.75h-3.5a.75.75 0 0 0 0 1.5h1.69L6.22 8.72Z" />
+              <path d="M3.5 6.75c0-.69.56-1.25 1.25-1.25H7A.75.75 0 0 0 7 4H4.75A2.75 2.75 0 0 0 2 6.75v4.5A2.75 2.75 0 0 0 4.75 14h4.5A2.75 2.75 0 0 0 12 11.25V9a.75.75 0 0 0-1.5 0v2.25c0 .69-.56 1.25-1.25 1.25h-4.5c-.69 0-1.25-.56-1.25-1.25v-4.5Z" />
+            </svg>
+          </a>
+        ) : (
+          <button
+            type="button"
+            disabled
+            className="inline-flex cursor-not-allowed items-center rounded-lg bg-surface-200 px-3 py-1 text-[0.625rem] font-medium text-surface-400 dark:bg-surface-700 dark:text-surface-500"
+          >
+            Buy Bundle
+          </button>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+export default function WhereToBuy({ productId, productName, discontinued }: WhereToBuyProps) {
   const isGlass = useGlassMode();
   const { listings, loading, error } = usePriceListings(productId);
+  const { bundles } = useBundleListings(productId, productName);
+
+  // Group bundles by retailer_id
+  const bundlesByRetailer = useMemo(() => {
+    const map = new Map<string, StoreProductBundle[]>();
+    for (const bundle of bundles) {
+      const list = map.get(bundle.retailer_id);
+      if (list) list.push(bundle);
+      else map.set(bundle.retailer_id, [bundle]);
+    }
+    return map;
+  }, [bundles]);
+
+  // Find bundle retailers not represented in price_listings
+  const orphanRetailerIds = useMemo(() => {
+    const listingRetailers = new Set(listings.map((l) => l.retailer_id));
+    return [...bundlesByRetailer.keys()].filter(
+      (rid) => !listingRetailers.has(rid),
+    );
+  }, [listings, bundlesByRetailer]);
 
   // Find the most recent last_checked across all listings
   const lastChecked = listings.length > 0
@@ -44,6 +160,8 @@ export default function WhereToBuy({ productId, discontinued }: WhereToBuyProps)
         new Date(l.last_checked) > new Date(latest) ? l.last_checked : latest,
       listings[0].last_checked)
     : null;
+
+  const hasAnyContent = listings.length > 0 || bundles.length > 0;
 
   return (
     <div className={isGlass ? "glass-1 rounded-2xl" : "rounded-xl border border-surface-200 bg-white dark:border-surface-700 dark:bg-surface-900"}>
@@ -91,13 +209,13 @@ export default function WhereToBuy({ productId, discontinued }: WhereToBuyProps)
           <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
         )}
 
-        {!loading && !error && listings.length === 0 && (
+        {!loading && !error && !hasAnyContent && (
           <p className="text-sm text-surface-500 dark:text-surface-400">
             No retailer prices available yet
           </p>
         )}
 
-        {!loading && !error && listings.length > 0 && (
+        {!loading && !error && hasAnyContent && (
           <>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -115,70 +233,114 @@ export default function WhereToBuy({ productId, discontinued }: WhereToBuyProps)
                   {listings.map((listing) => {
                     const buyUrl = listing.affiliate_url ?? listing.product_url;
                     const hasUrl = buyUrl !== null;
+                    const retailerBundles = bundlesByRetailer.get(listing.retailer_id) ?? [];
 
                     return (
-                      <tr
-                        key={listing.id}
-                        className="border-b border-surface-100 last:border-b-0 dark:border-surface-800"
-                      >
-                        <td className="py-3 pr-4 font-semibold text-surface-900 dark:text-surface-100">
-                          <span className="inline-flex items-center gap-1">
-                            {listing.retailer?.name ?? 'Unknown'}
-                            {listing.retailer && <RetailerTrustInfo retailer={listing.retailer} />}
-                          </span>
-                        </td>
-                        <td className="py-3 pr-4 font-mono text-surface-900 dark:text-surface-100">
-                          {formatPrice(listing.price, listing.currency)}
-                        </td>
-                        <td className="py-3 pr-4">
-                          {listing.in_stock ? (
-                            <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                              In Stock
+                      <Fragment key={listing.id}>
+                        <tr
+                          className="border-b border-surface-100 last:border-b-0 dark:border-surface-800"
+                        >
+                          <td className="py-3 pr-4 font-semibold text-surface-900 dark:text-surface-100">
+                            <span className="inline-flex items-center gap-1">
+                              {listing.retailer?.name ?? 'Unknown'}
+                              {listing.retailer && <RetailerTrustInfo retailer={listing.retailer} />}
                             </span>
-                          ) : discontinued ? (
-                            <span className="inline-flex items-center rounded-full bg-surface-200 px-2 py-0.5 text-xs font-medium text-surface-600 dark:bg-surface-700 dark:text-surface-400">
-                              Discontinued
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                              Out of Stock
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 text-right">
-                          {hasUrl ? (
-                            <a
-                              href={buyUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={isGlass
-                                ? "inline-flex items-center gap-1 rounded-xl bg-primary-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary-500 shadow-sm shadow-primary-500/20"
-                                : "inline-flex items-center gap-1 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary-500"
-                              }
-                            >
-                              Buy
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                viewBox="0 0 16 16"
-                                fill="currentColor"
-                                className="h-3 w-3"
-                                aria-hidden="true"
+                          </td>
+                          <td className="py-3 pr-4 font-mono text-surface-900 dark:text-surface-100">
+                            {formatPrice(listing.price, listing.currency)}
+                          </td>
+                          <td className="py-3 pr-4">
+                            {listing.in_stock ? (
+                              <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                In Stock
+                              </span>
+                            ) : discontinued ? (
+                              <span className="inline-flex items-center rounded-full bg-surface-200 px-2 py-0.5 text-xs font-medium text-surface-600 dark:bg-surface-700 dark:text-surface-400">
+                                Discontinued
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                                Out of Stock
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 text-right">
+                            {hasUrl ? (
+                              <a
+                                href={buyUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={isGlass
+                                  ? "inline-flex items-center gap-1 rounded-xl bg-primary-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary-500 shadow-sm shadow-primary-500/20"
+                                  : "inline-flex items-center gap-1 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary-500"
+                                }
                               >
-                                <path d="M6.22 8.72a.75.75 0 0 0 1.06 1.06l5.22-5.22v1.69a.75.75 0 0 0 1.5 0v-3.5a.75.75 0 0 0-.75-.75h-3.5a.75.75 0 0 0 0 1.5h1.69L6.22 8.72Z" />
-                                <path d="M3.5 6.75c0-.69.56-1.25 1.25-1.25H7A.75.75 0 0 0 7 4H4.75A2.75 2.75 0 0 0 2 6.75v4.5A2.75 2.75 0 0 0 4.75 14h4.5A2.75 2.75 0 0 0 12 11.25V9a.75.75 0 0 0-1.5 0v2.25c0 .69-.56 1.25-1.25 1.25h-4.5c-.69 0-1.25-.56-1.25-1.25v-4.5Z" />
-                              </svg>
-                            </a>
-                          ) : (
-                            <button
-                              type="button"
-                              disabled
-                              className="inline-flex cursor-not-allowed items-center rounded-lg bg-surface-200 px-3 py-1.5 text-xs font-medium text-surface-400 dark:bg-surface-700 dark:text-surface-500"
-                            >
-                              Buy
-                            </button>
-                          )}
-                        </td>
-                      </tr>
+                                Buy
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  viewBox="0 0 16 16"
+                                  fill="currentColor"
+                                  className="h-3 w-3"
+                                  aria-hidden="true"
+                                >
+                                  <path d="M6.22 8.72a.75.75 0 0 0 1.06 1.06l5.22-5.22v1.69a.75.75 0 0 0 1.5 0v-3.5a.75.75 0 0 0-.75-.75h-3.5a.75.75 0 0 0 0 1.5h1.69L6.22 8.72Z" />
+                                  <path d="M3.5 6.75c0-.69.56-1.25 1.25-1.25H7A.75.75 0 0 0 7 4H4.75A2.75 2.75 0 0 0 2 6.75v4.5A2.75 2.75 0 0 0 4.75 14h4.5A2.75 2.75 0 0 0 12 11.25V9a.75.75 0 0 0-1.5 0v2.25c0 .69-.56 1.25-1.25 1.25h-4.5c-.69 0-1.25-.56-1.25-1.25v-4.5Z" />
+                                </svg>
+                              </a>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled
+                                className="inline-flex cursor-not-allowed items-center rounded-lg bg-surface-200 px-3 py-1.5 text-xs font-medium text-surface-400 dark:bg-surface-700 dark:text-surface-500"
+                              >
+                                Buy
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+
+                        {/* Bundle rows nested under this retailer */}
+                        {productName && retailerBundles.map((bundle) => (
+                          <BundleRow
+                            key={bundle.id}
+                            bundle={bundle}
+                            productName={productName}
+                            isGlass={isGlass}
+                          />
+                        ))}
+                      </Fragment>
+                    );
+                  })}
+
+                  {/* Orphan bundles: from retailers not in price_listings */}
+                  {productName && orphanRetailerIds.map((retailerId) => {
+                    const retailerBundles = bundlesByRetailer.get(retailerId) ?? [];
+                    if (retailerBundles.length === 0) return null;
+                    const retailerName = retailerBundles[0].retailer?.name ?? 'Unknown';
+
+                    return (
+                      <Fragment key={`orphan-${retailerId}`}>
+                        {/* Retailer header row for orphan bundles */}
+                        <tr className="border-b border-surface-100 dark:border-surface-800">
+                          <td
+                            colSpan={4}
+                            className="py-2 pt-3 text-xs font-semibold text-surface-500 dark:text-surface-400"
+                          >
+                            {retailerName}
+                            {retailerBundles[0].retailer && (
+                              <RetailerTrustInfo retailer={retailerBundles[0].retailer} />
+                            )}
+                          </td>
+                        </tr>
+                        {retailerBundles.map((bundle) => (
+                          <BundleRow
+                            key={bundle.id}
+                            bundle={bundle}
+                            productName={productName}
+                            isGlass={isGlass}
+                          />
+                        ))}
+                      </Fragment>
                     );
                   })}
                 </tbody>

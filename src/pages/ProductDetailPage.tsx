@@ -670,7 +670,7 @@ export default function ProductDetailPage() {
       </div>
 
       {/* Where to Buy */}
-      <WhereToBuy productId={product.id} discontinued={product.discontinued} />
+      <WhereToBuy productId={product.id} productName={product.name} discontinued={product.discontinued} />
 
       {/* Price History */}
       <PriceHistoryChart productId={product.id} />
