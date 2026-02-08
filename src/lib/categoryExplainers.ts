@@ -58,4 +58,8 @@ export const CATEGORY_EXPLAINERS: Record<CategoryId, CategoryExplainer> = {
     shortBlurb: 'Recording and streaming microphones for voice capture.',
     whyYouNeed: 'For podcasting, streaming, calls, or music recording.',
   },
+  mic_accessory: {
+    shortBlurb: 'Preamps, boom arms, adapters, and other microphone accessories.',
+    whyYouNeed: 'Enhance your mic setup with better mounting, signal processing, or connectivity.',
+  },
 };

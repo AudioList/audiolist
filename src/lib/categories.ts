@@ -19,6 +19,8 @@ export const CATEGORIES: Category[] = [
   { id: 'cable', name: 'Cables & Accessories', description: 'Audio cables and adapters', sort_order: 6, icon: 'cable', has_ppi: false, parent_category: null },
   { id: 'dap', name: 'Digital Audio Player', description: 'Portable music players', sort_order: 7, icon: 'smartphone', has_ppi: false, parent_category: null },
   { id: 'microphone', name: 'Microphone', description: 'Recording and streaming mics', sort_order: 8, icon: 'mic', has_ppi: false, parent_category: null },
+  // Microphone accessories
+  { id: 'mic_accessory', name: 'Microphone Accessories', description: 'Preamps, boom arms, adapters, and accessories', sort_order: 22, icon: 'wrench', has_ppi: false, parent_category: 'microphone' },
 ];
 
 export const CATEGORY_MAP = new Map<CategoryId, Category>(
@@ -91,7 +93,9 @@ export function getCategoryAccentColor(id: CategoryId): string {
     case 'speaker': return 'text-accent-speaker';
     case 'cable': return 'text-accent-cable';
     case 'dap': return 'text-accent-dap';
-    case 'microphone': return 'text-accent-mic';
+    case 'microphone':
+    case 'mic_accessory':
+      return 'text-accent-mic';
     default: return 'text-primary-400';
   }
 }
@@ -113,7 +117,9 @@ export function getCategoryBorderColor(id: CategoryId): string {
     case 'speaker': return 'border-accent-speaker';
     case 'cable': return 'border-accent-cable';
     case 'dap': return 'border-accent-dap';
-    case 'microphone': return 'border-accent-mic';
+    case 'microphone':
+    case 'mic_accessory':
+      return 'border-accent-mic';
     default: return 'border-primary-400';
   }
 }
@@ -135,7 +141,9 @@ export function getCategoryBgColor(id: CategoryId): string {
     case 'speaker': return 'bg-accent-speaker/10';
     case 'cable': return 'bg-accent-cable/10';
     case 'dap': return 'bg-accent-dap/10';
-    case 'microphone': return 'bg-accent-mic/10';
+    case 'microphone':
+    case 'mic_accessory':
+      return 'bg-accent-mic/10';
     default: return 'bg-primary-400/10';
   }
 }
