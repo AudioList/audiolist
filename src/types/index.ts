@@ -67,7 +67,7 @@ export interface Product {
   iem_type: 'passive' | 'active' | 'tws' | null;
   mic_connection: 'usb' | 'xlr' | 'usb_xlr' | 'wireless' | '3.5mm' | null;
   mic_type: 'dynamic' | 'condenser' | 'ribbon' | null;
-  mic_pattern: 'cardioid' | 'omnidirectional' | 'bidirectional' | 'supercardioid' | 'multipattern' | null;
+  mic_pattern: 'cardioid' | 'omnidirectional' | 'bidirectional' | 'supercardioid' | 'hypercardioid' | 'multipattern' | 'shotgun' | null;
   is_best_variant: boolean;
   created_at: string;
   updated_at: string;

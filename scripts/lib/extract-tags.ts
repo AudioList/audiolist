@@ -16,7 +16,23 @@ export interface ExtractedTags {
   iem_type?: 'tws' | 'active';
   mic_connection?: 'usb' | 'xlr' | 'usb_xlr' | 'wireless' | '3.5mm';
   mic_type?: 'dynamic' | 'condenser' | 'ribbon';
-  mic_pattern?: 'cardioid' | 'omnidirectional' | 'bidirectional' | 'supercardioid' | 'multipattern';
+  mic_pattern?: 'cardioid' | 'omnidirectional' | 'bidirectional' | 'supercardioid' | 'hypercardioid' | 'multipattern' | 'shotgun';
+}
+
+/**
+ * Extract a value from structured "prefix_Value" tags (e.g., "polar_pattern_Cardioid").
+ * Returns all matching values (some products have multiple patterns).
+ */
+function extractStructuredTagValues(tags: string[], prefix: string): string[] {
+  const prefixLower = prefix.toLowerCase() + '_';
+  const values: string[] = [];
+  for (const tag of tags) {
+    const lower = tag.toLowerCase().trim();
+    if (lower.startsWith(prefixLower)) {
+      values.push(tag.substring(prefix.length + 1).trim());
+    }
+  }
+  return values;
 }
 
 /**
@@ -82,17 +98,40 @@ export function extractTagAttributes(tags: string[]): ExtractedTags {
     result.mic_type = 'ribbon';
   }
 
-  // Microphone polar pattern
-  if (tagSet.has('multi-pattern') || tagSet.has('multipattern')) {
-    result.mic_pattern = 'multipattern';
-  } else if (tagSet.has('supercardioid')) {
-    result.mic_pattern = 'supercardioid';
-  } else if (tagSet.has('omnidirectional') || tagSet.has('omni')) {
-    result.mic_pattern = 'omnidirectional';
-  } else if (tagSet.has('bidirectional') || tagSet.has('figure-8') || tagSet.has('figure 8')) {
-    result.mic_pattern = 'bidirectional';
-  } else if (tagSet.has('cardioid')) {
-    result.mic_pattern = 'cardioid';
+  // Microphone polar pattern -- structured tags first (e.g. Performance Audio)
+  const polarValues = extractStructuredTagValues(tags, 'polar_pattern');
+  if (polarValues.length > 0) {
+    // Use first matching value for primary pattern; multi-pattern if 3+
+    if (polarValues.length >= 3) {
+      result.mic_pattern = 'multipattern';
+    } else {
+      const pv = polarValues[0].toLowerCase();
+      if (pv.includes('shotgun')) result.mic_pattern = 'shotgun';
+      else if (pv === 'hypercardioid') result.mic_pattern = 'hypercardioid';
+      else if (pv === 'supercardioid') result.mic_pattern = 'supercardioid';
+      else if (pv.includes('omni')) result.mic_pattern = 'omnidirectional';
+      else if (pv.includes('figure') || pv.includes('bidirectional')) result.mic_pattern = 'bidirectional';
+      else if (pv.includes('cardioid')) result.mic_pattern = 'cardioid';
+    }
+  }
+
+  // Fallback: bare keyword tags
+  if (!result.mic_pattern) {
+    if (tagSet.has('multi-pattern') || tagSet.has('multipattern')) {
+      result.mic_pattern = 'multipattern';
+    } else if (tagSet.has('shotgun')) {
+      result.mic_pattern = 'shotgun';
+    } else if (tagSet.has('hypercardioid')) {
+      result.mic_pattern = 'hypercardioid';
+    } else if (tagSet.has('supercardioid')) {
+      result.mic_pattern = 'supercardioid';
+    } else if (tagSet.has('omnidirectional') || tagSet.has('omni')) {
+      result.mic_pattern = 'omnidirectional';
+    } else if (tagSet.has('bidirectional') || tagSet.has('figure-8') || tagSet.has('figure 8')) {
+      result.mic_pattern = 'bidirectional';
+    } else if (tagSet.has('cardioid')) {
+      result.mic_pattern = 'cardioid';
+    }
   }
 
   return result;

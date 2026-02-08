@@ -528,6 +528,8 @@ const MIC_PATTERN_LABELS: Record<string, string> = {
   bidirectional: 'Bidirectional (Figure-8)',
   supercardioid: 'Supercardioid',
   multipattern: 'Multi-Pattern',
+    hypercardioid: 'Hypercardioid',
+    shotgun: 'Shotgun',
 };
 
 export function getMicPatternLabel(type: string): string {

@@ -7,7 +7,7 @@
 
 import { getSupabase, getRetailers, type Retailer } from '../config/retailers.ts';
 import { extractBrand } from '../brand-config.ts';
-import { normalizeName, buildCandidateIndex, findBestMatchIndexed, extractHeadphoneDesign, extractIemType, extractMicConnection, extractMicType, extractMicPattern, detectCorrectCategory, isJunkProduct, isMicrophoneJunk, type IndexedCandidate } from '../scrapers/matcher.ts';
+import { normalizeName, buildCandidateIndex, findBestMatchIndexed, extractHeadphoneDesign, extractIemType, extractMicConnection, extractMicType, extractMicPattern, extractMicConnectionFromProductType, detectCorrectCategory, isJunkProduct, isMicrophoneJunk, type IndexedCandidate } from '../scrapers/matcher.ts';
 import type { CategoryId } from '../config/store-collections.ts';
 import { log, logError } from './log.ts';
 import { extractTagAttributes } from './extract-tags.ts';
@@ -339,6 +339,7 @@ async function processStoreProducts(
         if (effectiveCategoryId === 'microphone') {
           micConnection = extractMicConnection(sp.title);
           if (!micConnection && tagAttrs?.mic_connection) micConnection = tagAttrs.mic_connection;
+          if (!micConnection) micConnection = extractMicConnectionFromProductType(sp.product_type);
 
           micType = extractMicType(sp.title);
           if (!micType && tagAttrs?.mic_type) micType = tagAttrs.mic_type;

@@ -186,13 +186,32 @@ export function extractMicType(name: string): 'dynamic' | 'condenser' | 'ribbon'
  */
 export function extractMicPattern(
   name: string
-): 'cardioid' | 'omnidirectional' | 'bidirectional' | 'supercardioid' | 'multipattern' | null {
+): 'cardioid' | 'omnidirectional' | 'bidirectional' | 'supercardioid' | 'hypercardioid' | 'multipattern' | 'shotgun' | null {
   const lower = name.toLowerCase();
   if (/\bmulti[\s-]?pattern\b/.test(lower)) return 'multipattern';
+  if (/\bshotgun\b/.test(lower)) return 'shotgun';
+  if (/\bhypercardioid\b/.test(lower)) return 'hypercardioid';
   if (/\bsupercardioid\b/.test(lower)) return 'supercardioid';
   if (/\bomnidirectional\b|\bomni\b/.test(lower)) return 'omnidirectional';
   if (/\bbidirectional\b|\bfigure[\s-]?8\b/.test(lower)) return 'bidirectional';
   if (/\bcardioid\b/.test(lower)) return 'cardioid';
+  return null;
+}
+
+/**
+ * Extract microphone connection type from the Shopify product_type field.
+ * Examples: "USB Microphone" -> 'usb', "XLR Microphone" -> 'xlr'
+ */
+export function extractMicConnectionFromProductType(
+  productType: string | null
+): 'usb' | 'xlr' | 'usb_xlr' | 'wireless' | '3.5mm' | null {
+  if (!productType) return null;
+  const lower = productType.toLowerCase();
+  if (/\busb\b.*\bxlr\b|\bxlr\b.*\busb\b|usb\/xlr/.test(lower)) return 'usb_xlr';
+  if (/\busb\b/.test(lower)) return 'usb';
+  if (/\bxlr\b/.test(lower)) return 'xlr';
+  if (/\bwireless\b|\bbluetooth\b|\blavalier\b/.test(lower)) return 'wireless';
+  if (/\b3\.5\s?mm\b/.test(lower)) return '3.5mm';
   return null;
 }
 
