@@ -464,6 +464,16 @@ export const MICROPHONE_JUNK_INDICATORS: RegExp[] = [
   // Speakers / monitors (not mics)
   /\bstudio\s+monitor\b/i,
   /\bspeaker\b/i,
+  // Gift cards, service fees, non-audio products
+  /\bgift\s+card\b/i,
+  /\bservice\s+fee/i,
+  /\btally\s+(light|indicator)\b/i,
+  /\bfield\s+monitor\b/i,
+  /\bintercom\b/i,
+  /\bvoice\s+amplifier\b/i,
+  /\bcharging\s+(case|dock)\b/i,
+  /\bcold\s+shoe\b/i,
+  /\bphone\s+monitor\b/i,
 ];
 
 /**

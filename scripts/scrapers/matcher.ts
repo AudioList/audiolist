@@ -465,11 +465,13 @@ export function isJunkProduct(name: string): boolean {
 export function isMicrophoneJunk(name: string): boolean {
   // Unconditional exclusions (override guards)
   if (/\bkaraoke\b/i.test(name)) return true;
+  if (/\bgift\s+card\b/i.test(name)) return true;
+  if (/\bservice\s+fee/i.test(name)) return true;
   // If a guard indicator matches, the product IS a real microphone
   if (MICROPHONE_GUARD_INDICATORS.some((rx) => rx.test(name))) return false;
   // Generic guard: if the name contains "Microphone" (but NOT "Microphone Boom/Handle/Arm/Stand/Cable"),
   // it's almost certainly a real microphone even if it mentions accessories
-  if (/\bmicrophone\b/i.test(name) && !/\bmicrophone\s+(boom|handle|arm|stand|cable|adapter)/i.test(name)) return false;
+  if (/\bmicrophone\b/i.test(name) && !/\bmicrophone\s+(boom|handle|arm|stand|cable|adapter|preamplifier|preamp)/i.test(name)) return false;
   // Otherwise check junk indicators
   return MICROPHONE_JUNK_INDICATORS.some((rx) => rx.test(name));
 }

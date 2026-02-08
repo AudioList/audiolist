@@ -15,6 +15,7 @@ const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'));
 const QuizPage = lazy(() => import('./pages/QuizPage'));
 const CommunityBuildsPage = lazy(() => import('./pages/CommunityBuildsPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
+const TriagePage = lazy(() => import('./pages/TriagePage'));
 
 function LoadingSpinner() {
   return (
@@ -40,6 +41,7 @@ export default function App() {
                 <Route path="/product/:id" element={<ProductDetailPage />} />
                 <Route path="/quiz" element={<QuizPage />} />
                 <Route path="/builds" element={<CommunityBuildsPage />} />
+                <Route path="/triage" element={<TriagePage />} />
                 <Route path="*" element={<NotFoundPage />} />
               </Route>
               {/* Glass theme routes -- same pages, different layout */}

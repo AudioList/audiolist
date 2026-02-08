@@ -1,6 +1,6 @@
 export type CategoryId =
   | 'iem' | 'headphone' | 'dac' | 'amp' | 'speaker' | 'cable' | 'dap' | 'microphone'
-  | 'iem_tips' | 'iem_cable' | 'iem_filter' | 'hp_pads' | 'hp_cable';
+  | 'iem_tips' | 'iem_cable' | 'iem_filter' | 'hp_pads' | 'hp_cable' | 'mic_accessory';
 
 export type TargetType = 'df' | 'harman';
 
