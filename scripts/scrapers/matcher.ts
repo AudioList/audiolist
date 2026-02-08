@@ -522,7 +522,17 @@ export function tokenDice(a: string, b: string): number {
 }
 
 // ---------------------------------------------------------------------------
-// Brand removal helper
+// Common audio-domain words (inflate bigram scores without model-level signal)
+// ---------------------------------------------------------------------------
+
+const COMMON_AUDIO_WORDS = new Set([
+  'audio', 'acoustics', 'acoustic', 'sound', 'sounds',
+  'electronics', 'technology', 'technologies',
+  'hifi', 'studio', 'pro', 'labs', 'music', 'digital',
+]);
+
+// ---------------------------------------------------------------------------
+// Brand removal helpers
 // ---------------------------------------------------------------------------
 
 export function removeBrand(normalized: string): string {
@@ -531,18 +541,76 @@ export function removeBrand(normalized: string): string {
   return normalized.substring(spaceIdx + 1).trim();
 }
 
+/**
+ * Smart brand removal: uses the known brand field to strip the correct prefix.
+ * Falls back to simple first-word removal when brand is unavailable.
+ */
+export function removeBrandSmart(normalized: string, brand?: string | null): string {
+  if (brand) {
+    const normalizedBrand = normalizeName(brand);
+    if (normalizedBrand && normalized.startsWith(normalizedBrand)) {
+      const rest = normalized.slice(normalizedBrand.length).trim();
+      if (rest.length > 0) return rest;
+    }
+    // Also try the raw lowercase brand (handles cases where normalizeName
+    // transforms the brand differently than expected)
+    const brandLower = brand.toLowerCase().trim();
+    if (brandLower && normalized.startsWith(brandLower)) {
+      const rest = normalized.slice(brandLower.length).trim();
+      if (rest.length > 0) return rest;
+    }
+  }
+  return removeBrand(normalized);
+}
+
+// ---------------------------------------------------------------------------
+// Hybrid scoring: penalize high bigram scores with weak model-token overlap
+// ---------------------------------------------------------------------------
+
+/**
+ * When bigram Dice is high but the only overlapping tokens are common
+ * audio-domain words (not model-specific), apply a penalty to prevent
+ * false matches like "7th Acoustics Asteria" ~ "Warwick Acoustics Aperio".
+ */
+function penalizeWeakModelOverlap(
+  bigramScore: number,
+  tokensA: Set<string>,
+  tokensB: Set<string>,
+): number {
+  if (bigramScore < 0.6) return bigramScore;
+
+  let modelOverlap = 0;
+  let commonOverlap = 0;
+  for (const t of tokensA) {
+    if (tokensB.has(t)) {
+      if (COMMON_AUDIO_WORDS.has(t)) commonOverlap++;
+      else modelOverlap++;
+    }
+  }
+
+  if (modelOverlap === 0 && commonOverlap > 0) {
+    return bigramScore * 0.5; // Only common words match -- heavy penalty
+  }
+  if (modelOverlap === 0 && commonOverlap === 0) {
+    return bigramScore * 0.6; // No tokens match at all -- moderate penalty
+  }
+  return bigramScore;
+}
+
 // ---------------------------------------------------------------------------
 // Find best match
 // ---------------------------------------------------------------------------
 
 export function findBestMatch(
   productName: string,
-  candidates: Array<{ name: string; id: string }>
+  candidates: Array<{ name: string; id: string }>,
+  options?: { productBrand?: string | null },
 ): { id: string; name: string; score: number } | null {
   if (candidates.length === 0) return null;
 
   const normalizedProduct = normalizeName(productName);
-  const productNoBrand = removeBrand(normalizedProduct);
+  const productNoBrand = removeBrandSmart(normalizedProduct, options?.productBrand);
+  const productNoBrandTokens = new Set(productNoBrand.split(/\s+/).filter((t) => t.length > 0));
 
   let bestScore = -1;
   let bestCandidate: { id: string; name: string } | null = null;
@@ -550,12 +618,18 @@ export function findBestMatch(
   for (const candidate of candidates) {
     const normalizedCandidate = normalizeName(candidate.name);
 
-    // 1) Full name character-bigram Dice
-    const fullScore = diceCoefficient(normalizedProduct, normalizedCandidate);
+    // 1) Full name character-bigram Dice (penalize if only common audio words overlap)
+    const rawFullScore = diceCoefficient(normalizedProduct, normalizedCandidate);
+    const productFullTokens = new Set(normalizedProduct.split(/\s+/).filter((t) => t.length > 0));
+    const candidateFullTokens = new Set(normalizedCandidate.split(/\s+/).filter((t) => t.length > 0));
+    const fullScore = penalizeWeakModelOverlap(rawFullScore, productFullTokens, candidateFullTokens);
 
     // 2) Brand-removed character-bigram Dice
     const candidateNoBrand = removeBrand(normalizedCandidate);
-    const noBrandScore = diceCoefficient(productNoBrand, candidateNoBrand);
+    const candidateNoBrandTokens = new Set(candidateNoBrand.split(/\s+/).filter((t) => t.length > 0));
+    const rawNoBrandScore = diceCoefficient(productNoBrand, candidateNoBrand);
+    // Penalize if high bigram score is driven by common words, not model names
+    const noBrandScore = penalizeWeakModelOverlap(rawNoBrandScore, productNoBrandTokens, candidateNoBrandTokens);
 
     // 3) Token-level Dice (word overlap)
     const tokenFullScore = tokenDice(normalizedProduct, normalizedCandidate);
@@ -586,6 +660,7 @@ export function findBestMatch(
 export interface IndexedCandidate {
   id: string;
   name: string;
+  brand?: string | null;
   normalized: string;
   noBrand: string;
   bigrams: Set<string>;
@@ -599,14 +674,15 @@ export interface IndexedCandidate {
  * then reuse for all queries against that category.
  */
 export function buildCandidateIndex(
-  candidates: Array<{ name: string; id: string }>
+  candidates: Array<{ name: string; id: string; brand?: string | null }>
 ): IndexedCandidate[] {
   return candidates.map((c) => {
     const normalized = normalizeName(c.name);
-    const noBrand = removeBrand(normalized);
+    const noBrand = removeBrandSmart(normalized, c.brand);
     return {
       id: c.id,
       name: c.name,
+      brand: c.brand,
       normalized,
       noBrand,
       bigrams: getBigrams(normalized),
@@ -622,12 +698,13 @@ export function buildCandidateIndex(
  */
 export function findBestMatchIndexed(
   productName: string,
-  index: IndexedCandidate[]
+  index: IndexedCandidate[],
+  options?: { productBrand?: string | null },
 ): { id: string; name: string; score: number } | null {
   if (index.length === 0) return null;
 
   const normalizedProduct = normalizeName(productName);
-  const productNoBrand = removeBrand(normalizedProduct);
+  const productNoBrand = removeBrandSmart(normalizedProduct, options?.productBrand);
   const productBigrams = getBigrams(normalizedProduct);
   const productNoBrandBigrams = getBigrams(productNoBrand);
   const productTokens = new Set(normalizedProduct.split(/\s+/).filter((t) => t.length > 0));
@@ -637,25 +714,27 @@ export function findBestMatchIndexed(
   let bestCandidate: IndexedCandidate | null = null;
 
   for (const candidate of index) {
-    // 1) Full name character-bigram Dice (inline for speed)
+    // 1) Full name character-bigram Dice (with common-word penalty)
     let intersectionCount = 0;
     for (const bigram of productBigrams) {
       if (candidate.bigrams.has(bigram)) intersectionCount++;
     }
-    const fullScore =
+    const rawFullScore =
       productBigrams.size + candidate.bigrams.size > 0
         ? (2 * intersectionCount) / (productBigrams.size + candidate.bigrams.size)
         : normalizedProduct === candidate.normalized ? 1 : 0;
+    const fullScore = penalizeWeakModelOverlap(rawFullScore, productTokens, candidate.tokens);
 
-    // 2) Brand-removed character-bigram Dice
+    // 2) Brand-removed character-bigram Dice (with common-word penalty)
     let noBrandIntersection = 0;
     for (const bigram of productNoBrandBigrams) {
       if (candidate.noBrandBigrams.has(bigram)) noBrandIntersection++;
     }
-    const noBrandScore =
+    const rawNoBrandScore =
       productNoBrandBigrams.size + candidate.noBrandBigrams.size > 0
         ? (2 * noBrandIntersection) / (productNoBrandBigrams.size + candidate.noBrandBigrams.size)
         : productNoBrand === candidate.noBrand ? 1 : 0;
+    const noBrandScore = penalizeWeakModelOverlap(rawNoBrandScore, productNoBrandTokens, candidate.noBrandTokens);
 
     // 3) Token-level Dice
     let tokenIntersection = 0;
@@ -699,7 +778,7 @@ export function findBestMatchIndexed(
 // ---------------------------------------------------------------------------
 
 export const MATCH_THRESHOLDS = {
-  AUTO_APPROVE: 0.75,
+  AUTO_APPROVE: 0.80,
   PENDING_REVIEW: 0.55,
   REJECT: 0.55,
 } as const;

@@ -207,16 +207,16 @@ async function processStoreProducts(
   const brandIndices = new Map<string, Map<string, IndexedCandidate[]>>();
 
   for (const [catId, products] of existingByCategory) {
-    const candidates = products.map((c) => ({ name: c.name, id: c.id }));
+    const candidates = products.map((c) => ({ name: c.name, id: c.id, brand: c.brand }));
     categoryIndices.set(catId, buildCandidateIndex(candidates));
 
-    const byBrand = new Map<string, { name: string; id: string }[]>();
+    const byBrand = new Map<string, { name: string; id: string; brand: string }[]>();
     for (const p of products) {
       if (p.brand) {
         const brandKey = p.brand.toLowerCase();
         const list = byBrand.get(brandKey);
-        if (list) list.push({ name: p.name, id: p.id });
-        else byBrand.set(brandKey, [{ name: p.name, id: p.id }]);
+        if (list) list.push({ name: p.name, id: p.id, brand: p.brand });
+        else byBrand.set(brandKey, [{ name: p.name, id: p.id, brand: p.brand }]);
       }
     }
     const brandIndexMap = new Map<string, IndexedCandidate[]>();
@@ -262,7 +262,7 @@ async function processStoreProducts(
       const candidateIndex = (brandIndex && brandIndex.length > 0) ? brandIndex : categoryIndex;
 
       const match = (candidateIndex && candidateIndex.length > 0)
-        ? findBestMatchIndexed(sp.title, candidateIndex)
+        ? findBestMatchIndexed(sp.title, candidateIndex, { productBrand: brand })
         : null;
 
       let canonicalProductId: string | null = null;
@@ -370,7 +370,7 @@ async function processStoreProducts(
 
           const idx = categoryIndices.get(categoryId);
           if (idx) {
-            const [newIndexed] = buildCandidateIndex([{ name: sp.title, id: newProduct.id }]);
+            const [newIndexed] = buildCandidateIndex([{ name: sp.title, id: newProduct.id, brand }]);
             idx.push(newIndexed);
           }
           if (brandKey) {
@@ -380,7 +380,7 @@ async function processStoreProducts(
               brandIndices.set(categoryId, brandMap);
             }
             const bIdx = brandMap.get(brandKey);
-            const [newIndexed] = buildCandidateIndex([{ name: sp.title, id: newProduct.id }]);
+            const [newIndexed] = buildCandidateIndex([{ name: sp.title, id: newProduct.id, brand }]);
             if (bIdx) bIdx.push(newIndexed);
             else brandMap.set(brandKey, [newIndexed]);
           }

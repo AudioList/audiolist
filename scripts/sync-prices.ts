@@ -410,7 +410,8 @@ async function matchProducts(
 
         const match = findBestMatch(
           matchName,
-          candidates
+          candidates,
+          { productBrand: product.brand },
         ) as MatchResult | null;
 
         if (!match || match.score < MATCH_THRESHOLDS.PENDING_REVIEW) {
@@ -503,7 +504,8 @@ async function matchProducts(
 
           const match = findBestMatch(
             product.name,
-            bbCandidates
+            bbCandidates,
+            { productBrand: product.brand },
           ) as MatchResult | null;
 
           if (match && match.score >= MATCH_THRESHOLDS.PENDING_REVIEW) {
@@ -602,7 +604,8 @@ async function matchProducts(
           if (azCandidates.length > 0) {
             const match = findBestMatch(
               product.name,
-              azCandidates
+              azCandidates,
+              { productBrand: product.brand },
             ) as MatchResult | null;
 
             if (match && match.score >= MATCH_THRESHOLDS.PENDING_REVIEW) {

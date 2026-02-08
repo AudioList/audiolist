@@ -723,7 +723,7 @@ class WorkerPool {
       return { productId: product.id, matchRow: null, listingRow: null, captcha: false, error: false };
     }
 
-    const match = findBestMatch(product.name, candidates);
+    const match = findBestMatch(product.name, candidates, { productBrand: product.brand });
 
     if (!match || match.score < MATCH_THRESHOLDS.PENDING_REVIEW) {
       return { productId: product.id, matchRow: null, listingRow: null, captcha: false, error: false };
