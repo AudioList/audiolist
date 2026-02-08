@@ -251,4 +251,35 @@ export const STORE_COLLECTIONS: Record<string, StoreConfig> = {
       { handle: 'caisson-de-grave', categoryId: 'speaker' },
     ],
   },
+  'www.64audio.com': {
+    retailerId: '64audio',
+    collections: [
+      { handle: 'all-iems', categoryId: 'iem' },
+      { handle: 'cables-and-adaptors', categoryId: 'iem_cable' },
+    ],
+  },
+  'www.campfireaudio.com': {
+    retailerId: 'campfireaudio',
+    collections: [
+      { handle: 'earphones-2', categoryId: 'iem' },
+      { handle: 'cables', categoryId: 'iem_cable' },
+      { handle: 'dac', categoryId: 'dac' },
+    ],
+  },
+  'www.audeze.com': {
+    retailerId: 'audeze',
+    collections: [
+      { handle: 'all-headphone-skus', categoryId: 'headphone' },
+      { handle: 'in-ear', categoryId: 'iem' },
+    ],
+  },
+  'dekoniaudio.com': {
+    retailerId: 'dekoniaudio',
+    collections: [
+      { handle: 'earpads', categoryId: 'hp_pads' },
+      { handle: 'bulletz-in-ear-headphone-tips', categoryId: 'iem_tips' },
+      { handle: 'complete-cable', categoryId: 'hp_cable' },
+      { handle: 'headphones', categoryId: 'headphone' },
+    ],
+  },
 };

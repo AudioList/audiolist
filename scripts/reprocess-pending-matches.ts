@@ -14,15 +14,16 @@ import {
   buildCandidateIndex,
   findBestMatchIndexed,
   extractHeadphoneDesign,
+  brandsSimilar,
 } from './scrapers/matcher.ts';
+import { extractBrand } from './brand-config.ts';
 
 const BATCH = 1000;
 const UPSERT_BATCH = 100;
 
-// Default threshold: lower than the original MERGE_THRESHOLD (0.85)
-// since we now strip pipes, previously blocked matches should score higher.
-// We use 0.78 as a safe auto-approve for reprocessed matches.
-const DEFAULT_THRESHOLD = 0.78;
+// Auto-approve threshold for reprocessed matches.
+// Aligned with the new MATCH_THRESHOLDS.AUTO_APPROVE (0.85).
+const DEFAULT_THRESHOLD = 0.85;
 
 interface PendingMatch {
   id: string;
@@ -72,14 +73,14 @@ async function main() {
   console.log(`Loaded ${pending.length} pending matches`);
   if (pending.length === 0) return;
 
-  // Step 2: Load existing products for re-matching
-  const productsByCategory = new Map<string, { id: string; name: string; category_id: string }[]>();
+  // Step 2: Load existing products for re-matching (include brand for brand-aware scoring)
+  const productsByCategory = new Map<string, { id: string; name: string; category_id: string; brand: string | null }[]>();
   let pOffset = 0;
 
   while (true) {
     const { data, error } = await supabase
       .from('products')
-      .select('id, name, category_id')
+      .select('id, name, category_id, brand')
       .range(pOffset, pOffset + BATCH - 1);
 
     if (error) {
@@ -101,10 +102,10 @@ async function main() {
 
   console.log(`Loaded products across ${productsByCategory.size} categories`);
 
-  // Build candidate indices
+  // Build candidate indices (include brand for brand-aware matching)
   const indices = new Map<string, ReturnType<typeof buildCandidateIndex>>();
   for (const [cat, prods] of productsByCategory) {
-    indices.set(cat, buildCandidateIndex(prods.map((p) => ({ name: p.name, id: p.id }))));
+    indices.set(cat, buildCandidateIndex(prods.map((p) => ({ name: p.name, id: p.id, brand: p.brand }))));
   }
 
   // Step 3: Re-score pending matches with the improved normalization
@@ -139,10 +140,21 @@ async function main() {
       continue;
     }
 
-    // Re-score with improved normalization (pipe stripping)
-    const match = findBestMatchIndexed(pm.external_name, index);
+    // Re-score with brand-aware matching
+    const externalBrand = extractBrand(pm.external_name);
+    const match = findBestMatchIndexed(pm.external_name, index, { productBrand: externalBrand });
 
     if (match && match.id === pm.product_id && match.score >= threshold) {
+      // Brand compatibility check: reject if brands are completely different
+      const matchedProduct = productsByCategory.get(category)?.find(p => p.id === match.id);
+      if (matchedProduct?.brand && externalBrand) {
+        const brandRel = brandsSimilar(matchedProduct.brand, externalBrand);
+        if (brandRel === 'different') {
+          unchanged++;
+          continue;
+        }
+      }
+
       // Same product matched with improved score -- auto-approve
       autoApproved++;
       approvedIds.push(pm.id);

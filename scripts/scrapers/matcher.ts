@@ -160,6 +160,7 @@ export function extractIemType(name: string): 'tws' | 'active' | null {
 // ---------------------------------------------------------------------------
 
 import type { CategoryId } from '../config/store-collections.ts';
+import { BRAND_ALIASES } from '../brand-config.ts';
 import {
   HEADPHONE_ONLY_BRANDS,
   HEADPHONE_BRAND_IEM_EXCEPTIONS,
@@ -564,6 +565,71 @@ export function removeBrandSmart(normalized: string, brand?: string | null): str
 }
 
 // ---------------------------------------------------------------------------
+// Brand similarity comparison
+// ---------------------------------------------------------------------------
+
+/**
+ * Known sub-brand relationships: child brand -> parent brand (lowercase).
+ * If both brands resolve to the same parent, they are 'related'.
+ */
+const SUB_BRAND_MAP: Record<string, string> = {
+  'jadeaudio': 'fiio',
+  'salnotes': '7hz',
+  '7hz-salnotes': '7hz',
+  'mrspeakers': 'dan clark audio',
+  'mr speakers': 'dan clark audio',
+  'celest': 'kinera',
+  'mangird': 'xenns',
+  'massdrop': 'drop',
+};
+
+// Build alias lookup from BRAND_ALIASES (lowercase key -> canonical lowercase)
+const BRAND_ALIAS_LOOKUP = new Map<string, string>();
+for (const [alias, canonical] of Object.entries(BRAND_ALIASES)) {
+  BRAND_ALIAS_LOOKUP.set(alias.toLowerCase(), canonical.toLowerCase());
+}
+
+/**
+ * Resolve a brand name to its canonical form via aliases.
+ */
+function resolveCanonicalBrand(brand: string): string {
+  const lower = brand.toLowerCase().trim();
+  return BRAND_ALIAS_LOOKUP.get(lower) ?? lower;
+}
+
+/**
+ * Compare two brand names and determine their relationship.
+ *
+ * Returns:
+ * - 'same'      — brands are identical or aliases of each other
+ * - 'related'   — brands are sub-brands of the same parent (e.g. JadeAudio / FiiO)
+ * - 'unknown'   — one or both brands are null (cannot determine)
+ * - 'different'  — brands are completely unrelated
+ */
+export function brandsSimilar(
+  brandA: string | null | undefined,
+  brandB: string | null | undefined
+): 'same' | 'related' | 'unknown' | 'different' {
+  if (!brandA || !brandB) return 'unknown';
+
+  const a = resolveCanonicalBrand(brandA);
+  const b = resolveCanonicalBrand(brandB);
+
+  // Exact match after alias resolution
+  if (a === b) return 'same';
+
+  // Prefix check: handles "moondrop" vs "moondrop audio" or casing differences
+  if (a.startsWith(b) || b.startsWith(a)) return 'same';
+
+  // Sub-brand relationship check
+  const parentA = SUB_BRAND_MAP[a] ?? a;
+  const parentB = SUB_BRAND_MAP[b] ?? b;
+  if (parentA === parentB) return 'related';
+
+  return 'different';
+}
+
+// ---------------------------------------------------------------------------
 // Hybrid scoring: penalize high bigram scores with weak model-token overlap
 // ---------------------------------------------------------------------------
 
@@ -581,10 +647,14 @@ function penalizeWeakModelOverlap(
 
   let modelOverlap = 0;
   let commonOverlap = 0;
+  let shortTokenOverlap = 0; // tokens with length <= 2 (e.g., "sm", "1")
   for (const t of tokensA) {
     if (tokensB.has(t)) {
       if (COMMON_AUDIO_WORDS.has(t)) commonOverlap++;
-      else modelOverlap++;
+      else {
+        modelOverlap++;
+        if (t.length <= 2) shortTokenOverlap++;
+      }
     }
   }
 
@@ -593,6 +663,10 @@ function penalizeWeakModelOverlap(
   }
   if (modelOverlap === 0 && commonOverlap === 0) {
     return bigramScore * 0.6; // No tokens match at all -- moderate penalty
+  }
+  // All model overlap is from short tokens only (e.g., "sm" + "1") -- penalize
+  if (modelOverlap > 0 && modelOverlap === shortTokenOverlap) {
+    return bigramScore * 0.65;
   }
   return bigramScore;
 }
@@ -603,7 +677,7 @@ function penalizeWeakModelOverlap(
 
 export function findBestMatch(
   productName: string,
-  candidates: Array<{ name: string; id: string }>,
+  candidates: Array<{ name: string; id: string; brand?: string | null }>,
   options?: { productBrand?: string | null },
 ): { id: string; name: string; score: number } | null {
   if (candidates.length === 0) return null;
@@ -638,8 +712,17 @@ export function findBestMatch(
     // Take the best of all approaches
     const score = Math.max(fullScore, noBrandScore, tokenFullScore, tokenNoBrandScore);
 
-    if (score > bestScore) {
-      bestScore = score;
+    // Brand mismatch penalty: heavily penalize when brands are completely different
+    let finalScore = score;
+    if (options?.productBrand && candidate.brand) {
+      const brandRelation = brandsSimilar(options.productBrand, candidate.brand);
+      if (brandRelation === 'different') {
+        finalScore *= 0.35;
+      }
+    }
+
+    if (finalScore > bestScore) {
+      bestScore = finalScore;
       bestCandidate = candidate;
     }
   }
@@ -758,8 +841,17 @@ export function findBestMatchIndexed(
 
     const score = Math.max(fullScore, noBrandScore, tokenFullScore, tokenNoBrandScore);
 
-    if (score > bestScore) {
-      bestScore = score;
+    // Brand mismatch penalty: heavily penalize when brands are completely different
+    let finalScore = score;
+    if (options?.productBrand && candidate.brand) {
+      const brandRelation = brandsSimilar(options.productBrand, candidate.brand);
+      if (brandRelation === 'different') {
+        finalScore *= 0.35;
+      }
+    }
+
+    if (finalScore > bestScore) {
+      bestScore = finalScore;
       bestCandidate = candidate;
     }
   }
@@ -778,7 +870,7 @@ export function findBestMatchIndexed(
 // ---------------------------------------------------------------------------
 
 export const MATCH_THRESHOLDS = {
-  AUTO_APPROVE: 0.80,
-  PENDING_REVIEW: 0.55,
-  REJECT: 0.55,
+  AUTO_APPROVE: 0.85,
+  PENDING_REVIEW: 0.65,
+  REJECT: 0.65,
 } as const;

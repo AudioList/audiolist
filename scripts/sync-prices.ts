@@ -26,12 +26,13 @@ import {
 } from "./config/retailers.ts";
 import {
   fetchShopifyCatalog,
+  fetchShopifyCollection,
   type ShopifyProduct,
 } from "./scrapers/shopify.ts";
 import { searchBestBuy } from "./scrapers/bestbuy.ts";
 import { searchAmazon, closeBrowser as closeAmazonBrowser } from "./scrapers/amazon.ts";
 import { findBestMatch, MATCH_THRESHOLDS } from "./scrapers/matcher.ts";
-import { STORE_COLLECTIONS } from "./config/store-collections.ts";
+import { STORE_COLLECTIONS, type CategoryId } from "./config/store-collections.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -50,6 +51,7 @@ type Product = {
 type MatchCandidate = {
   name: string;
   id: string;
+  brand?: string | null;
 };
 
 type MatchResult = {
@@ -196,9 +198,13 @@ async function upsertBatch(
 
 async function fetchShopifyCatalogs(
   retailers: Retailer[]
-): Promise<Map<string, ShopifyProduct[]>> {
+): Promise<{
+  catalogs: Map<string, ShopifyProduct[]>;
+  collectionCategories: Map<string, Map<string, CategoryId>>;
+}> {
   const shopifyRetailers = retailers.filter((r) => r.api_type === "shopify");
   const catalogs = new Map<string, ShopifyProduct[]>();
+  const collectionCategories = new Map<string, Map<string, CategoryId>>();
   const CONCURRENCY = 4; // Fetch up to 4 stores in parallel
 
   log("PHASE-A", `Fetching catalogs for ${shopifyRetailers.length} Shopify retailer(s) (concurrency: ${CONCURRENCY})...`);
@@ -208,16 +214,59 @@ async function fetchShopifyCatalogs(
 
     const results = await Promise.allSettled(
       batch.map(async (retailer) => {
-        log("PHASE-A", `Fetching catalog for "${retailer.name}" (${retailer.shop_domain})...`);
-        const catalog = await fetchShopifyCatalog(retailer.shop_domain);
-        return { retailerId: retailer.id, name: retailer.name, catalog };
+        // Check if this retailer has collection mappings in STORE_COLLECTIONS
+        const storeEntry = Object.entries(STORE_COLLECTIONS)
+          .find(([_domain, config]) => config.retailerId === retailer.id);
+
+        if (storeEntry) {
+          // Per-collection fetch: use collection URLs as category gates
+          const [domain, config] = storeEntry;
+          log("PHASE-A", `Fetching ${config.collections.length} collections for "${retailer.name}" (${domain})...`);
+
+          const allProducts: ShopifyProduct[] = [];
+          const handleCategoryMap = new Map<string, CategoryId>();
+
+          for (const mapping of config.collections) {
+            try {
+              const products = await fetchShopifyCollection(domain, mapping.handle);
+              for (const p of products) {
+                allProducts.push(p);
+                // First collection wins (a product may appear in multiple collections)
+                if (!handleCategoryMap.has(p.handle)) {
+                  handleCategoryMap.set(p.handle, mapping.categoryId);
+                }
+              }
+              log("PHASE-A", `  ${retailer.name}/${mapping.handle}: ${products.length} products (-> ${mapping.categoryId})`);
+            } catch (err) {
+              logError("PHASE-A", `Collection fetch failed: ${retailer.name}/${mapping.handle}`, err);
+            }
+          }
+
+          // Deduplicate by handle
+          const seen = new Set<string>();
+          const deduped = allProducts.filter(p => {
+            if (seen.has(p.handle)) return false;
+            seen.add(p.handle);
+            return true;
+          });
+
+          return { retailerId: retailer.id, name: retailer.name, catalog: deduped, handleCategories: handleCategoryMap };
+        } else {
+          // Fallback: full catalog fetch for retailers not in STORE_COLLECTIONS
+          log("PHASE-A", `Fetching full catalog for "${retailer.name}" (${retailer.shop_domain})...`);
+          const catalog = await fetchShopifyCatalog(retailer.shop_domain);
+          return { retailerId: retailer.id, name: retailer.name, catalog, handleCategories: null };
+        }
       })
     );
 
     for (const result of results) {
       if (result.status === "fulfilled") {
         catalogs.set(result.value.retailerId, result.value.catalog);
-        log("PHASE-A", `"${result.value.name}": ${result.value.catalog.length} products fetched`);
+        if (result.value.handleCategories) {
+          collectionCategories.set(result.value.retailerId, result.value.handleCategories);
+        }
+        log("PHASE-A", `"${result.value.name}": ${result.value.catalog.length} products fetched${result.value.handleCategories ? ` (${result.value.handleCategories.size} handle->category mappings)` : ''}`);
       } else {
         logError("PHASE-A", "Catalog fetch failed", result.reason);
       }
@@ -225,7 +274,7 @@ async function fetchShopifyCatalogs(
   }
 
   log("PHASE-A", `Catalogs fetched: ${catalogs.size}/${shopifyRetailers.length} retailers`);
-  return catalogs;
+  return { catalogs, collectionCategories };
 }
 
 // ---------------------------------------------------------------------------
@@ -293,7 +342,7 @@ function buildShopifyCandidates(catalog: ShopifyProduct[], retailerId?: string):
     // For first-party stores, skip vendor prepending — the vendor IS the store brand
     // and prepending it creates noise that hurts match accuracy.
     if (isFirstParty) {
-      return { name: p.title, id: p.handle };
+      return { name: p.title, id: p.handle, brand: p.vendor || null };
     }
 
     // For third-party retailers, include vendor in the name for better matching
@@ -301,7 +350,7 @@ function buildShopifyCandidates(catalog: ShopifyProduct[], retailerId?: string):
       p.vendor && !p.title.toLowerCase().includes(p.vendor.toLowerCase())
         ? `${p.vendor} ${p.title}`
         : p.title;
-    return { name: nameWithVendor, id: p.handle };
+    return { name: nameWithVendor, id: p.handle, brand: p.vendor || null };
   });
 }
 
@@ -329,7 +378,8 @@ async function matchProducts(
   retailers: Retailer[],
   shopifyCatalogs: Map<string, ShopifyProduct[]>,
   bestBuyApiKey: string | undefined,
-  storeProductCategories: Map<string, Map<string, string>>
+  storeProductCategories: Map<string, Map<string, string>>,
+  collectionCategories: Map<string, Map<string, CategoryId>>
 ): Promise<{
   matchRows: Record<string, unknown>[];
   listingRows: Record<string, unknown>[];
@@ -408,10 +458,14 @@ async function matchProducts(
         // to improve match accuracy (e.g., "64 Audio U12t" → "U12t" on 64audio.com)
         const matchName = stripFirstPartyBrand(product.name, retailer.id);
 
+        // Skip brand penalty for first-party stores (the store IS the brand)
+        const isFirstParty = retailer.id in FIRST_PARTY_BRAND_STRIP;
+        const matchBrand = isFirstParty ? null : product.brand;
+
         const match = findBestMatch(
           matchName,
           candidates,
-          { productBrand: product.brand },
+          { productBrand: matchBrand },
         ) as MatchResult | null;
 
         if (!match || match.score < MATCH_THRESHOLDS.PENDING_REVIEW) {
@@ -419,13 +473,15 @@ async function matchProducts(
           continue;
         }
 
-        // Cross-category guard: verify the matched Shopify product's category
-        // matches the canonical product's category before creating any match/listing.
+        // Double-layer cross-category guard:
+        // 1. Check store_products table (from previous sync-stores runs)
+        // 2. Check collection-based category mappings (from per-collection fetch)
         if (product.category_id) {
-          const handleCategoryMap = storeProductCategories.get(retailer.id);
-          const matchedCategory = handleCategoryMap?.get(match.id);
-          if (matchedCategory && matchedCategory !== product.category_id) {
-            log('GUARD', `Cross-category match skipped: "${product.name}" (${product.category_id}) -> "${match.name}" (${matchedCategory}) @ ${retailer.name} (score=${match.score.toFixed(3)})`);
+          const storeCategory = storeProductCategories.get(retailer.id)?.get(match.id);
+          const collectionCategory = collectionCategories.get(retailer.id)?.get(match.id);
+          const guardedCategory = storeCategory || collectionCategory;
+          if (guardedCategory && guardedCategory !== product.category_id) {
+            log('GUARD', `Cross-category match skipped: "${product.name}" (${product.category_id}) -> "${match.name}" (${guardedCategory}) @ ${retailer.name} (score=${match.score.toFixed(3)})`);
             rStats.skipped++;
             continue;
           }
@@ -882,11 +938,15 @@ async function main(): Promise<void> {
   // Phase A: Fetch Shopify catalogs
   console.log("\n--- Phase A: Fetch Shopify Catalogs ---\n");
   let shopifyCatalogs: Map<string, ShopifyProduct[]>;
+  let collectionCategories: Map<string, Map<string, CategoryId>>;
   if (AMAZON_ONLY || SKIP_SHOPIFY) {
     shopifyCatalogs = new Map();
+    collectionCategories = new Map();
     log("PHASE-A", "Skipped (Amazon-only or --skip-shopify mode).");
   } else {
-    shopifyCatalogs = await fetchShopifyCatalogs(retailers);
+    const result = await fetchShopifyCatalogs(retailers);
+    shopifyCatalogs = result.catalogs;
+    collectionCategories = result.collectionCategories;
   }
 
   // Load store_product category mappings for cross-category guard
@@ -904,7 +964,8 @@ async function main(): Promise<void> {
     retailers,
     shopifyCatalogs,
     bestBuyApiKey,
-    storeProductCategories
+    storeProductCategories,
+    collectionCategories
   );
 
   // Phase C: Upsert matches and price_listings

@@ -259,7 +259,8 @@ async function processStoreProducts(
       const brandKey = brand?.toLowerCase();
       const brandIndex = brandKey ? brandIndices.get(effectiveCategoryId)?.get(brandKey) : undefined;
       const categoryIndex = categoryIndices.get(effectiveCategoryId);
-      const candidateIndex = (brandIndex && brandIndex.length > 0) ? brandIndex : categoryIndex;
+      const usingBrandIndex = brandIndex && brandIndex.length > 0;
+      const candidateIndex = usingBrandIndex ? brandIndex : categoryIndex;
 
       const match = (candidateIndex && candidateIndex.length > 0)
         ? findBestMatchIndexed(sp.title, candidateIndex, { productBrand: brand })
@@ -274,10 +275,14 @@ async function processStoreProducts(
         log('GUARD', `Cross-category match skipped: "${sp.title}" (${effectiveCategoryId}) -> matched product in ${matchedCategory} (score=${match!.score.toFixed(3)})`);
       }
 
-      if (match && match.score >= MERGE_THRESHOLD && !crossCategory) {
+      // Stricter thresholds when falling back from brand-specific to full-category index
+      const effectiveMergeThreshold = usingBrandIndex ? MERGE_THRESHOLD : 0.92;
+      const effectiveReviewThreshold = usingBrandIndex ? REVIEW_THRESHOLD : 0.75;
+
+      if (match && match.score >= effectiveMergeThreshold && !crossCategory) {
         canonicalProductId = match.id;
         stats.merged++;
-      } else if (match && match.score >= REVIEW_THRESHOLD && !crossCategory) {
+      } else if (match && match.score >= effectiveReviewThreshold && !crossCategory) {
         matchRows.push({
           product_id: match.id,
           retailer_id: sp.retailer_id,

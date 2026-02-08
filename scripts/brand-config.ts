@@ -1068,6 +1068,9 @@ export const BRAND_ALIASES: Record<string, string> = {
   'havit(海威特)': 'HAVIT',
   // Bang&Olufsen
   'bang&olufsen': 'B&O',
+  // ZiiGaat / Ziigat / ZigAat consolidation
+  'ziigat': 'ZiiGaat',
+  'zigaat': 'ZiiGaat',
 };
 
 // Build alias lookup (lowercase key → canonical)
