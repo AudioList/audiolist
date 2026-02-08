@@ -168,7 +168,7 @@ export default function ProductListPage() {
   return (
     <div className="space-y-6">
       {/* Category tabs */}
-      <nav className="flex gap-2 overflow-x-auto pb-1 scrollbar-none" role="tablist" aria-label="Product categories">
+      <nav className="flex flex-wrap gap-2" role="tablist" aria-label="Product categories">
         {CATEGORIES.map((cat) => (
           <button
             key={cat.id}
@@ -177,7 +177,7 @@ export default function ProductListPage() {
             aria-selected={cat.id === categoryId}
             onClick={() => handleCategoryChange(cat.id)}
             title={cat.description}
-            className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+            className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
               cat.id === categoryId
                 ? (isGlass ? 'bg-primary-500/90 shadow-lg shadow-primary-500/25 backdrop-blur-sm text-white' : 'bg-primary-600 text-white shadow-md ring-2 ring-primary-400/30')
                 : (isGlass ? 'bg-white/50 hover:bg-white/70 text-surface-700 dark:bg-white/[0.05] dark:text-surface-200 dark:hover:bg-white/[0.1]' : 'bg-surface-100 text-surface-700 hover:bg-surface-200 dark:bg-surface-800 dark:text-surface-200 dark:hover:bg-surface-700')
