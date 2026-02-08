@@ -105,7 +105,7 @@ export default function ProductDetailModal({
       onClick={handleBackdropClick}
       className={`fixed inset-0 z-[60] flex items-center justify-center p-4 transition-all duration-150 ${
         entered
-          ? isGlass ? 'bg-black/40 backdrop-blur-md' : 'bg-black/60 backdrop-blur-sm'
+          ? isGlass ? 'bg-black/40 backdrop-blur-xl' : 'bg-black/60 backdrop-blur-sm'
           : 'bg-black/0'
       }`}
     >
@@ -115,7 +115,7 @@ export default function ProductDetailModal({
         aria-labelledby="product-detail-title"
         className={`relative w-full max-w-2xl shadow-2xl transition-all duration-150 ease-out ${
           isGlass
-            ? 'rounded-2xl border border-white/[0.10] bg-surface-900/90 backdrop-blur-2xl'
+            ? 'glass-2 rounded-2xl'
             : 'rounded-xl border border-surface-700 bg-surface-900'
         } ${entered ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
       >
@@ -218,7 +218,7 @@ export default function ProductDetailModal({
 
           {/* PPI breakdown table */}
           {mode !== 'beginner' && categoryHasPpi && product.ppi_score !== null && (
-            <div className={isGlass ? "rounded-xl border border-white/[0.08] bg-white/[0.04]" : "rounded-lg border border-surface-700 bg-surface-800"}>
+            <div className={isGlass ? "glass-1 rounded-xl" : "rounded-lg border border-surface-700 bg-surface-800"}>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-surface-700 text-left text-surface-400">

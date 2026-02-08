@@ -167,7 +167,7 @@ export default function ProductDetailPage() {
 
       <div className="flex flex-col gap-8 lg:flex-row">
         {/* Left: Image / placeholder */}
-        <div className={isGlass ? 'flex h-64 w-full shrink-0 items-center justify-center glass-1 rounded-2xl lg:h-80 lg:w-80' : 'flex h-64 w-full shrink-0 items-center justify-center rounded-xl border border-surface-200 bg-surface-100 dark:border-surface-700 dark:bg-surface-800 lg:h-80 lg:w-80'}>
+        <div className={isGlass ? 'flex h-64 w-full shrink-0 items-center justify-center glass-1 glass-inner-glow rounded-2xl lg:h-80 lg:w-80' : 'flex h-64 w-full shrink-0 items-center justify-center rounded-xl border border-surface-200 bg-surface-100 dark:border-surface-700 dark:bg-surface-800 lg:h-80 lg:w-80'}>
           {product.image_url ? (
             <img
               src={product.image_url}

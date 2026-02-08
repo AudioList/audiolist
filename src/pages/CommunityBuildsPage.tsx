@@ -184,7 +184,7 @@ export default function CommunityBuildsPage() {
           return (
             <div
               key={build.id}
-              className={isGlass ? 'flex flex-col glass-1 rounded-2xl p-5 transition-shadow hover:shadow-md' : 'flex flex-col rounded-xl border border-surface-200 bg-white p-5 transition-shadow hover:shadow-md dark:border-surface-700 dark:bg-surface-900'}
+              className={isGlass ? 'flex flex-col glass-1 glass-inner-glow glass-hover-lift rounded-2xl p-5 transition-shadow' : 'flex flex-col rounded-xl border border-surface-200 bg-white p-5 transition-shadow hover:shadow-md dark:border-surface-700 dark:bg-surface-900'}
             >
               {/* Header */}
               <div className="mb-2 flex items-start justify-between gap-2">

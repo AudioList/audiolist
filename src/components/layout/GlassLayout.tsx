@@ -7,9 +7,10 @@ import PriceAlertBanner from '../shared/PriceAlertBanner';
 export default function GlassLayout() {
   return (
     <GlassModeProvider>
-      <div className="glass-theme glass-mesh-bg flex min-h-screen flex-col">
+      <div className="glass-theme relative flex min-h-screen flex-col">
+        <div className="glass-mesh-bg pointer-events-none fixed inset-0 -z-10" />
         <Header />
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">
+        <main className="relative z-0 mx-auto w-full max-w-7xl flex-1 px-4 py-6">
           <PriceAlertBanner />
           <Outlet />
         </main>

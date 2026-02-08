@@ -599,7 +599,7 @@ function ProductCard({ product, showPPI, showSinad = false }: { product: Product
   return (
     <Link
       to={`/product/${product.id}`}
-      className={isGlass ? 'group flex flex-col glass-1 rounded-2xl p-4 transition-all hover:border-primary-400 hover:shadow-md' : 'group flex flex-col rounded-xl border border-surface-200 bg-white p-4 shadow-sm transition-all hover:border-primary-400 hover:shadow-md dark:border-surface-700 dark:bg-surface-900 dark:hover:border-primary-500'}
+      className={isGlass ? 'group flex flex-col glass-1 glass-inner-glow glass-hover-lift rounded-2xl p-4 transition-all hover:border-primary-400/50' : 'group flex flex-col rounded-xl border border-surface-200 bg-white p-4 shadow-sm transition-all hover:border-primary-400 hover:shadow-md dark:border-surface-700 dark:bg-surface-900 dark:hover:border-primary-500'}
     >
       {/* Image placeholder */}
       {product.image_url ? (

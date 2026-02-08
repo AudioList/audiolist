@@ -31,10 +31,10 @@ export default function ProductCard({
       className={`group relative flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-all ${
         isSelected
           ? isGlass
-            ? 'border-primary-400/40 bg-primary-500/[0.08] backdrop-blur-sm'
+            ? 'glass-1 border-primary-400/50 bg-primary-500/15 rounded-xl ring-1 ring-primary-400/30'
             : 'border-primary-500 bg-primary-950/30 shadow-md shadow-primary-500/10'
           : isGlass
-            ? 'border-white/[0.08] bg-white/[0.04] backdrop-blur-sm hover:border-white/[0.15]'
+            ? 'glass-1 glass-inner-glow glass-hover-lift rounded-xl hover:border-white/25'
             : 'border-surface-700 bg-surface-800 hover:border-surface-500 hover:shadow-lg hover:shadow-black/20'
       }`}
     >

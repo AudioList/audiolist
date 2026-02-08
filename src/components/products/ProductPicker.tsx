@@ -172,12 +172,12 @@ export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetai
       aria-modal="true"
       aria-label={`Choose ${category?.name ?? 'product'}`}
       className={isGlass
-        ? "fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 backdrop-blur-md p-4 sm:p-6 md:p-8"
+        ? "fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 backdrop-blur-xl p-4 sm:p-6 md:p-8"
         : "fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 backdrop-blur-sm p-4 sm:p-6 md:p-8"
       }
     >
       <div className={isGlass
-        ? "relative w-full max-w-5xl rounded-2xl border border-white/[0.10] bg-surface-900/90 backdrop-blur-2xl shadow-2xl"
+        ? "relative w-full max-w-5xl glass-2 rounded-2xl shadow-2xl"
         : "relative w-full max-w-5xl rounded-xl border border-surface-700 bg-surface-900 shadow-2xl dark:bg-surface-900"
       }>
         {/* Header */}

@@ -146,7 +146,7 @@ export default function HomePage() {
       {/* Quiz CTA + Starter builds (shown when build is empty) */}
       {itemCount === 0 && (
         <>
-          <div className={isGlass ? 'flex items-center justify-center gap-3 border border-primary-400/20 bg-primary-50/50 backdrop-blur-sm rounded-2xl px-5 py-4 dark:border-primary-400/20 dark:bg-primary-900/10' : 'flex items-center justify-center gap-3 rounded-xl border border-primary-200 bg-primary-50 px-5 py-4 dark:border-primary-800 dark:bg-primary-900/10'}>
+          <div className={isGlass ? 'glass-1 glass-inner-glow rounded-2xl border-primary-400/30 flex items-center justify-center gap-3 px-5 py-4' : 'flex items-center justify-center gap-3 rounded-xl border border-primary-200 bg-primary-50 px-5 py-4 dark:border-primary-800 dark:bg-primary-900/10'}>
             <div className="text-center">
               <p className="text-sm font-semibold text-primary-800 dark:text-primary-300">
                 New to audio? Take our 1-minute setup quiz.

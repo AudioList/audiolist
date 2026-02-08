@@ -49,7 +49,7 @@ export default function BuilderTable({ onChooseProduct, onViewDetail }: BuilderT
       {/* Desktop: HTML table */}
       <div className={`hidden md:block overflow-x-auto shadow-sm ${
         isGlass
-          ? 'glass-1 rounded-2xl'
+          ? 'glass-1 glass-inner-glow rounded-2xl'
           : 'rounded-xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900'
       }`}>
         <table className="w-full text-sm">

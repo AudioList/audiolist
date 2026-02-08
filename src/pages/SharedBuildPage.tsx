@@ -140,7 +140,7 @@ export default function SharedBuildPage() {
       </div>
 
       {/* Read-only build items */}
-      <div className={isGlass ? 'overflow-hidden glass-1 rounded-2xl' : 'overflow-hidden rounded-xl border border-surface-200 bg-white shadow-sm dark:border-surface-700 dark:bg-surface-900'}>
+      <div className={isGlass ? 'overflow-hidden glass-1 glass-inner-glow rounded-2xl' : 'overflow-hidden rounded-xl border border-surface-200 bg-white shadow-sm dark:border-surface-700 dark:bg-surface-900'}>
         <table className="hidden w-full text-sm md:table">
           <thead>
             <tr className={isGlass ? 'bg-white/40 text-left text-surface-600 dark:bg-white/[0.04] dark:text-surface-300' : 'bg-surface-200 text-left text-surface-600 dark:bg-surface-800 dark:text-surface-300'}>

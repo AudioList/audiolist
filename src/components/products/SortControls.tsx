@@ -95,7 +95,7 @@ export default function SortControls({ sort, onChange, showPPI = false, showSina
             ? 'bg-primary-600 text-white border-primary-600 shadow-sm shadow-primary-500/20 dark:bg-primary-600 dark:border-primary-600'
             : 'bg-primary-600 text-white border-primary-600 dark:bg-primary-600 dark:border-primary-600'
           : isGlass
-            ? 'bg-white/40 text-surface-300 border-white/30 hover:bg-surface-700 hover:text-surface-100 dark:bg-white/[0.05] dark:border-white/[0.10] dark:hover:bg-surface-700'
+            ? 'bg-white/40 text-surface-300 border-white/30 hover:bg-surface-700 hover:text-surface-100 dark:bg-white/[0.10] dark:border-white/[0.16] dark:hover:bg-surface-700'
             : 'bg-surface-800 text-surface-300 border-surface-600 hover:bg-surface-700 hover:text-surface-100 dark:bg-surface-800 dark:text-surface-300 dark:border-surface-600 dark:hover:bg-surface-700';
 
         const marginClass = index > 0 ? '-ml-px' : '';

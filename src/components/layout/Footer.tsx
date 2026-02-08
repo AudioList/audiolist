@@ -10,7 +10,7 @@ export default function Footer() {
     <footer
       className={
         isGlass
-          ? 'border-t border-white/20 bg-white/50 backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.03]'
+          ? 'border-t border-white/20 bg-white/50 backdrop-blur-xl dark:border-white/14 dark:bg-white/[0.08]'
           : 'border-t border-surface-200 bg-surface-50 dark:border-surface-800 dark:bg-surface-900'
       }
     >

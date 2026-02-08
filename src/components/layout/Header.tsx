@@ -67,7 +67,7 @@ export default function Header() {
     <header
       className={
         isGlass
-          ? 'sticky top-0 z-50 border-b border-white/20 bg-white/60 backdrop-blur-2xl dark:border-white/10 dark:bg-surface-950/70'
+          ? 'sticky top-0 z-50 border-b border-white/20 bg-white/60 backdrop-blur-2xl dark:border-white/14 dark:bg-surface-950/60'
           : 'sticky top-0 z-50 border-b border-surface-200 bg-white dark:border-surface-800 dark:bg-surface-900'
       }
     >

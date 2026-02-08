@@ -150,7 +150,7 @@ export default function FilterSidebar({
             {speakerTypes.map((st) => (
               <label
                 key={st.value}
-                className={`flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-200 ${isGlass ? 'hover:bg-white/[0.08]' : 'hover:bg-surface-700'}`}
+                className={`flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-200 ${isGlass ? 'hover:bg-white/12' : 'hover:bg-surface-700'}`}
               >
                 <input
                   type="checkbox"
@@ -179,7 +179,7 @@ export default function FilterSidebar({
             {headphoneDesigns.map((hd) => (
               <label
                 key={hd.value}
-                className={`flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-200 ${isGlass ? 'hover:bg-white/[0.08]' : 'hover:bg-surface-700'}`}
+                className={`flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-200 ${isGlass ? 'hover:bg-white/12' : 'hover:bg-surface-700'}`}
               >
                 <input
                   type="checkbox"
@@ -208,7 +208,7 @@ export default function FilterSidebar({
             {iemTypes.map((it) => (
               <label
                 key={it.value}
-                className={`flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-200 ${isGlass ? 'hover:bg-white/[0.08]' : 'hover:bg-surface-700'}`}
+                className={`flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-200 ${isGlass ? 'hover:bg-white/12' : 'hover:bg-surface-700'}`}
               >
                 <input
                   type="checkbox"
@@ -239,7 +239,7 @@ export default function FilterSidebar({
             }
             min={0}
             className={isGlass
-                ? "w-full rounded-md border border-white/15 bg-white/[0.06] backdrop-blur-sm px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40"
+                ? "w-full glass-input px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:outline-none"
                 : "w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
               }
           />
@@ -253,7 +253,7 @@ export default function FilterSidebar({
             }
             min={0}
             className={isGlass
-                ? "w-full rounded-md border border-white/15 bg-white/[0.06] backdrop-blur-sm px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40"
+                ? "w-full glass-input px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:outline-none"
                 : "w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
               }
           />
@@ -302,7 +302,7 @@ export default function FilterSidebar({
                     min={0}
                     max={100}
                     className={isGlass
-                ? "w-full rounded-md border border-white/15 bg-white/[0.06] backdrop-blur-sm px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40"
+                ? "w-full glass-input px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:outline-none"
                 : "w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
               }
                   />
@@ -317,7 +317,7 @@ export default function FilterSidebar({
                     min={0}
                     max={100}
                     className={isGlass
-                ? "w-full rounded-md border border-white/15 bg-white/[0.06] backdrop-blur-sm px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40"
+                ? "w-full glass-input px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:outline-none"
                 : "w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
               }
                   />
@@ -333,7 +333,7 @@ export default function FilterSidebar({
                   value={filters.quality ?? ''}
                   onChange={(e) => update({ quality: e.target.value || null })}
                   className={isGlass
-                    ? "w-full rounded-md border border-white/15 bg-white/[0.06] backdrop-blur-sm px-2 py-1.5 text-sm text-surface-100 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40"
+                    ? "w-full glass-input px-2 py-1.5 text-sm text-surface-100 focus:outline-none"
                     : "w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
                   }
                 >
@@ -353,7 +353,7 @@ export default function FilterSidebar({
                     value={filters.rigType ?? ''}
                     onChange={(e) => update({ rigType: e.target.value || null })}
                     className={isGlass
-                    ? "w-full rounded-md border border-white/15 bg-white/[0.06] backdrop-blur-sm px-2 py-1.5 text-sm text-surface-100 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40"
+                    ? "w-full glass-input px-2 py-1.5 text-sm text-surface-100 focus:outline-none"
                     : "w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
                   }
                   >
@@ -384,7 +384,7 @@ export default function FilterSidebar({
               }
               min={0}
               className={isGlass
-                ? "w-full rounded-md border border-white/15 bg-white/[0.06] backdrop-blur-sm px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40"
+                ? "w-full glass-input px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:outline-none"
                 : "w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
               }
             />
@@ -398,7 +398,7 @@ export default function FilterSidebar({
               }
               min={0}
               className={isGlass
-                ? "w-full rounded-md border border-white/15 bg-white/[0.06] backdrop-blur-sm px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40"
+                ? "w-full glass-input px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:outline-none"
                 : "w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
               }
             />
@@ -421,7 +421,7 @@ export default function FilterSidebar({
             value={brandSearch}
             onChange={(e) => setBrandSearch(e.target.value)}
             className={isGlass
-              ? "mb-2 w-full rounded-md border border-white/15 bg-white/[0.06] backdrop-blur-sm px-2 py-1 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40"
+              ? "mb-2 w-full glass-input px-2 py-1 text-sm text-surface-100 placeholder-surface-500 focus:outline-none"
               : "mb-2 w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40"
             }
           />
@@ -430,7 +430,7 @@ export default function FilterSidebar({
           {visibleBrands.map((brand) => (
             <label
               key={brand}
-              className={`flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-200 ${isGlass ? 'hover:bg-white/[0.08]' : 'hover:bg-surface-700'}`}
+              className={`flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-200 ${isGlass ? 'hover:bg-white/12' : 'hover:bg-surface-700'}`}
             >
               <input
                 type="checkbox"
@@ -463,7 +463,7 @@ export default function FilterSidebar({
             {retailers.map((retailer) => (
               <label
                 key={retailer.id}
-                className={`flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-200 ${isGlass ? 'hover:bg-white/[0.08]' : 'hover:bg-surface-700'}`}
+                className={`flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-200 ${isGlass ? 'hover:bg-white/12' : 'hover:bg-surface-700'}`}
               >
                 <input
                   type="checkbox"
@@ -484,7 +484,7 @@ export default function FilterSidebar({
           type="button"
           onClick={clearFilters}
           className={isGlass
-            ? "w-full rounded-lg border border-white/15 bg-white/[0.06] backdrop-blur-sm px-3 py-2 text-sm text-surface-300 transition-colors hover:bg-white/[0.08] hover:text-surface-100"
+            ? "w-full glass-btn-secondary px-3 py-2 text-sm text-surface-300 transition-colors hover:text-surface-100"
             : "w-full rounded-lg border border-surface-600 bg-surface-800 px-3 py-2 text-sm text-surface-300 transition-colors hover:bg-surface-700 hover:text-surface-100"
           }
         >
@@ -505,7 +505,7 @@ export default function FilterSidebar({
           type="button"
           onClick={() => setExpanded(!expanded)}
           className={isGlass
-            ? "flex w-full items-center justify-between rounded-lg border border-white/15 bg-white/[0.06] backdrop-blur-sm px-3 py-2 text-sm font-medium text-surface-200 transition-colors hover:bg-white/[0.08]"
+            ? "flex w-full items-center justify-between glass-1 px-3 py-2 text-sm font-medium text-surface-200 transition-colors hover:bg-white/12"
             : "flex w-full items-center justify-between rounded-lg border border-surface-600 bg-surface-800 px-3 py-2 text-sm font-medium text-surface-200 transition-colors hover:bg-surface-700"
           }
         >
