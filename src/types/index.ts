@@ -65,6 +65,9 @@ export interface Product {
   editorial_blurb: string | null;
   headphone_design: 'open' | 'closed' | null;
   iem_type: 'passive' | 'active' | 'tws' | null;
+  mic_connection: 'usb' | 'xlr' | 'usb_xlr' | 'wireless' | '3.5mm' | null;
+  mic_type: 'dynamic' | 'condenser' | 'ribbon' | null;
+  mic_pattern: 'cardioid' | 'omnidirectional' | 'bidirectional' | 'supercardioid' | 'multipattern' | null;
   is_best_variant: boolean;
   created_at: string;
   updated_at: string;
@@ -132,6 +135,9 @@ export interface ProductFilters {
   sinadMax: number | null;
   headphoneDesigns: string[];
   iemTypes: string[];
+  micConnections: string[];
+  micTypes: string[];
+  micPatterns: string[];
 }
 
 export interface ProductSort {

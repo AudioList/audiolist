@@ -155,6 +155,47 @@ export function extractIemType(name: string): 'tws' | 'active' | null {
   return null;
 }
 
+/**
+ * Extract microphone connection type from a product name/description.
+ */
+export function extractMicConnection(name: string): 'usb' | 'xlr' | 'usb_xlr' | 'wireless' | '3.5mm' | null {
+  const lower = name.toLowerCase();
+  if (/\busb\b.*\bxlr\b|\bxlr\b.*\busb\b/.test(lower)) return 'usb_xlr';
+  if (/\busb\b/.test(lower)) return 'usb';
+  if (/\bxlr\b/.test(lower)) return 'xlr';
+  if (/\bwireless\b|\bbluetooth\b/.test(lower)) return 'wireless';
+  if (/\b3\.5\s?mm\b/.test(lower)) return '3.5mm';
+  return null;
+}
+
+/**
+ * Extract microphone transducer type from a product name/description.
+ */
+export function extractMicType(name: string): 'dynamic' | 'condenser' | 'ribbon' | null {
+  const lower = name.toLowerCase();
+  if (/\bcondenser\b/.test(lower)) return 'condenser';
+  if (/\bdynamic\b/.test(lower)) return 'dynamic';
+  if (/\bribbon\b/.test(lower)) return 'ribbon';
+  return null;
+}
+
+/**
+ * Extract microphone polar pattern from a product name/description.
+ * Note: patterns tested from most-specific to least-specific since
+ * "supercardioid" and "multipattern" contain "cardioid" / "pattern".
+ */
+export function extractMicPattern(
+  name: string
+): 'cardioid' | 'omnidirectional' | 'bidirectional' | 'supercardioid' | 'multipattern' | null {
+  const lower = name.toLowerCase();
+  if (/\bmulti[\s-]?pattern\b/.test(lower)) return 'multipattern';
+  if (/\bsupercardioid\b/.test(lower)) return 'supercardioid';
+  if (/\bomnidirectional\b|\bomni\b/.test(lower)) return 'omnidirectional';
+  if (/\bbidirectional\b|\bfigure[\s-]?8\b/.test(lower)) return 'bidirectional';
+  if (/\bcardioid\b/.test(lower)) return 'cardioid';
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Product category detection (headphone vs IEM)
 // ---------------------------------------------------------------------------

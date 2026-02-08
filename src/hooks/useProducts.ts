@@ -36,6 +36,9 @@ const defaultFilters: ProductFilters = {
   sinadMax: null,
   headphoneDesigns: [],
   iemTypes: [],
+  micConnections: [],
+  micTypes: [],
+  micPatterns: [],
 };
 
 const defaultSort: ProductSort = {
@@ -138,6 +141,17 @@ export function useProducts({
         // IEM type (passive/active/tws)
         if (filters.iemTypes.length > 0) {
           query = query.in('iem_type', filters.iemTypes);
+        }
+
+        // Microphone filters
+        if (filters.micConnections.length > 0) {
+          query = query.in('mic_connection', filters.micConnections);
+        }
+        if (filters.micTypes.length > 0) {
+          query = query.in('mic_type', filters.micTypes);
+        }
+        if (filters.micPatterns.length > 0) {
+          query = query.in('mic_pattern', filters.micPatterns);
         }
 
         // Hide non-best DSP/ANC variants from search results
@@ -486,6 +500,40 @@ export function useIemTypes(category: CategoryId): { value: string; label: strin
   return types;
 }
 
+const MIC_CONNECTION_LABELS: Record<string, string> = {
+  usb: 'USB',
+  xlr: 'XLR',
+  usb_xlr: 'USB + XLR',
+  wireless: 'Wireless',
+  '3.5mm': '3.5mm',
+};
+
+export function getMicConnectionLabel(type: string): string {
+  return MIC_CONNECTION_LABELS[type] ?? type.charAt(0).toUpperCase() + type.slice(1);
+}
+
+const MIC_TYPE_LABELS: Record<string, string> = {
+  dynamic: 'Dynamic',
+  condenser: 'Condenser',
+  ribbon: 'Ribbon',
+};
+
+export function getMicTypeLabel(type: string): string {
+  return MIC_TYPE_LABELS[type] ?? type.charAt(0).toUpperCase() + type.slice(1);
+}
+
+const MIC_PATTERN_LABELS: Record<string, string> = {
+  cardioid: 'Cardioid',
+  omnidirectional: 'Omnidirectional',
+  bidirectional: 'Bidirectional (Figure-8)',
+  supercardioid: 'Supercardioid',
+  multipattern: 'Multi-Pattern',
+};
+
+export function getMicPatternLabel(type: string): string {
+  return MIC_PATTERN_LABELS[type] ?? type.charAt(0).toUpperCase() + type.slice(1);
+}
+
 export function useProductBrands(category: CategoryId): string[] {
   const [brands, setBrands] = useState<string[]>([]);
 
@@ -532,6 +580,9 @@ interface FilterOptions {
   iemTypes: { value: string; label: string; count: number }[];
   speakerTypes: { value: string; label: string; count: number }[];
   headphoneDesigns: { value: string; label: string; count: number }[];
+  micConnections: { value: string; label: string; count: number }[];
+  micTypes: { value: string; label: string; count: number }[];
+  micPatterns: { value: string; label: string; count: number }[];
 }
 
 export function useFilterOptions(category: CategoryId): FilterOptions {
@@ -541,6 +592,9 @@ export function useFilterOptions(category: CategoryId): FilterOptions {
     iemTypes: [],
     speakerTypes: [],
     headphoneDesigns: [],
+    micConnections: [],
+    micTypes: [],
+    micPatterns: [],
   });
 
   useEffect(() => {
@@ -565,6 +619,21 @@ export function useFilterOptions(category: CategoryId): FilterOptions {
           headphoneDesigns: (data.headphone_designs ?? []).map((t: any) => ({
             value: t.value,
             label: getHeadphoneDesignLabel(t.value),
+            count: t.count,
+          })),
+          micConnections: (data.mic_connections ?? []).map((t: any) => ({
+            value: t.value,
+            label: getMicConnectionLabel(t.value),
+            count: t.count,
+          })),
+          micTypes: (data.mic_types ?? []).map((t: any) => ({
+            value: t.value,
+            label: getMicTypeLabel(t.value),
+            count: t.count,
+          })),
+          micPatterns: (data.mic_patterns ?? []).map((t: any) => ({
+            value: t.value,
+            label: getMicPatternLabel(t.value),
             count: t.count,
           })),
         });

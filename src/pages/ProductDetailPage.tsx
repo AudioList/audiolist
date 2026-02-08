@@ -7,6 +7,7 @@ import type { AmpLoadOhms } from '../lib/categories';
 import { useBuild } from '../context/BuildContext';
 import { useExperienceMode } from '../context/ExperienceModeContext';
 import { useGlassMode } from '../context/GlassModeContext';
+import { getMicConnectionLabel, getMicTypeLabel, getMicPatternLabel } from '../hooks/useProducts';
 import PPIBadge from '../components/shared/PPIBadge';
 import PriceDisplay from '../components/shared/PriceDisplay';
 import WhereToBuy from '../components/shared/WhereToBuy';
@@ -591,6 +592,21 @@ export default function ProductDetailPage() {
             {mode !== 'beginner' && product.speaker_type && (
               <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
                 Type: {product.speaker_type}
+              </span>
+            )}
+            {product.mic_connection && (
+              <span className="inline-flex items-center rounded-full bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
+                {getMicConnectionLabel(product.mic_connection)}
+              </span>
+            )}
+            {product.mic_type && (
+              <span className="inline-flex items-center rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-700 dark:bg-teal-900/30 dark:text-teal-300">
+                {getMicTypeLabel(product.mic_type)}
+              </span>
+            )}
+            {product.mic_pattern && (
+              <span className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
+                {getMicPatternLabel(product.mic_pattern)}
               </span>
             )}
             {mode === 'advanced' && product.asr_recommended && (

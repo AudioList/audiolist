@@ -33,6 +33,9 @@ function getDefaultFilters(): ProductFilters {
     sinadMax: null,
     headphoneDesigns: [],
     iemTypes: [],
+    micConnections: [],
+    micTypes: [],
+    micPatterns: [],
   };
 }
 
@@ -138,7 +141,7 @@ export default function ProductListPage() {
   );
 
   const { products, loading, error, hasMore, total, loadMore } = useProducts(hookOptions);
-  const { brands, retailers, speakerTypes, headphoneDesigns, iemTypes } = useFilterOptions(categoryId);
+  const { brands, retailers, speakerTypes, headphoneDesigns, iemTypes, micConnections, micTypes, micPatterns } = useFilterOptions(categoryId);
   const [brandSearch, setBrandSearch] = useState('');
 
   // Restore scroll position after products load (only once, on initial mount)
@@ -315,6 +318,108 @@ export default function ProductListPage() {
                       />
                       <span className="truncate">{it.label}</span>
                       <span className="ml-auto text-xs text-surface-400">{it.count}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Mic Connection (only for microphone category) */}
+            {categoryId === 'microphone' && micConnections.length > 0 && (
+              <div className="mb-3 space-y-2">
+                <label className="block text-xs font-semibold text-surface-700 dark:text-surface-300">
+                  Connection
+                  {filters.micConnections.length > 0 && (
+                    <span className="ml-1.5 text-primary-400">({filters.micConnections.length})</span>
+                  )}
+                </label>
+                <div className="space-y-1">
+                  {micConnections.map((mc) => (
+                    <label
+                      key={mc.value}
+                      className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={filters.micConnections.includes(mc.value)}
+                        onChange={() => {
+                          const next = filters.micConnections.includes(mc.value)
+                            ? filters.micConnections.filter((t) => t !== mc.value)
+                            : [...filters.micConnections, mc.value];
+                          setFilters((prev) => ({ ...prev, micConnections: next }));
+                        }}
+                        className="h-3.5 w-3.5 rounded border-surface-300 text-primary-500 focus:ring-primary-500/40 dark:border-surface-500 dark:bg-surface-700"
+                      />
+                      <span className="truncate">{mc.label}</span>
+                      <span className="ml-auto text-xs text-surface-400">{mc.count}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Mic Type / Transducer (only for microphone category) */}
+            {categoryId === 'microphone' && micTypes.length > 0 && (
+              <div className="mb-3 space-y-2">
+                <label className="block text-xs font-semibold text-surface-700 dark:text-surface-300">
+                  Transducer
+                  {filters.micTypes.length > 0 && (
+                    <span className="ml-1.5 text-primary-400">({filters.micTypes.length})</span>
+                  )}
+                </label>
+                <div className="space-y-1">
+                  {micTypes.map((mt) => (
+                    <label
+                      key={mt.value}
+                      className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={filters.micTypes.includes(mt.value)}
+                        onChange={() => {
+                          const next = filters.micTypes.includes(mt.value)
+                            ? filters.micTypes.filter((t) => t !== mt.value)
+                            : [...filters.micTypes, mt.value];
+                          setFilters((prev) => ({ ...prev, micTypes: next }));
+                        }}
+                        className="h-3.5 w-3.5 rounded border-surface-300 text-primary-500 focus:ring-primary-500/40 dark:border-surface-500 dark:bg-surface-700"
+                      />
+                      <span className="truncate">{mt.label}</span>
+                      <span className="ml-auto text-xs text-surface-400">{mt.count}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Mic Polar Pattern (only for microphone category) */}
+            {categoryId === 'microphone' && micPatterns.length > 0 && (
+              <div className="mb-3 space-y-2">
+                <label className="block text-xs font-semibold text-surface-700 dark:text-surface-300">
+                  Polar Pattern
+                  {filters.micPatterns.length > 0 && (
+                    <span className="ml-1.5 text-primary-400">({filters.micPatterns.length})</span>
+                  )}
+                </label>
+                <div className="space-y-1">
+                  {micPatterns.map((mp) => (
+                    <label
+                      key={mp.value}
+                      className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={filters.micPatterns.includes(mp.value)}
+                        onChange={() => {
+                          const next = filters.micPatterns.includes(mp.value)
+                            ? filters.micPatterns.filter((t) => t !== mp.value)
+                            : [...filters.micPatterns, mp.value];
+                          setFilters((prev) => ({ ...prev, micPatterns: next }));
+                        }}
+                        className="h-3.5 w-3.5 rounded border-surface-300 text-primary-500 focus:ring-primary-500/40 dark:border-surface-500 dark:bg-surface-700"
+                      />
+                      <span className="truncate">{mp.label}</span>
+                      <span className="ml-auto text-xs text-surface-400">{mp.count}</span>
                     </label>
                   ))}
                 </div>
@@ -525,6 +630,9 @@ export default function ProductListPage() {
                   sinadMax: null,
                   headphoneDesigns: [],
                   iemTypes: [],
+                  micConnections: [],
+                  micTypes: [],
+                  micPatterns: [],
                 })
               }
               className={isGlass ? 'glass-btn-secondary mt-4 w-full rounded-md px-3 py-1.5 text-xs font-medium' : 'mt-4 w-full rounded-md border border-surface-300 bg-white px-3 py-1.5 text-xs font-medium text-surface-600 transition-colors hover:bg-surface-100 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-400 dark:hover:bg-surface-700'}

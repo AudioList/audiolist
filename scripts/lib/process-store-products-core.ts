@@ -7,7 +7,7 @@
 
 import { getSupabase, getRetailers, type Retailer } from '../config/retailers.ts';
 import { extractBrand } from '../brand-config.ts';
-import { normalizeName, buildCandidateIndex, findBestMatchIndexed, extractHeadphoneDesign, extractIemType, detectCorrectCategory, isJunkProduct, type IndexedCandidate } from '../scrapers/matcher.ts';
+import { normalizeName, buildCandidateIndex, findBestMatchIndexed, extractHeadphoneDesign, extractIemType, extractMicConnection, extractMicType, extractMicPattern, detectCorrectCategory, isJunkProduct, type IndexedCandidate } from '../scrapers/matcher.ts';
 import type { CategoryId } from '../config/store-collections.ts';
 import { log, logError } from './log.ts';
 import { extractTagAttributes } from './extract-tags.ts';
@@ -324,6 +324,21 @@ async function processStoreProducts(
           }
         }
 
+        // Extract microphone attributes from title and/or tags
+        let micConnection: string | null = null;
+        let micType: string | null = null;
+        let micPattern: string | null = null;
+        if (effectiveCategoryId === 'microphone') {
+          micConnection = extractMicConnection(sp.title);
+          if (!micConnection && tagAttrs?.mic_connection) micConnection = tagAttrs.mic_connection;
+
+          micType = extractMicType(sp.title);
+          if (!micType && tagAttrs?.mic_type) micType = tagAttrs.mic_type;
+
+          micPattern = extractMicPattern(sp.title);
+          if (!micPattern && tagAttrs?.mic_pattern) micPattern = tagAttrs.mic_pattern;
+        }
+
         const { data: newProduct, error: insertError } = await supabase
           .from('products')
           .insert({
@@ -338,6 +353,9 @@ async function processStoreProducts(
             in_stock: sp.in_stock,
             ...(headphoneDesign ? { headphone_design: headphoneDesign } : {}),
             ...(iemType ? { iem_type: iemType } : {}),
+            ...(micConnection ? { mic_connection: micConnection } : {}),
+            ...(micType ? { mic_type: micType } : {}),
+            ...(micPattern ? { mic_pattern: micPattern } : {}),
             ...(Object.keys(initialSpecs).length > 0 ? { specs: initialSpecs } : {}),
           })
           .select('id')

@@ -27,6 +27,7 @@ export interface StoreConfig {
 export const CATEGORY_GROUPS: Record<string, CategoryId[]> = {
   iem: ['iem', 'iem_tips', 'iem_cable', 'iem_filter'],
   headphone: ['headphone', 'hp_pads', 'hp_cable'],
+  microphone: ['microphone'],
 };
 
 export const STORE_COLLECTIONS: Record<string, StoreConfig> = {
@@ -280,6 +281,24 @@ export const STORE_COLLECTIONS: Record<string, StoreConfig> = {
       { handle: 'bulletz-in-ear-headphone-tips', categoryId: 'iem_tips' },
       { handle: 'complete-cable', categoryId: 'hp_cable' },
       { handle: 'headphones', categoryId: 'headphone' },
+    ],
+  },
+  'www.tonormic.com': {
+    retailerId: 'tonor',
+    collections: [
+      { handle: 'microphones', categoryId: 'microphone' },
+    ],
+  },
+  'fifinemicrophone.com': {
+    retailerId: 'fifine',
+    collections: [
+      { handle: 'microphones', categoryId: 'microphone' },
+    ],
+  },
+  'www.maono.com': {
+    retailerId: 'maono',
+    collections: [
+      { handle: 'microphones', categoryId: 'microphone' },
     ],
   },
 };

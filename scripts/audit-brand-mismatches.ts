@@ -48,6 +48,9 @@ const FIRST_PARTY_RETAILERS = new Set([
   'jamo',
   'trianglehifi',
   'schiit',
+  'tonor',
+  'fifine',
+  'maono',
 ]);
 
 async function main() {
