@@ -7,7 +7,7 @@
 
 import { getSupabase, getRetailers, buildAffiliateUrl, type Retailer } from '../config/retailers.ts';
 import { fetchShopifyCollection, type ShopifyProduct } from '../scrapers/shopify.ts';
-import { STORE_COLLECTIONS, type CategoryId, type CollectionMapping } from '../config/store-collections.ts';
+import { STORE_COLLECTIONS, type CategoryId, type CollectionMapping, type StoreConfig } from '../config/store-collections.ts';
 import { log, logError, delay } from './log.ts';
 
 const UPSERT_BATCH_SIZE = 100;
@@ -20,14 +20,19 @@ export interface SyncStoresOptions {
   label: string;
 }
 
-function extractPrice(product: ShopifyProduct): { price: number | null; inStock: boolean } {
+function extractPrice(product: ShopifyProduct): {
+  price: number | null;
+  compareAtPrice: number | null;
+  inStock: boolean;
+} {
   if (!product.variants || product.variants.length === 0) {
-    return { price: null, inStock: false };
+    return { price: null, compareAtPrice: null, inStock: false };
   }
 
   let lowestAvailable: number | null = null;
   let lowestAny: number | null = null;
   let hasAvailable = false;
+  let bestCompareAt: number | null = null;
 
   for (const v of product.variants) {
     const p = parseFloat(v.price);
@@ -37,12 +42,38 @@ function extractPrice(product: ShopifyProduct): { price: number | null; inStock:
 
     if (v.available) {
       hasAvailable = true;
-      if (lowestAvailable === null || p < lowestAvailable) lowestAvailable = p;
+      if (lowestAvailable === null || p < lowestAvailable) {
+        lowestAvailable = p;
+        // Use compare_at_price from the cheapest available variant
+        if (v.compare_at_price) {
+          const cap = parseFloat(v.compare_at_price);
+          if (!isNaN(cap) && cap > 0) bestCompareAt = cap;
+        }
+      }
     }
   }
 
+  // If no available variant had compare_at_price, check cheapest overall
+  if (bestCompareAt === null) {
+    for (const v of product.variants) {
+      if (v.compare_at_price) {
+        const cap = parseFloat(v.compare_at_price);
+        if (!isNaN(cap) && cap > 0 && (bestCompareAt === null || cap > bestCompareAt)) {
+          bestCompareAt = cap;
+        }
+      }
+    }
+  }
+
+  const finalPrice = lowestAvailable ?? lowestAny;
+  // Only keep compare_at_price if it's actually higher than the sale price
+  const validCompareAt = bestCompareAt !== null && finalPrice !== null && bestCompareAt > finalPrice
+    ? bestCompareAt
+    : null;
+
   return {
-    price: lowestAvailable ?? lowestAny,
+    price: finalPrice,
+    compareAtPrice: validCompareAt,
     inStock: hasAvailable,
   };
 }
@@ -98,7 +129,7 @@ async function syncShopifyStore(
     totalFetched += products.length;
 
     const rows = products.map((p) => {
-      const { price, inStock } = extractPrice(p);
+      const { price, compareAtPrice, inStock } = extractPrice(p);
       const productUrl = `https://${domain}/products/${p.handle}`;
       const affiliateUrl = buildAffiliateUrl(
         retailer,
@@ -116,6 +147,7 @@ async function syncShopifyStore(
         tags: p.tags || [],
         category_id: mapping.categoryId,
         price,
+        compare_at_price: compareAtPrice,
         in_stock: inStock,
         image_url: p.images?.[0]?.src ?? null,
         product_url: productUrl,
@@ -137,6 +169,79 @@ async function syncShopifyStore(
   }
 
   return { fetched: totalFetched, upserted: totalUpserted };
+}
+
+/**
+ * Sync deal/sale collections for a store.
+ * Products in these collections get their on_sale flag set to true.
+ * This does NOT create new store_products -- it only flags existing ones.
+ */
+async function syncDealCollections(
+  domain: string,
+  retailer: Retailer,
+  dealCollections: string[],
+  devMode: boolean
+): Promise<number> {
+  if (dealCollections.length === 0) return 0;
+
+  const supabase = getSupabase();
+  let totalFlagged = 0;
+
+  for (const handle of dealCollections) {
+    const maxPages = devMode ? 1 : 100;
+    const limit = devMode ? 100 : 250;
+
+    const products = await fetchShopifyCollection(domain, handle, { maxPages, limit });
+
+    if (products.length === 0) {
+      log('DEALS', `${domain}/${handle}: empty collection, skipping`);
+      continue;
+    }
+
+    // Extract handles of products in this deal collection
+    const handles = products.map((p) => p.handle);
+
+    // Batch update on_sale flag for matching store_products
+    for (let i = 0; i < handles.length; i += UPSERT_BATCH_SIZE) {
+      const batch = handles.slice(i, i + UPSERT_BATCH_SIZE);
+      const { data, error } = await supabase
+        .from('store_products')
+        .update({ on_sale: true })
+        .eq('retailer_id', retailer.id)
+        .in('external_id', batch)
+        .select('id');
+
+      if (error) {
+        logError('DEALS', `Error flagging on_sale for ${domain}/${handle}`, error);
+      } else {
+        totalFlagged += data?.length ?? 0;
+      }
+    }
+
+    // Also update compare_at_price for products from deal collections
+    // that might have sale pricing
+    const saleRows = products
+      .map((p) => {
+        const { compareAtPrice } = extractPrice(p);
+        return compareAtPrice ? { handle: p.handle, compareAtPrice } : null;
+      })
+      .filter((r): r is { handle: string; compareAtPrice: number } => r !== null);
+
+    for (const row of saleRows) {
+      await supabase
+        .from('store_products')
+        .update({ compare_at_price: row.compareAtPrice })
+        .eq('retailer_id', retailer.id)
+        .eq('external_id', row.handle)
+        .is('compare_at_price', null); // Don't overwrite if already set
+    }
+
+    log('DEALS', `${domain}/${handle}: ${products.length} products, ${totalFlagged} flagged on_sale`);
+
+    await delay(COLLECTION_DELAY_MS);
+  }
+
+  return totalFlagged;
 }
 
 export async function runSyncStores(options: SyncStoresOptions): Promise<void> {
@@ -204,6 +309,43 @@ export async function runSyncStores(options: SyncStoresOptions): Promise<void> {
     }
   }
 
+  // -------------------------------------------------------------------------
+  // Deal collection sync: flag on_sale for products in sale/deals collections
+  // -------------------------------------------------------------------------
+  let totalDealsFlagged = 0;
+  const dealJobs: { domain: string; retailer: Retailer; dealCollections: string[] }[] = [];
+
+  for (const [domain, config] of storeEntries) {
+    if (!config.dealCollections || config.dealCollections.length === 0) continue;
+    const retailer = retailerMap.get(config.retailerId);
+    if (!retailer) continue;
+    dealJobs.push({ domain, retailer, dealCollections: config.dealCollections });
+  }
+
+  if (dealJobs.length > 0) {
+    log('DEALS', `Syncing deal collections from ${dealJobs.length} stores...`);
+
+    // First, reset on_sale to false for all stores that have deal collections
+    // so stale flags get cleared
+    for (const job of dealJobs) {
+      await getSupabase()
+        .from('store_products')
+        .update({ on_sale: false })
+        .eq('retailer_id', job.retailer.id)
+        .eq('on_sale', true);
+    }
+
+    for (const job of dealJobs) {
+      const flagged = await syncDealCollections(
+        job.domain,
+        job.retailer,
+        job.dealCollections,
+        options.devMode,
+      );
+      totalDealsFlagged += flagged;
+    }
+  }
+
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
   console.log('\n=================================================================');
   console.log(`  STORE SYNC COMPLETE — ${options.label}`);
@@ -212,6 +354,9 @@ export async function runSyncStores(options: SyncStoresOptions): Promise<void> {
   console.log(`  Stores processed:   ${storesProcessed}/${storeJobs.length}`);
   console.log(`  Products fetched:   ${grandFetched}`);
   console.log(`  Products upserted:  ${grandUpserted}`);
+  if (totalDealsFlagged > 0) {
+    console.log(`  Deals flagged:      ${totalDealsFlagged}`);
+  }
   console.log(`  Mode:               ${options.devMode ? 'DEV (limited)' : 'FULL'}`);
   console.log('=================================================================\n');
 }

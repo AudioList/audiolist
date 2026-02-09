@@ -14,6 +14,7 @@ const ProductListPage = lazy(() => import('./pages/ProductListPage'));
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'));
 const QuizPage = lazy(() => import('./pages/QuizPage'));
 const CommunityBuildsPage = lazy(() => import('./pages/CommunityBuildsPage'));
+const DealsPage = lazy(() => import('./pages/DealsPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const TriagePage = lazy(() => import('./pages/TriagePage'));
 
@@ -39,6 +40,7 @@ export default function App() {
                 <Route path="/build/:shareCode" element={<SharedBuildPage />} />
                 <Route path="/products/:category" element={<ProductListPage />} />
                 <Route path="/product/:id" element={<ProductDetailPage />} />
+                <Route path="/deals" element={<DealsPage />} />
                 <Route path="/quiz" element={<QuizPage />} />
                 <Route path="/builds" element={<CommunityBuildsPage />} />
                 <Route path="/triage" element={<TriagePage />} />
@@ -50,6 +52,7 @@ export default function App() {
                 <Route path="/glass/build/:shareCode" element={<SharedBuildPage />} />
                 <Route path="/glass/products/:category" element={<ProductListPage />} />
                 <Route path="/glass/product/:id" element={<ProductDetailPage />} />
+                <Route path="/glass/deals" element={<DealsPage />} />
                 <Route path="/glass/quiz" element={<QuizPage />} />
                 <Route path="/glass/builds" element={<CommunityBuildsPage />} />
               </Route>

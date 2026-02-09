@@ -36,6 +36,7 @@ const defaultFilters: ProductFilters = {
   sinadMax: null,
   headphoneDesigns: [],
   iemTypes: [],
+  driverTypes: [],
   micConnections: [],
   micTypes: [],
   micPatterns: [],
@@ -141,6 +142,11 @@ export function useProducts({
         // IEM type (passive/active/tws)
         if (filters.iemTypes.length > 0) {
           query = query.in('iem_type', filters.iemTypes);
+        }
+
+        // Driver type (dynamic/planar/hybrid/tribrid/etc.)
+        if (filters.driverTypes.length > 0) {
+          query = query.in('driver_type', filters.driverTypes);
         }
 
         // Microphone filters
@@ -500,6 +506,22 @@ export function useIemTypes(category: CategoryId): { value: string; label: strin
   return types;
 }
 
+const DRIVER_TYPE_LABELS: Record<string, string> = {
+  dynamic: 'Dynamic',
+  balanced_armature: 'Balanced Armature',
+  planar: 'Planar Magnetic',
+  hybrid: 'Hybrid',
+  tribrid: 'Tribrid',
+  quadbrid: 'Quadbrid',
+  electrostatic: 'Electrostatic',
+  ribbon: 'Ribbon / AMT',
+  bone_conduction: 'Bone Conduction',
+};
+
+export function getDriverTypeLabel(type: string): string {
+  return DRIVER_TYPE_LABELS[type] ?? type.charAt(0).toUpperCase() + type.slice(1);
+}
+
 const MIC_CONNECTION_LABELS: Record<string, string> = {
   usb: 'USB',
   xlr: 'XLR',
@@ -527,7 +549,9 @@ const MIC_PATTERN_LABELS: Record<string, string> = {
   omnidirectional: 'Omnidirectional',
   bidirectional: 'Bidirectional (Figure-8)',
   supercardioid: 'Supercardioid',
+  hypercardioid: 'Hypercardioid',
   multipattern: 'Multi-Pattern',
+  shotgun: 'Shotgun (Line/Gradient)',
 };
 
 export function getMicPatternLabel(type: string): string {
@@ -578,6 +602,7 @@ interface FilterOptions {
   brands: string[];
   retailers: { id: string; name: string }[];
   iemTypes: { value: string; label: string; count: number }[];
+  driverTypes: { value: string; label: string; count: number }[];
   speakerTypes: { value: string; label: string; count: number }[];
   headphoneDesigns: { value: string; label: string; count: number }[];
   micConnections: { value: string; label: string; count: number }[];
@@ -590,6 +615,7 @@ export function useFilterOptions(category: CategoryId): FilterOptions {
     brands: [],
     retailers: [],
     iemTypes: [],
+    driverTypes: [],
     speakerTypes: [],
     headphoneDesigns: [],
     micConnections: [],
@@ -609,6 +635,11 @@ export function useFilterOptions(category: CategoryId): FilterOptions {
           iemTypes: (data.iem_types ?? []).map((t: any) => ({
             value: t.value,
             label: getIemTypeLabel(t.value),
+            count: t.count,
+          })),
+          driverTypes: (data.driver_types ?? []).map((t: any) => ({
+            value: t.value,
+            label: getDriverTypeLabel(t.value),
             count: t.count,
           })),
           speakerTypes: (data.speaker_types ?? []).map((t: any) => ({

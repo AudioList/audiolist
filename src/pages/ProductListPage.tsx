@@ -33,6 +33,7 @@ function getDefaultFilters(): ProductFilters {
     sinadMax: null,
     headphoneDesigns: [],
     iemTypes: [],
+    driverTypes: [],
     micConnections: [],
     micTypes: [],
     micPatterns: [],
@@ -141,7 +142,7 @@ export default function ProductListPage() {
   );
 
   const { products, loading, error, hasMore, total, loadMore } = useProducts(hookOptions);
-  const { brands, retailers, speakerTypes, headphoneDesigns, iemTypes, micConnections, micTypes, micPatterns } = useFilterOptions(categoryId);
+  const { brands, retailers, speakerTypes, headphoneDesigns, iemTypes, driverTypes, micConnections, micTypes, micPatterns } = useFilterOptions(categoryId);
   const [brandSearch, setBrandSearch] = useState('');
 
   // Restore scroll position after products load (only once, on initial mount)
@@ -318,6 +319,40 @@ export default function ProductListPage() {
                       />
                       <span className="truncate">{it.label}</span>
                       <span className="ml-auto text-xs text-surface-400">{it.count}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Driver Type (IEM and headphone categories) */}
+            {driverTypes.length > 0 && (
+              <div className="mb-3 space-y-2">
+                <label className="block text-xs font-semibold text-surface-700 dark:text-surface-300">
+                  Driver Type
+                  {filters.driverTypes.length > 0 && (
+                    <span className="ml-1.5 text-primary-400">({filters.driverTypes.length})</span>
+                  )}
+                </label>
+                <div className="max-h-48 space-y-1 overflow-y-auto">
+                  {driverTypes.map((dt) => (
+                    <label
+                      key={dt.value}
+                      className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={filters.driverTypes.includes(dt.value)}
+                        onChange={() => {
+                          const next = filters.driverTypes.includes(dt.value)
+                            ? filters.driverTypes.filter((t) => t !== dt.value)
+                            : [...filters.driverTypes, dt.value];
+                          setFilters((prev) => ({ ...prev, driverTypes: next }));
+                        }}
+                        className="h-3.5 w-3.5 rounded border-surface-300 text-primary-500 focus:ring-primary-500/40 dark:border-surface-500 dark:bg-surface-700"
+                      />
+                      <span className="truncate">{dt.label}</span>
+                      <span className="ml-auto text-xs text-surface-400">{dt.count}</span>
                     </label>
                   ))}
                 </div>
@@ -630,6 +665,7 @@ export default function ProductListPage() {
                   sinadMax: null,
                   headphoneDesigns: [],
                   iemTypes: [],
+                  driverTypes: [],
                   micConnections: [],
                   micTypes: [],
                   micPatterns: [],

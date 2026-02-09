@@ -16,7 +16,45 @@ export interface ExtractedTags {
   iem_type?: 'tws' | 'active';
   mic_connection?: 'usb' | 'xlr' | 'usb_xlr' | 'wireless' | '3.5mm';
   mic_type?: 'dynamic' | 'condenser' | 'ribbon';
-  mic_pattern?: 'cardioid' | 'omnidirectional' | 'bidirectional' | 'supercardioid' | 'multipattern';
+  mic_pattern?: 'cardioid' | 'omnidirectional' | 'bidirectional' | 'supercardioid' | 'hypercardioid' | 'multipattern' | 'shotgun';
+}
+
+/**
+ * Performance Audio structured tag mapping: polar_pattern_* -> mic_pattern values.
+ * PA tags use format "polar_pattern_Value" (case-sensitive in source, lowercased here).
+ */
+const PA_POLAR_PATTERN_MAP: Record<string, ExtractedTags['mic_pattern']> = {
+  'cardioid': 'cardioid',
+  'supercardioid': 'supercardioid',
+  'hypercardioid': 'hypercardioid',
+  'omnidirectional': 'omnidirectional',
+  'figure-8': 'bidirectional',
+  'wide cardioid': 'cardioid',         // closest standard pattern
+  'open cardioid': 'cardioid',         // closest standard pattern
+  'line + gradient': 'shotgun',        // shotgun mic pickup pattern
+  'hemispherical': 'omnidirectional',  // boundary mic variant of omni
+  'm/s stereo': 'multipattern',
+  'x/y stereo': 'multipattern',
+};
+
+/**
+ * Extract structured values from prefixed Shopify tags (e.g. "polar_pattern_Cardioid").
+ * Returns mic_pattern if a polar_pattern_* tag is found.
+ */
+function extractStructuredTagValues(tags: string[]): Partial<ExtractedTags> {
+  const result: Partial<ExtractedTags> = {};
+  for (const tag of tags) {
+    const lower = tag.toLowerCase();
+    if (lower.startsWith('polar_pattern_')) {
+      const value = lower.slice('polar_pattern_'.length).trim();
+      const mapped = PA_POLAR_PATTERN_MAP[value];
+      if (mapped) {
+        result.mic_pattern = mapped;
+        break; // first match wins
+      }
+    }
+  }
+  return result;
 }
 
 /**
@@ -34,13 +72,33 @@ export function extractTagAttributes(tags: string[]): ExtractedTags {
     result.headphone_design = 'closed';
   }
 
-  // Driver type
-  if (tagSet.has('dynamic')) {
-    result.driver_type = 'Dynamic';
-  } else if (tagSet.has('planar-magnetic') || tagSet.has('planar')) {
-    result.driver_type = 'Planar Magnetic';
-  } else if (tagSet.has('electrostatic')) {
-    result.driver_type = 'Electrostatic';
+  // Driver type — multi-driver detection from tags
+  // Count how many distinct driver technology tags are present.
+  // Products with multiple driver types are hybrid/tribrid/quadbrid.
+  {
+    const driverTags: string[] = [];
+    if (tagSet.has('dynamic')) driverTags.push('dynamic');
+    if (tagSet.has('balanced armature') || tagSet.has('balanced-armature')) driverTags.push('balanced_armature');
+    if (tagSet.has('electrostatic')) driverTags.push('electrostatic');
+    if (tagSet.has('planar-magnetic') || tagSet.has('planar magnetic') || tagSet.has('planar')) driverTags.push('planar');
+    if (tagSet.has('bone conduction') || tagSet.has('bone-conduction')) driverTags.push('bone_conduction');
+    if (tagSet.has('ribbon') || tagSet.has('amt') || tagSet.has('air motion')) driverTags.push('ribbon');
+
+    if (driverTags.length >= 4) {
+      result.driver_type = 'quadbrid';
+    } else if (driverTags.length === 3) {
+      result.driver_type = 'tribrid';
+    } else if (driverTags.length === 2) {
+      result.driver_type = 'hybrid';
+    } else if (driverTags.length === 1) {
+      result.driver_type = driverTags[0];
+    }
+    // Also check explicit hybrid/tribrid/quadbrid tags (some stores tag these directly)
+    if (!result.driver_type) {
+      if (tagSet.has('quadbrid')) result.driver_type = 'quadbrid';
+      else if (tagSet.has('tribrid')) result.driver_type = 'tribrid';
+      else if (tagSet.has('hybrid')) result.driver_type = 'hybrid';
+    }
   }
 
   // Wearing style
@@ -82,17 +140,27 @@ export function extractTagAttributes(tags: string[]): ExtractedTags {
     result.mic_type = 'ribbon';
   }
 
-  // Microphone polar pattern
+  // Microphone polar pattern (simple tags first)
   if (tagSet.has('multi-pattern') || tagSet.has('multipattern')) {
     result.mic_pattern = 'multipattern';
+  } else if (tagSet.has('hypercardioid')) {
+    result.mic_pattern = 'hypercardioid';
   } else if (tagSet.has('supercardioid')) {
     result.mic_pattern = 'supercardioid';
   } else if (tagSet.has('omnidirectional') || tagSet.has('omni')) {
     result.mic_pattern = 'omnidirectional';
   } else if (tagSet.has('bidirectional') || tagSet.has('figure-8') || tagSet.has('figure 8')) {
     result.mic_pattern = 'bidirectional';
+  } else if (tagSet.has('shotgun')) {
+    result.mic_pattern = 'shotgun';
   } else if (tagSet.has('cardioid')) {
     result.mic_pattern = 'cardioid';
+  }
+
+  // Structured tag fallback (Performance Audio "polar_pattern_*" format)
+  if (!result.mic_pattern) {
+    const structured = extractStructuredTagValues(tags);
+    if (structured.mic_pattern) result.mic_pattern = structured.mic_pattern;
   }
 
   return result;

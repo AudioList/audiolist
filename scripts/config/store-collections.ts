@@ -21,6 +21,9 @@ export interface CollectionMapping {
 export interface StoreConfig {
   retailerId: string;
   collections: CollectionMapping[];
+  /** Collection handles for sale/deals/clearance pages. Products in these
+   *  collections get their on_sale flag set during sync. */
+  dealCollections?: string[];
 }
 
 /** Category groups for split pipeline execution */
@@ -45,6 +48,7 @@ export const STORE_COLLECTIONS: Record<string, StoreConfig> = {
       { handle: 'pads', categoryId: 'hp_pads' },
       { handle: 'headphone-cables', categoryId: 'hp_cable' },
     ],
+    dealCollections: ['open-box-deals', 'on-sale'],
   },
   'apos.audio': {
     retailerId: 'aposaudio',
@@ -59,6 +63,7 @@ export const STORE_COLLECTIONS: Record<string, StoreConfig> = {
       { handle: 'cables-for-in-ear-monitors-iem-earbuds-earphones', categoryId: 'cable' },
       { handle: 'speakers', categoryId: 'speaker' },
     ],
+    dealCollections: ['apos-audio-deals-section', 'apos-certified'],
   },
   'www.headphones.com': {
     retailerId: 'headphones',
@@ -75,6 +80,7 @@ export const STORE_COLLECTIONS: Record<string, StoreConfig> = {
       { handle: 'bookshelf-speakers', categoryId: 'speaker' },
       { handle: 'speakers', categoryId: 'speaker' },
     ],
+    dealCollections: ['sale'],
   },
   'hifigo.com': {
     retailerId: 'hifigo',
@@ -89,6 +95,7 @@ export const STORE_COLLECTIONS: Record<string, StoreConfig> = {
       { handle: 'headphone-cable', categoryId: 'hp_cable' },
       { handle: 'earpads', categoryId: 'hp_pads' },
     ],
+    dealCollections: ['sales'],
   },
   'www.moon-audio.com': {
     retailerId: 'moonaudio',
@@ -109,11 +116,15 @@ export const STORE_COLLECTIONS: Record<string, StoreConfig> = {
       { handle: 'in-ear-monitors', categoryId: 'iem' },
       { handle: 'headphones', categoryId: 'headphone' },
       { handle: 'amp-dacs', categoryId: 'dac' },
+      { handle: 'portable-dac-amps', categoryId: 'dac' },
+      { handle: 'desktop-dac-amps', categoryId: 'dac' },
       { handle: 'digital-audio-players', categoryId: 'dap' },
       { handle: 'audio-cables', categoryId: 'cable' },
+      { handle: 'cable-adapters', categoryId: 'cable' },
       { handle: 'eartips', categoryId: 'iem_tips' },
       { handle: 'earpads', categoryId: 'hp_pads' },
     ],
+    dealCollections: ['sale'],
   },
   'shenzhenaudio.com': {
     retailerId: 'shenzhenaudio',
@@ -301,15 +312,67 @@ export const STORE_COLLECTIONS: Record<string, StoreConfig> = {
       { handle: 'microphones', categoryId: 'microphone' },
     ],
   },
-  // --- Multi-brand pro audio retailers (microphones) ---
+  // --- Multi-brand pro audio retailer ---
   'www.performanceaudio.com': {
     retailerId: 'performance-audio',
     collections: [
+      // Recording microphones (by transducer / diaphragm type)
       { handle: 'studio-microphones', categoryId: 'microphone' },
       { handle: 'condenser-microphones', categoryId: 'microphone' },
+      { handle: 'large-diaphragm-condenser', categoryId: 'microphone' },
+      { handle: 'small-diaphragm-condenser', categoryId: 'microphone' },
       { handle: 'dynamic-microphones', categoryId: 'microphone' },
-      { handle: 'usb-microphones', categoryId: 'microphone' },
+      { handle: 'tube-microphones', categoryId: 'microphone' },
       { handle: 'ribbon-microphones', categoryId: 'microphone' },
+      { handle: 'usb-microphones', categoryId: 'microphone' },
+      // Live sound microphones (by use-case / form-factor)
+      { handle: 'handheld-microphones', categoryId: 'microphone' },
+      { handle: 'instrument-microphones', categoryId: 'microphone' },
+      { handle: 'lavalier-lapel-microphones', categoryId: 'microphone' },
+      { handle: 'headworn-microphones-headsets', categoryId: 'microphone' },
+      { handle: 'shotgun-video-microphones', categoryId: 'microphone' },
+      { handle: 'mobile-microphones', categoryId: 'microphone' },
+      { handle: 'gooseneck-podium-microphones', categoryId: 'microphone' },
+      { handle: 'boundary-tabletop-microphones', categoryId: 'microphone' },
+      { handle: 'hanging-microphones', categoryId: 'microphone' },
+      // Microphone accessories
+      { handle: 'shock-mounts-suspension', categoryId: 'mic_accessory' },
+      { handle: 'windscreens-grilles', categoryId: 'mic_accessory' },
+      { handle: 'pop-filters-pop-screens', categoryId: 'mic_accessory' },
+      { handle: 'microphone-clips-clamps', categoryId: 'mic_accessory' },
+      { handle: 'microphone-cases-gig-bags', categoryId: 'mic_accessory' },
+      { handle: 'goosenecks', categoryId: 'mic_accessory' },
+      { handle: 'thread-adapters-fittings', categoryId: 'mic_accessory' },
+      { handle: 'phantom-power-supplies', categoryId: 'mic_accessory' },
+      { handle: 'direct-boxes', categoryId: 'mic_accessory' },
+      { handle: 'microphone-preamps', categoryId: 'mic_accessory' },
+      { handle: 'studio-mic-arms-accessories', categoryId: 'mic_accessory' },
+      // Mic stands (accessory)
+      { handle: 'microphone-boom-stands', categoryId: 'mic_accessory' },
+      { handle: 'straight-stands', categoryId: 'mic_accessory' },
+      { handle: 'desktop-microphone-stands', categoryId: 'mic_accessory' },
+      { handle: 'boom-arms', categoryId: 'mic_accessory' },
+      // Studio monitors & speakers
+      { handle: 'studio-monitors', categoryId: 'speaker' },
+      { handle: 'studio-monitor-stands', categoryId: 'speaker' },
+      // Headphones
+      { handle: 'professional-headphones', categoryId: 'headphone' },
+      // Earphones / IEMs
+      { handle: 'earphones', categoryId: 'iem' },
+      // Headphone amplifiers
+      { handle: 'headphone-amplifiers', categoryId: 'amp' },
+      // DAC / Audio interfaces
+      { handle: 'audio-interfaces', categoryId: 'dac' },
+      // Cables
+      { handle: 'xlr-to-xlr-cables', categoryId: 'cable' },
+      { handle: '1-4-trs-to-1-4-trs-cables', categoryId: 'cable' },
+      { handle: 'speaker-cables', categoryId: 'cable' },
+      { handle: 'custom-xlr-to-xlr-cables', categoryId: 'cable' },
+      { handle: 'custom-speaker-cables', categoryId: 'cable' },
+      // Headphone cables
+      { handle: 'custom-headphone-cables', categoryId: 'hp_cable' },
+      // Additional speakers (powered subs)
+      { handle: 'powered-subwoofers', categoryId: 'speaker' },
     ],
   },
   // --- Brand-direct microphone stores ---

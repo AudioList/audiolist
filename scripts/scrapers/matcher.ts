@@ -8,7 +8,7 @@ const NOISE_PARENS_RE =
 // Retail noise words to strip
 // ---------------------------------------------------------------------------
 const RETAIL_NOISE_RE =
-  /\b(official|authentic|genuine|free shipping|new arrival|in stock|hot sale|latest|original)\b/gi;
+  /\b(official|authentic|genuine|free shipping|new arrival|in stock|hot sale|latest|original|upgraded|newest|best selling|top quality|factory direct|wholesale|high quality|brand new|fast shipping|clearance|sale|refurbished|renewed|certified|like new|open box|limited edition|special edition|with mic|with microphone|with cable|with case)\b/gi;
 
 // ---------------------------------------------------------------------------
 // Category suffixes to strip
@@ -26,10 +26,30 @@ const SUFFIX_TERMS = [
   "earphones",
   "earbuds",
   "earbud",
+  "in-ear",
   "over-ear",
   "on-ear",
   "open-back",
   "closed-back",
+  // Connectivity / wireless modifiers (not identity-bearing)
+  "true wireless",
+  "truly wireless",
+  "tws",
+  "bluetooth",
+  "wired",
+  // Noise cancellation descriptors
+  "active noise cancelling",
+  "active noise canceling",
+  "noise cancelling",
+  "noise canceling",
+  "anc",
+  // Audio quality marketing terms
+  "hi-fi",
+  "hifi",
+  "high fidelity",
+  "stereo",
+  "hi-res",
+  "hi res",
 ];
 
 const SUFFIX_RE = new RegExp(
@@ -95,18 +115,52 @@ function normalizeMark(str: string): string {
 // Name normalization
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Brands where stores append "Audio" but measurement DBs do not.
+// "Final Audio" in stores -> "Final" in measurements.
+// We only strip "audio" when it immediately follows one of these brands.
+// ---------------------------------------------------------------------------
+const BRAND_AUDIO_STRIP: Set<string> = new Set([
+  'final',
+  'campfire',
+  'see',       // SeeAudio vs See Audio
+  'nf',        // NFAudio vs NF Audio
+  'fa',        // FAudio vs F Audio
+  'ez',        // EZAudio vs EZ Audio
+  'float',     // FloAudio
+  'rumble',    // keep brand intact but strip trailing "audio"
+]);
+
+// ---------------------------------------------------------------------------
+// Dash-separated trailer suffixes to strip
+// (e.g., " - Clearance", " - Sale", " - Open Box", " - Renewed")
+// ---------------------------------------------------------------------------
+const DASH_TRAILER_RE = /\s+-\s+(clearance|sale|open box|renewed|refurbished|certified|like new|special edition|limited edition|pre-?order|back\s*order|coming soon|new|on sale|markdown|overstock|outlet|factory sealed|b[\s-]?stock)\s*$/gi;
+
 export function normalizeName(name: string): string {
   let result = name.toLowerCase();
   // Strip everything after a pipe character (Bloom Audio format:
   // "Product Name | Open-Back Dynamic Headphones").
   // Also handles " - " style suffixes that some retailers use for category descriptions.
   result = result.replace(/\s*\|.*$/, "");
+  // Strip dash-separated trailer suffixes (e.g., " - Clearance", " - Open Box")
+  result = result.replace(DASH_TRAILER_RE, "");
   // Remove only noise parentheticals (keep model variants like Pro, SE, MK2, years)
   result = result.replace(NOISE_PARENS_RE, "");
   // Remove retail noise words
   result = result.replace(RETAIL_NOISE_RE, "");
   // Remove common category suffixes
   result = result.replace(SUFFIX_RE, "");
+  // Strip "audio" when it immediately follows a known brand prefix
+  // (e.g., "final audio ze8000" -> "final ze8000", "campfire audio andromeda" -> "campfire andromeda")
+  // This bridges the gap between store names ("Final Audio") and measurement names ("Final")
+  for (const brandPrefix of BRAND_AUDIO_STRIP) {
+    const pattern = new RegExp(`^(${brandPrefix})\\s+audio\\b`, 'i');
+    if (pattern.test(result)) {
+      result = result.replace(pattern, '$1');
+      break;
+    }
+  }
   // Normalize dashes and special chars to spaces
   result = result.replace(/[-–—]/g, " ");
   // Remove non-alphanumeric except spaces
@@ -186,13 +240,59 @@ export function extractMicType(name: string): 'dynamic' | 'condenser' | 'ribbon'
  */
 export function extractMicPattern(
   name: string
-): 'cardioid' | 'omnidirectional' | 'bidirectional' | 'supercardioid' | 'multipattern' | null {
+): 'cardioid' | 'omnidirectional' | 'bidirectional' | 'supercardioid' | 'hypercardioid' | 'multipattern' | 'shotgun' | null {
   const lower = name.toLowerCase();
   if (/\bmulti[\s-]?pattern\b/.test(lower)) return 'multipattern';
+  if (/\bhypercardioid\b/.test(lower)) return 'hypercardioid';
   if (/\bsupercardioid\b/.test(lower)) return 'supercardioid';
   if (/\bomnidirectional\b|\bomni\b/.test(lower)) return 'omnidirectional';
   if (/\bbidirectional\b|\bfigure[\s-]?8\b/.test(lower)) return 'bidirectional';
+  if (/\bshotgun\b/.test(lower)) return 'shotgun';
   if (/\bcardioid\b/.test(lower)) return 'cardioid';
+  return null;
+}
+
+/**
+ * Driver type taxonomy for IEMs and headphones.
+ * Priority order: most specific multi-driver first, then single driver types.
+ */
+export type DriverType =
+  | 'dynamic' | 'balanced_armature' | 'planar' | 'hybrid' | 'tribrid'
+  | 'quadbrid' | 'electrostatic' | 'ribbon' | 'bone_conduction';
+
+/**
+ * Extract driver type from a product title.
+ * Works on both full titles (with pipe-separated descriptions from Bloom)
+ * and raw titles from any retailer.
+ *
+ * Priority: quadbrid > tribrid > hybrid > planar > electrostatic > ribbon >
+ *           bone_conduction > balanced_armature > dynamic
+ */
+export function extractDriverType(name: string): DriverType | null {
+  const lower = name.toLowerCase();
+
+  // Multi-driver types (check explicit labels first)
+  if (/\bquadbrid\b/.test(lower)) return 'quadbrid';
+  if (/\btribrid\b/.test(lower)) return 'tribrid';
+  if (/\bhybrid\b/.test(lower)) return 'hybrid';
+
+  // Single driver types
+  if (/\bplanar[\s-]?magnetic\b|\bplanar\b|\bisodynamic\b|\borthodynamic\b/.test(lower)) return 'planar';
+  if (/\belectrostatic\b|\belect[\s-]?stat\b|\best\s+driver\b/.test(lower)) return 'electrostatic';
+  if (/\bribbon\b|\bamt\b|\bair[\s-]?motion\b/.test(lower)) return 'ribbon';
+  if (/\bbone[\s-]?conduction\b/.test(lower)) return 'bone_conduction';
+  if (/\bbalanced[\s-]?armature\b|\b\d+[\s-]?ba\b/i.test(lower)) return 'balanced_armature';
+
+  // Dynamic last (most common, least specific).
+  // Only match when it clearly refers to a driver, not a mic transducer type.
+  if (/\bdynamic\s+driver\b/.test(lower)) return 'dynamic';
+  // In Bloom pipe-separated format: check the description portion specifically
+  const pipeIdx = name.indexOf('|');
+  if (pipeIdx !== -1) {
+    const desc = name.slice(pipeIdx + 1).toLowerCase();
+    if (/\bdynamic\b/.test(desc) && !/\bmicrophone\b/.test(desc)) return 'dynamic';
+  }
+
   return null;
 }
 

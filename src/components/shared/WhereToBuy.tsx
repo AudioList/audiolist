@@ -1,9 +1,13 @@
 import { Fragment, useMemo } from 'react';
 import { usePriceListings } from '../../hooks/usePriceListings';
 import { useBundleListings } from '../../hooks/useBundleListings';
+import { usePriceInsights } from '../../hooks/usePriceInsights';
+import { useCoupons } from '../../hooks/useCoupons';
 import { useGlassMode } from '../../context/GlassModeContext';
 import { extractBundleDescription } from '../../lib/bundleUtils';
 import RetailerTrustInfo from './RetailerTrustInfo';
+import DealBadge from './DealBadge';
+import CouponChip from './CouponChip';
 import type { StoreProductBundle } from '../../types';
 
 interface WhereToBuyProps {
@@ -134,6 +138,9 @@ export default function WhereToBuy({ productId, productName, discontinued }: Whe
   const isGlass = useGlassMode();
   const { listings, loading, error } = usePriceListings(productId);
   const { bundles } = useBundleListings(productId, productName);
+  const { insights } = usePriceInsights(productId, listings);
+  const retailerIds = useMemo(() => listings.map(l => l.retailer_id), [listings]);
+  const { coupons } = useCoupons(retailerIds);
 
   // Group bundles by retailer_id
   const bundlesByRetailer = useMemo(() => {
@@ -240,14 +247,58 @@ export default function WhereToBuy({ productId, productName, discontinued }: Whe
                         <tr
                           className="border-b border-surface-100 last:border-b-0 dark:border-surface-800"
                         >
-                          <td className="py-3 pr-4 font-semibold text-surface-900 dark:text-surface-100">
-                            <span className="inline-flex items-center gap-1">
-                              {listing.retailer?.name ?? 'Unknown'}
-                              {listing.retailer && <RetailerTrustInfo retailer={listing.retailer} />}
-                            </span>
+                          <td className="py-3 pr-4">
+                            <div className="flex flex-col gap-1">
+                              <span className="inline-flex items-center gap-1 font-semibold text-surface-900 dark:text-surface-100">
+                                {listing.retailer?.name ?? 'Unknown'}
+                                {listing.retailer && <RetailerTrustInfo retailer={listing.retailer} />}
+                              </span>
+                              {coupons.get(listing.retailer_id)?.map((coupon) => (
+                                <CouponChip
+                                  key={coupon.id}
+                                  coupon={coupon}
+                                  productHandle={listing.product_url?.split('/products/')[1]?.split('?')[0]}
+                                  storeDomain={listing.retailer?.base_url?.replace('https://', '')}
+                                />
+                              ))}
+                            </div>
                           </td>
-                          <td className="py-3 pr-4 font-mono text-surface-900 dark:text-surface-100">
-                            {formatPrice(listing.price, listing.currency)}
+                          <td className="py-3 pr-4">
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono text-surface-900 dark:text-surface-100">
+                                  {formatPrice(listing.price, listing.currency)}
+                                </span>
+                                {listing.compare_at_price != null && listing.compare_at_price > listing.price && (
+                                  <span className="font-mono text-xs text-surface-400 line-through dark:text-surface-500">
+                                    {formatPrice(listing.compare_at_price, listing.currency)}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex flex-wrap items-center gap-1">
+                                {listing.compare_at_price != null && listing.compare_at_price > listing.price && (
+                                  <DealBadge
+                                    type="discount"
+                                    value={Math.round(((listing.compare_at_price - listing.price) / listing.compare_at_price) * 100)}
+                                  />
+                                )}
+                                {(() => {
+                                  const insight = insights.get(listing.retailer_id);
+                                  if (!insight) return null;
+                                  return (
+                                    <>
+                                      {insight.is_all_time_low && <DealBadge type="all-time-low" />}
+                                      {!insight.is_all_time_low && insight.trend === 'down' && insight.price_change_pct != null && (
+                                        <DealBadge type="price-drop" value={insight.price_change_pct} />
+                                      )}
+                                    </>
+                                  );
+                                })()}
+                                {listing.on_sale && !listing.compare_at_price && (
+                                  <DealBadge type="on-sale" />
+                                )}
+                              </div>
+                            </div>
                           </td>
                           <td className="py-3 pr-4">
                             {listing.in_stock ? (

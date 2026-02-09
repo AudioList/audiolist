@@ -43,6 +43,54 @@ import * as fs from "fs";
 import * as path from "path";
 
 // ---------------------------------------------------------------------------
+// Amazon false-positive prevention
+// ---------------------------------------------------------------------------
+
+/**
+ * Amazon department allowlist. Only products from these departments are
+ * considered valid audio product matches. Amazon's department badge appears
+ * on search result cards (e.g. "in Electronics", "in Board Games").
+ * Products without a detected department are allowed through (conservative).
+ */
+const ALLOWED_DEPARTMENTS = new Set([
+  'electronics',
+  'headphones',
+  'over-ear headphones',
+  'on-ear headphones',
+  'in-ear headphones',
+  'earbud headphones',
+  'headphone amplifiers',
+  'portable headphone amps',
+  'hi-fi headphone amplifiers',
+  'audio & video accessories',
+  'home audio',
+  'home audio accessories',
+  'portable audio & video',
+  'mp3 & mp4 player accessories',
+  'professional audio',
+  'microphones',
+  'musical instruments',
+  'computers & accessories',
+  'computer accessories & peripherals',
+  'cell phones & accessories',
+]);
+
+/** Check if an Amazon department is allowed for audio product matching */
+function isAllowedDepartment(department: string | null): boolean {
+  // No department detected -- allow through (conservative: don't reject unknowns)
+  if (!department) return true;
+  return ALLOWED_DEPARTMENTS.has(department.toLowerCase());
+}
+
+/** Check if an ASIN looks like an ISBN (book identifier, not audio product) */
+function isLikelyISBN(asin: string): boolean {
+  if (/^B0[A-Z0-9]{8,}$/i.test(asin)) return false;
+  if (/^\d{9}[\dXx]$/.test(asin)) return true;
+  if (/^\d{13}$/.test(asin)) return true;
+  return false;
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -716,7 +764,14 @@ class WorkerPool {
     }
 
     const candidates = azResults
-      .filter((ap) => ap.name && ap.name.length > 3)
+      .filter((ap) => {
+        if (!ap.name || ap.name.length <= 3) return false;
+        // Reject ISBN-format ASINs (books, not audio products)
+        if (isLikelyISBN(ap.asin)) return false;
+        // Reject products from non-audio departments (Board Games, Books, Clothing, etc.)
+        if (!isAllowedDepartment(ap.department)) return false;
+        return true;
+      })
       .map((ap) => ({ name: ap.name, id: ap.asin }));
 
     if (candidates.length === 0) {
@@ -729,7 +784,23 @@ class WorkerPool {
       return { productId: product.id, matchRow: null, listingRow: null, captcha: false, error: false };
     }
 
-    const isAutoApprove = match.score >= MATCH_THRESHOLDS.AUTO_APPROVE;
+    // Additional false-positive guards for auto-approval
+    let isAutoApprove = match.score >= MATCH_THRESHOLDS.AUTO_APPROVE;
+
+    if (isAutoApprove) {
+      const audioBrand = (product.brand ?? '').toLowerCase();
+      const amazonName = match.name.toLowerCase();
+      const amazonWords = match.name.trim().split(/\s+/);
+      const productWords = product.name.trim().split(/\s+/);
+
+      // Amazon name must mention the audio brand for auto-approval.
+      // Prevents generic product name matches (e.g. "Zenith" board game
+      // matching "Letshuoer Zenith" IEM) from being auto-approved.
+      // These still land in the pending queue for manual review.
+      if (audioBrand.length > 2 && !amazonName.includes(audioBrand)) {
+        isAutoApprove = false;
+      }
+    }
     const status = isAutoApprove ? "approved" : "pending";
 
     const azProduct = azResults.find((ap) => ap.asin === match.id);

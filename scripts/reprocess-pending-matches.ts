@@ -234,14 +234,31 @@ async function main() {
   }
 
   // Step 5: Apply changes
-  // 5a: Upsert price_listings
-  if (listingRows.length > 0) {
-    console.log(`\nUpserting ${listingRows.length} price_listings...`);
-    for (let i = 0; i < listingRows.length; i += UPSERT_BATCH) {
-      const batch = listingRows.slice(i, i + UPSERT_BATCH);
+  // 5a: Upsert price_listings (filter out null prices and deduplicate by retailer_id+external_id)
+  const validListings = listingRows.filter((lr) => lr.price != null);
+  const dedupedListings = (() => {
+    const seen = new Map<string, typeof listingRows[0]>();
+    for (const row of validListings) {
+      const key = `${row.retailer_id}|${row.external_id}`;
+      if (!seen.has(key)) seen.set(key, row);
+    }
+    return [...seen.values()];
+  })();
+
+  if (validListings.length < listingRows.length) {
+    console.log(`  Filtered out ${listingRows.length - validListings.length} listings with null price`);
+  }
+  if (dedupedListings.length < validListings.length) {
+    console.log(`  Deduplicated ${validListings.length} → ${dedupedListings.length} listings`);
+  }
+
+  if (dedupedListings.length > 0) {
+    console.log(`\nUpserting ${dedupedListings.length} price_listings...`);
+    for (let i = 0; i < dedupedListings.length; i += UPSERT_BATCH) {
+      const batch = dedupedListings.slice(i, i + UPSERT_BATCH);
       const { error } = await supabase
         .from('price_listings')
-        .upsert(batch, { onConflict: 'product_id,retailer_id' });
+        .upsert(batch, { onConflict: 'retailer_id,external_id' });
 
       if (error) {
         console.error(`  Error upserting batch ${i}: ${error.message}`);

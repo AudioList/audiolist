@@ -2,8 +2,8 @@ name: Sync Stores
 
 on:
   schedule:
-    # Run every 40 minutes
-    - cron: '*/40 * * * *'
+    # Run every 6 hours
+    - cron: '10 */6 * * *'
   workflow_dispatch: # Allow manual trigger from GitHub UI
 
 jobs:

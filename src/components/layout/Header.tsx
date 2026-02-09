@@ -9,6 +9,7 @@ const GLOSSARY_URL = 'https://headphones.com/blogs/features/the-glossary-of-audi
 const navLinks = [
   { to: '/', label: 'Builder' },
   { to: '/products/iem', label: 'Products' },
+  { to: '/deals', label: 'Deals' },
   { to: '/builds', label: 'Community' },
 ] as const;
 

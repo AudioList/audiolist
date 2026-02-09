@@ -9,6 +9,7 @@ export type ShopifyProduct = {
     id: number;
     title: string;
     price: string;
+    compare_at_price: string | null;
     available: boolean;
     sku: string | null;
   }>;

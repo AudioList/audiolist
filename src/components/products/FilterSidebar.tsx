@@ -13,6 +13,7 @@ interface FilterSidebarProps {
   speakerTypes?: { value: string; label: string; count: number }[];
   headphoneDesigns?: { value: string; label: string; count: number }[];
   iemTypes?: { value: string; label: string; count: number }[];
+  driverTypes?: { value: string; label: string; count: number }[];
   micConnections?: { value: string; label: string; count: number }[];
   micTypes?: { value: string; label: string; count: number }[];
   micPatterns?: { value: string; label: string; count: number }[];
@@ -33,6 +34,7 @@ export default function FilterSidebar({
   speakerTypes = [],
   headphoneDesigns = [],
   iemTypes = [],
+  driverTypes = [],
   micConnections = [],
   micTypes = [],
   micPatterns = [],
@@ -74,6 +76,7 @@ export default function FilterSidebar({
       sinadMax: null,
       headphoneDesigns: [],
       iemTypes: [],
+      driverTypes: [],
       micConnections: [],
       micTypes: [],
       micPatterns: [],
@@ -115,6 +118,13 @@ export default function FilterSidebar({
     update({ iemTypes: next });
   }
 
+  function toggleDriverType(type: string) {
+    const next = filters.driverTypes.includes(type)
+      ? filters.driverTypes.filter((t) => t !== type)
+      : [...filters.driverTypes, type];
+    update({ driverTypes: next });
+  }
+
   function toggleMicConnection(type: string) {
     const next = filters.micConnections.includes(type)
       ? filters.micConnections.filter((t) => t !== type)
@@ -144,6 +154,7 @@ export default function FilterSidebar({
     filters.speakerTypes.length > 0 ||
     filters.headphoneDesigns.length > 0 ||
     filters.iemTypes.length > 0 ||
+    filters.driverTypes.length > 0 ||
     filters.micConnections.length > 0 ||
     filters.micTypes.length > 0 ||
     filters.micPatterns.length > 0 ||
@@ -251,6 +262,35 @@ export default function FilterSidebar({
                 />
                 <span className="truncate">{it.label}</span>
                 <span className="ml-auto text-xs text-surface-500">{it.count}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Driver Type (IEM and headphone categories) */}
+      {driverTypes.length > 0 && (
+        <div>
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-surface-400">
+            Driver Type
+            {filters.driverTypes.length > 0 && (
+              <span className="ml-1.5 text-primary-400">({filters.driverTypes.length})</span>
+            )}
+          </h4>
+          <div className="max-h-48 space-y-1 overflow-y-auto pr-1" role="group" aria-label="Filter by driver type">
+            {driverTypes.map((dt) => (
+              <label
+                key={dt.value}
+                className={`flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-200 ${isGlass ? 'hover:bg-white/12' : 'hover:bg-surface-700'}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={filters.driverTypes.includes(dt.value)}
+                  onChange={() => toggleDriverType(dt.value)}
+                  className="h-3.5 w-3.5 rounded border-surface-500 bg-surface-700 text-primary-500 focus:ring-primary-500/40 focus:ring-offset-0"
+                />
+                <span className="truncate">{dt.label}</span>
+                <span className="ml-auto text-xs text-surface-500">{dt.count}</span>
               </label>
             ))}
           </div>

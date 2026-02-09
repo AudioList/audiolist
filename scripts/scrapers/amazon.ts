@@ -24,6 +24,8 @@ export type AmazonProduct = {
   url: string;
   image: string | null;
   manufacturer: string | null;
+  /** Amazon department/category badge text (e.g. "Electronics", "Board Games") */
+  department: string | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -88,6 +90,7 @@ type RawProduct = {
   inStock: boolean;
   url: string;
   image: string | null;
+  department: string | null;
 };
 
 /**
@@ -104,6 +107,7 @@ async function extractSearchResults(page: Page, maxResults: number): Promise<Raw
         inStock: boolean;
         url: string;
         image: string | null;
+        department: string | null;
       }[] = [];
 
       const items = document.querySelectorAll(
@@ -152,7 +156,22 @@ async function extractSearchResults(page: Page, maxResults: number): Promise<Raw
 
         const inStock = price !== null && price > 0;
 
-        results.push({ asin, name, price, inStock, url, image });
+        // Extract department/category badge.
+        // Amazon shows "in Electronics", "in Board Games", etc. as a link below the title.
+        let department: string | null = null;
+        const deptCandidates = Array.from(
+          item.querySelectorAll('a.a-link-normal.s-underline-text, a.a-size-base.a-link-normal, span.a-size-base')
+        );
+        for (let di = 0; di < deptCandidates.length; di++) {
+          const deptText = deptCandidates[di].textContent?.trim() ?? '';
+          const deptMatch = deptText.match(/^in\s+(.+)$/i);
+          if (deptMatch) {
+            department = deptMatch[1].trim();
+            break;
+          }
+        }
+
+        results.push({ asin, name, price, inStock, url, image, department });
       }
 
       return results;
@@ -247,6 +266,7 @@ export async function searchAmazonWithPage(
     const products: AmazonProduct[] = raw.map((p) => ({
       ...p,
       manufacturer: null,
+      department: p.department,
       url: affiliateTag
         ? `https://www.amazon.com/dp/${p.asin}?tag=${affiliateTag}`
         : p.url,

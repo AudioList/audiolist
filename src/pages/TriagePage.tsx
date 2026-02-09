@@ -24,6 +24,8 @@ export default function TriagePage() {
   const [savedCount, setSavedCount] = useState(0);
   const [saving, setSaving] = useState<string | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>('microphone');
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  const [showHidden, setShowHidden] = useState(false);
 
   const isDev = isDevDeployment();
 
@@ -40,6 +42,8 @@ export default function TriagePage() {
     } else {
       setProducts(data ?? []);
     }
+    setHiddenIds(new Set());
+    setShowHidden(false);
     setLoading(false);
   }, [filterCategory]);
 
@@ -101,6 +105,11 @@ export default function TriagePage() {
       setProducts(prev => prev.map(p =>
         p.id === productId ? { ...p, category_id: action } : p
       ));
+      setHiddenIds(prev => {
+        const next = new Set(prev);
+        next.add(productId);
+        return next;
+      });
     }
 
     setChanges(prev => {
@@ -112,13 +121,24 @@ export default function TriagePage() {
     setSaving(null);
   };
 
+  const handleUnhide = (productId: string) => {
+    setHiddenIds(prev => {
+      const next = new Set(prev);
+      next.delete(productId);
+      return next;
+    });
+  };
+
   const filtered = products.filter(p => {
     if (!search) return true;
     const q = search.toLowerCase();
     return p.name.toLowerCase().includes(q) || (p.brand?.toLowerCase().includes(q) ?? false);
   });
 
+  const visible = showHidden ? filtered : filtered.filter(p => !hiddenIds.has(p.id));
+
   const pendingCount = changes.size;
+  const hiddenCount = hiddenIds.size;
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
@@ -131,12 +151,20 @@ export default function TriagePage() {
 
       {/* Stats bar */}
       <div className="mb-4 flex flex-wrap items-center gap-4 text-sm text-surface-300">
-        <span>{filtered.length} products shown</span>
+        <span>{visible.length} products shown</span>
         {pendingCount > 0 && (
           <span className="text-amber-400">{pendingCount} unsaved changes</span>
         )}
         {savedCount > 0 && (
           <span className="text-green-400">{savedCount} saved this session</span>
+        )}
+        {hiddenCount > 0 && (
+          <button
+            onClick={() => setShowHidden(prev => !prev)}
+            className="text-surface-400 underline hover:text-surface-200"
+          >
+            {showHidden ? `Hide ${hiddenCount} sorted` : `Show ${hiddenCount} hidden`}
+          </button>
         )}
       </div>
 
@@ -166,22 +194,48 @@ export default function TriagePage() {
         <div className="flex min-h-[30vh] items-center justify-center">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-white/20 border-t-primary-400" />
         </div>
-      ) : filtered.length === 0 ? (
+      ) : visible.length === 0 ? (
         <p className="py-12 text-center text-surface-400">No products found.</p>
       ) : (
         <div className="flex flex-col gap-3">
-          {filtered.map(product => {
+          {visible.map(product => {
             const currentAction = changes.get(product.id) ?? '';
             const isSaving = saving === product.id;
+            const isHidden = hiddenIds.has(product.id);
 
             return (
               <div
                 key={product.id}
-                className="flex flex-col gap-2 rounded-xl border border-surface-700 bg-surface-800/60 p-4 sm:flex-row sm:items-center sm:gap-4"
+                className={`flex items-center gap-4 rounded-xl border p-4 ${
+                  isHidden
+                    ? 'border-surface-700/50 bg-surface-800/30 opacity-50'
+                    : 'border-surface-700 bg-surface-800/60'
+                }`}
               >
+                {/* Thumbnail */}
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-surface-700">
+                  {product.image_url ? (
+                    <img
+                      src={product.image_url}
+                      alt=""
+                      className="h-full w-full object-contain p-1"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <span className="text-xl text-surface-500" aria-hidden="true">?</span>
+                  )}
+                </div>
+
                 {/* Product info */}
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold text-surface-100">{product.name}</p>
+                  <a
+                    href={`/product/${product.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="truncate font-semibold text-surface-100 hover:text-primary-400 hover:underline"
+                  >
+                    {product.name}
+                  </a>
                   <div className="mt-0.5 flex flex-wrap gap-2 text-xs text-surface-400">
                     {product.brand && <span>{product.brand}</span>}
                     <span className="rounded bg-surface-700 px-1.5 py-0.5">{product.category_id}</span>
@@ -190,28 +244,40 @@ export default function TriagePage() {
                 </div>
 
                 {/* Action controls */}
-                <div className="flex items-center gap-2">
-                  <select
-                    value={currentAction}
-                    onChange={e => handleChange(product.id, e.target.value as TriageAction)}
-                    className="rounded-lg border border-surface-600 bg-surface-700 px-2 py-1.5 text-sm text-surface-100 focus:border-primary-500 focus:outline-none"
-                    aria-label={`Reassign category for ${product.name}`}
-                  >
-                    <option value="">-- no change --</option>
-                    <option value="DELETE" className="text-red-400">Delete</option>
-                    {CATEGORIES.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+                <div className="flex shrink-0 items-center gap-2">
+                  {isHidden ? (
+                    <button
+                      onClick={() => handleUnhide(product.id)}
+                      className="rounded-lg border border-surface-600 px-3 py-1.5 text-sm text-surface-400 hover:text-surface-200"
+                      aria-label={`Unhide ${product.name}`}
+                    >
+                      Unhide
+                    </button>
+                  ) : (
+                    <>
+                      <select
+                        value={currentAction}
+                        onChange={e => handleChange(product.id, e.target.value as TriageAction)}
+                        className="rounded-lg border border-surface-600 bg-surface-700 px-2 py-1.5 text-sm text-surface-100 focus:border-primary-500 focus:outline-none"
+                        aria-label={`Reassign category for ${product.name}`}
+                      >
+                        <option value="">-- no change --</option>
+                        <option value="DELETE" className="text-red-400">Delete</option>
+                        {CATEGORIES.map(c => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
 
-                  <button
-                    onClick={() => handleSave(product.id)}
-                    disabled={!currentAction || isSaving}
-                    className="rounded-lg bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-40"
-                    aria-label={`Save changes for ${product.name}`}
-                  >
-                    {isSaving ? '...' : 'Save'}
-                  </button>
+                      <button
+                        onClick={() => handleSave(product.id)}
+                        disabled={!currentAction || isSaving}
+                        className="rounded-lg bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-40"
+                        aria-label={`Save changes for ${product.name}`}
+                      >
+                        {isSaving ? '...' : 'Save'}
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             );

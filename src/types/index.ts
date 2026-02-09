@@ -67,7 +67,8 @@ export interface Product {
   iem_type: 'passive' | 'active' | 'tws' | null;
   mic_connection: 'usb' | 'xlr' | 'usb_xlr' | 'wireless' | '3.5mm' | null;
   mic_type: 'dynamic' | 'condenser' | 'ribbon' | null;
-  mic_pattern: 'cardioid' | 'omnidirectional' | 'bidirectional' | 'supercardioid' | 'multipattern' | null;
+  mic_pattern: 'cardioid' | 'omnidirectional' | 'bidirectional' | 'supercardioid' | 'hypercardioid' | 'multipattern' | 'shotgun' | null;
+  driver_type: 'dynamic' | 'balanced_armature' | 'planar' | 'hybrid' | 'tribrid' | 'quadbrid' | 'electrostatic' | 'ribbon' | 'bone_conduction' | null;
   is_best_variant: boolean;
   created_at: string;
   updated_at: string;
@@ -135,6 +136,7 @@ export interface ProductFilters {
   sinadMax: number | null;
   headphoneDesigns: string[];
   iemTypes: string[];
+  driverTypes: string[];
   micConnections: string[];
   micTypes: string[];
   micPatterns: string[];
@@ -161,6 +163,8 @@ export interface PriceListing {
   product_id: string;
   retailer_id: string;
   price: number;
+  compare_at_price: number | null;
+  on_sale: boolean;
   currency: string;
   in_stock: boolean;
   product_url: string | null;
@@ -168,6 +172,19 @@ export interface PriceListing {
   image_url: string | null;
   last_checked: string;
   retailer?: Retailer;
+}
+
+export interface RetailerCoupon {
+  id: string;
+  retailer_id: string;
+  code: string;
+  description: string;
+  discount_type: 'percentage' | 'fixed' | 'free_shipping';
+  discount_value: number | null;
+  min_purchase: number | null;
+  auto_apply_url: string | null;
+  is_active: boolean;
+  expires_at: string | null;
 }
 
 export interface StoreProductBundle {

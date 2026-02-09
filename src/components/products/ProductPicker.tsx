@@ -32,6 +32,7 @@ const emptyFilters: ProductFilters = {
   sinadMax: null,
   headphoneDesigns: [],
   iemTypes: [],
+  driverTypes: [],
   micConnections: [],
   micTypes: [],
   micPatterns: [],
@@ -55,7 +56,7 @@ export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetai
     sort,
   });
 
-  const { brands, retailers, speakerTypes, headphoneDesigns, iemTypes, micConnections, micTypes, micPatterns } = useFilterOptions(categoryId);
+  const { brands, retailers, speakerTypes, headphoneDesigns, iemTypes, driverTypes, micConnections, micTypes, micPatterns } = useFilterOptions(categoryId);
   const { setProduct, getSelection } = useBuild();
   const currentSelection = getSelection(categoryId);
   const backdropRef = useRef<HTMLDivElement>(null);
@@ -238,6 +239,7 @@ export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetai
             speakerTypes={categoryId === 'speaker' ? speakerTypes : undefined}
             headphoneDesigns={categoryId === 'headphone' ? headphoneDesigns : undefined}
             iemTypes={categoryId === 'iem' ? iemTypes : undefined}
+            driverTypes={(categoryId === 'iem' || categoryId === 'headphone') ? driverTypes : undefined}
             micConnections={categoryId === 'microphone' ? micConnections : undefined}
             micTypes={categoryId === 'microphone' ? micTypes : undefined}
             micPatterns={categoryId === 'microphone' ? micPatterns : undefined}

@@ -7,15 +7,149 @@
 
 import { getSupabase, getRetailers, type Retailer } from '../config/retailers.ts';
 import { extractBrand } from '../brand-config.ts';
-import { normalizeName, buildCandidateIndex, findBestMatchIndexed, extractHeadphoneDesign, extractIemType, extractMicConnection, extractMicType, extractMicPattern, detectCorrectCategory, isJunkProduct, isMicrophoneJunk, type IndexedCandidate } from '../scrapers/matcher.ts';
+import { normalizeName, buildCandidateIndex, findBestMatchIndexed, extractHeadphoneDesign, extractIemType, extractDriverType, extractMicConnection, extractMicType, extractMicPattern, detectCorrectCategory, isJunkProduct, isMicrophoneJunk, type IndexedCandidate } from '../scrapers/matcher.ts';
 import type { CategoryId } from '../config/store-collections.ts';
 import { log, logError } from './log.ts';
 import { extractTagAttributes } from './extract-tags.ts';
+import { isAliExpressJunk, cleanAliExpressTitle } from './aliexpress-quality-gate.ts';
 
 const BATCH_SIZE = 1000;
 const UPSERT_BATCH_SIZE = 100;
 const MERGE_THRESHOLD = 0.85;
 const REVIEW_THRESHOLD = 0.65;
+
+// ---------------------------------------------------------------------------
+// Bloom Audio product_type gate: allowlist + reclassification
+// Their product_type values are precise and map 1:1 to AudioList categories.
+// ---------------------------------------------------------------------------
+
+/** For each collection-assigned category, which Bloom product_type values are valid. */
+const BLOOM_ALLOWED_PRODUCT_TYPES: Record<string, Set<string>> = {
+  'iem':       new Set(['headphones']),
+  'headphone': new Set(['headphones']),
+  'dac':       new Set(['dac', 'dac and amp', 'portable dac and amp', 'streamer']),
+  'amp':       new Set(['amp']),
+  'dap':       new Set(['digital audio player']),
+  'speaker':   new Set(['speakers']),
+  'cable':     new Set(['headphone cable']),
+  'hp_cable':  new Set(['headphone cable']),
+  'iem_tips':  new Set(['eartips']),
+  'hp_pads':   new Set(['accessory']),
+};
+
+/** When product_type disagrees with collection, map to the correct AudioList category. */
+const BLOOM_PRODUCT_TYPE_TO_CATEGORY: Record<string, string> = {
+  'dac':                   'dac',
+  'dac and amp':           'dac',
+  'portable dac and amp':  'dac',
+  'streamer':              'dac',
+  'amp':                   'amp',
+  'digital audio player':  'dap',
+  'speakers':              'speaker',
+  'headphone cable':       'hp_cable',
+  'eartips':               'iem_tips',
+  // 'headphones' -> context-dependent (handled in gate logic)
+  // 'accessory' -> skip when outside hp_pads
+};
+
+// ---------------------------------------------------------------------------
+// Linsoul product_type gate: allowlist + reclassification
+// Their product_type values are reasonably precise for gating.
+// Driver type data comes from collection membership (dynamic-driver, hybrid, etc.)
+// ---------------------------------------------------------------------------
+
+/** For each collection-assigned category, which Linsoul product_type values are valid. */
+const LINSOUL_ALLOWED_PRODUCT_TYPES: Record<string, Set<string>> = {
+  'iem':       new Set(['in-ear monitors', 'earphones/iems', 'earphones', 'true wireless earphones/tws']),
+  'headphone': new Set(['headphones']),
+  'dac':       new Set(['amp & dac', 'portable dac/amp', 'audio decoder', 'usb sound card', 'dac card', 'audio transmitter', 'network audio players', 'music server', 'master clock', 'turntable']),
+  'dap':       new Set(['digital audio players']),
+  'cable':     new Set(['audio cable']),
+  'iem_tips':  new Set(['eartips']),
+  'hp_pads':   new Set(['case', 'ear hook', 'stand', 'audio accessories']),
+};
+
+/** When Linsoul product_type disagrees with collection, map to the correct category. */
+const LINSOUL_PRODUCT_TYPE_TO_CATEGORY: Record<string, string> = {
+  'in-ear monitors':            'iem',
+  'earphones/iems':             'iem',
+  'earphones':                  'iem',
+  'true wireless earphones/tws':'iem',
+  'headphones':                 'headphone',
+  'amp & dac':                  'dac',
+  'portable dac/amp':           'dac',
+  'audio decoder':              'dac',
+  'usb sound card':             'dac',
+  'dac card':                   'dac',
+  'digital audio players':      'dap',
+  'audio cable':                'cable',
+  'eartips':                    'iem_tips',
+  'cable convertors':           'cable',
+};
+
+/** Linsoul driver-type collection handles -> driver_type values */
+const LINSOUL_DRIVER_COLLECTIONS: Record<string, string> = {
+  'dynamic-driver':     'dynamic',
+  'balanced-armatures': 'balanced_armature',
+  'hybrid':             'hybrid',
+  'tribrid':            'tribrid',
+  'quadbrid':           'quadbrid',
+  'planar-magnetic':    'planar',
+};
+
+/**
+ * Fetch Linsoul driver-type collection memberships and build a lookup map
+ * from product handle (external_id) to driver_type value.
+ * Called once at the start of processing when Linsoul products are present.
+ */
+async function buildLinsoulDriverTypeLookup(): Promise<Map<string, string>> {
+  const lookup = new Map<string, string>();
+  const baseUrl = 'https://www.linsoul.com/collections';
+
+  for (const [handle, driverType] of Object.entries(LINSOUL_DRIVER_COLLECTIONS)) {
+    let page = 1;
+    while (true) {
+      try {
+        const url = `${baseUrl}/${handle}/products.json?limit=250&page=${page}`;
+        const resp = await fetch(url, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+        });
+        if (!resp.ok) break;
+        const data = await resp.json() as { products?: { handle: string }[] };
+        const products = data.products ?? [];
+        if (products.length === 0) break;
+
+        for (const p of products) {
+          // Only set if not already set by a higher-priority driver type
+          // Priority: quadbrid > tribrid > hybrid > planar > balanced_armature > dynamic
+          const existing = lookup.get(p.handle);
+          if (!existing || DRIVER_TYPE_PRIORITY[driverType] > DRIVER_TYPE_PRIORITY[existing]) {
+            lookup.set(p.handle, driverType);
+          }
+        }
+
+        if (products.length < 250) break;
+        page++;
+      } catch {
+        break;
+      }
+    }
+    log('LINSOUL_DRIVER', `${handle}: ${driverType} — found products in collection`);
+  }
+
+  log('LINSOUL_DRIVER', `Built driver_type lookup with ${lookup.size} entries`);
+  return lookup;
+}
+
+/** Priority map: higher number = takes precedence when a product is in multiple driver collections */
+const DRIVER_TYPE_PRIORITY: Record<string, number> = {
+  'dynamic':           1,
+  'balanced_armature': 2,
+  'planar':            3,
+  'hybrid':            4,
+  'tribrid':           5,
+  'quadbrid':          6,
+};
 
 export interface ProcessStoreProductsOptions {
   categoryFilter: Set<CategoryId> | null;
@@ -33,6 +167,8 @@ type StoreProduct = {
   tags: string[];
   category_id: string | null;
   price: number | null;
+  compare_at_price: number | null;
+  on_sale: boolean;
   in_stock: boolean;
   image_url: string | null;
   product_url: string | null;
@@ -78,7 +214,7 @@ async function loadUnprocessed(
   while (true) {
     let query = supabase
       .from('store_products')
-      .select('id, retailer_id, external_id, title, vendor, product_type, tags, category_id, price, in_stock, image_url, product_url, affiliate_url')
+      .select('id, retailer_id, external_id, title, vendor, product_type, tags, category_id, price, compare_at_price, on_sale, in_stock, image_url, product_url, affiliate_url')
       .eq('processed', false)
       .not('category_id', 'is', null);
 
@@ -227,6 +363,13 @@ async function processStoreProducts(
   }
   log('PROCESS', `Built indices for ${categoryIndices.size} categories`);
 
+  // Linsoul driver-type lookup: fetch driver-type collection memberships
+  // only when there are Linsoul products in the batch
+  let linsoulDriverLookup: Map<string, string> | null = null;
+  if (storeProducts.some(sp => sp.retailer_id === 'linsoul')) {
+    linsoulDriverLookup = await buildLinsoulDriverTypeLookup();
+  }
+
   for (let i = 0; i < storeProducts.length; i++) {
     const sp = storeProducts[i];
     const categoryId = sp.category_id!;
@@ -250,17 +393,131 @@ async function processStoreProducts(
         continue;
       }
 
-      // Skip non-microphone products in microphone category
-      if (categoryId === 'microphone' && isMicrophoneJunk(sp.title)) {
+      // Performance Audio product_type gate: their product_type field is curated
+      // and overrides collection-based category assignment for mic vs mic_accessory.
+      // Runs BEFORE microphone junk check so PA accessories aren't falsely skipped.
+      // Note: only applies to microphone categories. For headphone/speaker/amp, PA's
+      // product_type is too coarse (Recording/DJ/Live Sound) to be useful as a gate.
+      // Those categories rely on collection-handle assignment + detectCorrectCategory().
+      if (sp.retailer_id === 'performance-audio' && sp.product_type &&
+          (categoryId === 'microphone' || categoryId === 'mic_accessory')) {
+        const ptLower = sp.product_type.toLowerCase();
+        if (ptLower === 'accessories' || ptLower === 'recording') {
+          effectiveCategoryId = 'mic_accessory';
+          if (categoryId !== 'mic_accessory') {
+            log('PA_GATE', `product_type="${sp.product_type}" override: "${sp.title}" -> mic_accessory`);
+          }
+        } else if (ptLower === 'microphones') {
+          effectiveCategoryId = 'microphone';
+          if (categoryId !== 'microphone') {
+            log('PA_GATE', `product_type="${sp.product_type}" override: "${sp.title}" -> microphone`);
+          }
+        }
+      }
+
+      // PA gate: audio-interfaces collection contains USB mics tagged as product_type "Microphones"
+      // Override those to microphone instead of dac so they get proper classification.
+      if (sp.retailer_id === 'performance-audio' && sp.product_type &&
+          categoryId === 'dac') {
+        const ptLower = sp.product_type.toLowerCase();
+        if (ptLower === 'microphones') {
+          effectiveCategoryId = 'microphone';
+          log('PA_GATE', `product_type="${sp.product_type}" override: "${sp.title}" -> microphone`);
+        }
+      }
+
+      // Bloom Audio product_type gate: their product_type is precise and maps 1:1
+      // to AudioList categories. Use allowlist to validate collection assignment.
+      // Cross-retailer benefit: accurate Bloom data enriches canonical products
+      // that other retailers also link to.
+      if (sp.retailer_id === 'bloomaudio' && sp.product_type) {
+        const ptLower = sp.product_type.toLowerCase();
+        const allowedSet = BLOOM_ALLOWED_PRODUCT_TYPES[categoryId];
+
+        if (allowedSet && !allowedSet.has(ptLower)) {
+          if (ptLower === 'accessory') {
+            // Accessories outside hp_pads have no target category -- skip
+            log('BLOOM_GATE', `Skipping accessory: "${sp.title}" (collection=${categoryId})`);
+            spUpdateProcessedOnly.push(sp.id);
+            stats.skipped++;
+            continue;
+          } else if (ptLower === 'headphones') {
+            // "Headphones" in non-IEM/headphone collection -> default to headphone
+            effectiveCategoryId = 'headphone';
+            log('BLOOM_GATE', `product_type="${sp.product_type}" override: "${sp.title}" ${categoryId} -> headphone`);
+          } else if (ptLower === 'headphone cable') {
+            // Context-dependent: IEM collections -> iem_cable, else -> hp_cable
+            const target = (categoryId === 'iem' || categoryId === 'iem_tips' || categoryId === 'iem_cable')
+              ? 'iem_cable' : 'hp_cable';
+            effectiveCategoryId = target;
+            log('BLOOM_GATE', `product_type="${sp.product_type}" override: "${sp.title}" ${categoryId} -> ${target}`);
+          } else {
+            const target = BLOOM_PRODUCT_TYPE_TO_CATEGORY[ptLower];
+            if (target) {
+              effectiveCategoryId = target;
+              log('BLOOM_GATE', `product_type="${sp.product_type}" override: "${sp.title}" ${categoryId} -> ${target}`);
+            } else {
+              log('BLOOM_GATE', `Unknown product_type="${sp.product_type}" for "${sp.title}" in ${categoryId}`);
+            }
+          }
+        }
+      }
+
+      // Linsoul product_type gate: validate collection assignment against product_type.
+      // Linsoul's product_type values ("In-Ear Monitors", "Headphones", "AMP & DAC", etc.)
+      // are reliable enough for gating. Reclassify or skip when they disagree.
+      if (sp.retailer_id === 'linsoul' && sp.product_type) {
+        const ptLower = sp.product_type.toLowerCase();
+        const allowedSet = LINSOUL_ALLOWED_PRODUCT_TYPES[categoryId];
+
+        if (allowedSet && !allowedSet.has(ptLower)) {
+          // Junk types: bundles, clearance, coming soon, early bird, gift cards, kinera (brand tag)
+          const junkTypes = new Set(['bundles', 'clearance', 'coming soon', 'early bird products', 'gift card', 'kinera', 'mws_apo_generated']);
+          if (junkTypes.has(ptLower)) {
+            log('LINSOUL_GATE', `Skipping junk product_type="${sp.product_type}": "${sp.title}" (collection=${categoryId})`);
+            spUpdateProcessedOnly.push(sp.id);
+            stats.skipped++;
+            continue;
+          }
+
+          // Try to reclassify based on product_type
+          const target = LINSOUL_PRODUCT_TYPE_TO_CATEGORY[ptLower];
+          if (target) {
+            effectiveCategoryId = target;
+            log('LINSOUL_GATE', `product_type="${sp.product_type}" override: "${sp.title}" ${categoryId} -> ${target}`);
+          } else {
+            log('LINSOUL_GATE', `Unknown product_type="${sp.product_type}" for "${sp.title}" in ${categoryId}`);
+          }
+        }
+      }
+
+      // AliExpress quality gate: their titles are noisy with marketing language.
+      // Clean the title for better matching and skip obvious junk.
+      let matchTitle = sp.title;
+      if (sp.retailer_id === 'aliexpress') {
+        if (isAliExpressJunk(sp.title)) {
+          log('ALIEXPRESS_GATE', `Skipping junk: "${sp.title}"`);
+          spUpdateProcessedOnly.push(sp.id);
+          stats.skipped++;
+          continue;
+        }
+        matchTitle = cleanAliExpressTitle(sp.title);
+        if (matchTitle !== sp.title) {
+          log('ALIEXPRESS_GATE', `Cleaned: "${sp.title}" -> "${matchTitle}"`);
+        }
+      }
+
+      // Skip non-microphone products in microphone category (after PA gate override)
+      if (effectiveCategoryId === 'microphone' && isMicrophoneJunk(sp.title)) {
         log('JUNK', `Skipping non-microphone product: "${sp.title}"`);
         spUpdateProcessedOnly.push(sp.id);
         stats.skipped++;
         continue;
       }
 
-      const detected = detectCorrectCategory(sp.title, brand, categoryId as CategoryId);
+      const detected = detectCorrectCategory(sp.title, brand, effectiveCategoryId as CategoryId);
       if (detected) {
-        log('CATEGORY', `Override: "${sp.title}" store=${categoryId} -> detected=${detected}`);
+        log('CATEGORY', `Override: "${sp.title}" store=${effectiveCategoryId} -> detected=${detected}`);
         effectiveCategoryId = detected;
       }
 
@@ -271,7 +528,7 @@ async function processStoreProducts(
       const candidateIndex = usingBrandIndex ? brandIndex : categoryIndex;
 
       const match = (candidateIndex && candidateIndex.length > 0)
-        ? findBestMatchIndexed(sp.title, candidateIndex, { productBrand: brand })
+        ? findBestMatchIndexed(matchTitle, candidateIndex, { productBrand: brand })
         : null;
 
       let canonicalProductId: string | null = null;
@@ -317,7 +574,6 @@ async function processStoreProducts(
 
         // Build initial specs from tag extraction
         const initialSpecs: Record<string, unknown> = {};
-        if (tagAttrs?.driver_type) initialSpecs.driver_type = tagAttrs.driver_type;
         if (tagAttrs?.wearing_style) initialSpecs.wearing_style = tagAttrs.wearing_style;
 
         // Extract IEM type from title and/or tags
@@ -347,6 +603,26 @@ async function processStoreProducts(
           if (!micPattern && tagAttrs?.mic_pattern) micPattern = tagAttrs.mic_pattern;
         }
 
+        // Extract driver type from title and/or tags (IEM + headphone categories)
+        let driverType: string | null = null;
+        if (effectiveCategoryId === 'iem' || effectiveCategoryId === 'headphone') {
+          driverType = extractDriverType(sp.title);
+          if (!driverType && tagAttrs?.driver_type) {
+            driverType = tagAttrs.driver_type;
+          }
+          // Linsoul driver-type collection lookup: highest-confidence source
+          // because collection membership is curated ground truth
+          if (sp.retailer_id === 'linsoul' && linsoulDriverLookup) {
+            const collectionDriverType = linsoulDriverLookup.get(sp.external_id);
+            if (collectionDriverType) {
+              if (driverType && driverType !== collectionDriverType) {
+                log('LINSOUL_DRIVER', `Collection overrides title: "${sp.title}" ${driverType} -> ${collectionDriverType}`);
+              }
+              driverType = collectionDriverType;
+            }
+          }
+        }
+
         const { data: newProduct, error: insertError } = await supabase
           .from('products')
           .insert({
@@ -364,6 +640,7 @@ async function processStoreProducts(
             ...(micConnection ? { mic_connection: micConnection } : {}),
             ...(micType ? { mic_type: micType } : {}),
             ...(micPattern ? { mic_pattern: micPattern } : {}),
+            ...(driverType ? { driver_type: driverType } : {}),
             ...(Object.keys(initialSpecs).length > 0 ? { specs: initialSpecs } : {}),
           })
           .select('id')
@@ -424,6 +701,8 @@ async function processStoreProducts(
           retailer_id: sp.retailer_id,
           external_id: sp.external_id,
           price: sp.price,
+          compare_at_price: sp.compare_at_price,
+          on_sale: sp.on_sale || (sp.compare_at_price != null && sp.price != null && sp.compare_at_price > sp.price),
           currency: 'USD',
           in_stock: sp.in_stock,
           product_url: sp.product_url,
@@ -468,14 +747,32 @@ async function processStoreProducts(
     }
   }
 
+  // Deduplicate listingRows by (retailer_id, external_id).
+  // Multiple store_products with the same external_id can match to different
+  // canonical products; keep only the first (highest-confidence) match.
+  const dedupedListingRows = (() => {
+    const seen = new Map<string, typeof listingRows[0]>();
+    for (const row of listingRows) {
+      const key = `${row.retailer_id}|${row.external_id}`;
+      if (!seen.has(key)) {
+        seen.set(key, row);
+      }
+    }
+    const deduped = [...seen.values()];
+    if (deduped.length < listingRows.length) {
+      log('DEDUP', `Deduplicated ${listingRows.length} listing rows to ${deduped.length} (removed ${listingRows.length - deduped.length} duplicate external_ids)`);
+    }
+    return deduped;
+  })();
+
   // Batch upsert price_listings
-  if (listingRows.length > 0) {
-    log('UPSERT', `Upserting ${listingRows.length} price_listings...`);
-    for (let i = 0; i < listingRows.length; i += UPSERT_BATCH_SIZE) {
-      const batch = listingRows.slice(i, i + UPSERT_BATCH_SIZE);
+  if (dedupedListingRows.length > 0) {
+    log('UPSERT', `Upserting ${dedupedListingRows.length} price_listings...`);
+    for (let i = 0; i < dedupedListingRows.length; i += UPSERT_BATCH_SIZE) {
+      const batch = dedupedListingRows.slice(i, i + UPSERT_BATCH_SIZE);
       const { error } = await supabase
         .from('price_listings')
-        .upsert(batch, { onConflict: 'product_id,retailer_id' });
+        .upsert(batch, { onConflict: 'retailer_id,external_id' });
 
       if (error) {
         logError('UPSERT', 'price_listings batch', error);
@@ -483,11 +780,24 @@ async function processStoreProducts(
     }
   }
 
+  // Deduplicate matchRows by (retailer_id, external_id)
+  const dedupedMatchRows = (() => {
+    const seen = new Map<string, typeof matchRows[0]>();
+    for (const row of matchRows) {
+      const key = `${row.retailer_id}|${row.external_id}`;
+      const existing = seen.get(key);
+      if (!existing || (row.match_score ?? 0) > (existing.match_score ?? 0)) {
+        seen.set(key, row);
+      }
+    }
+    return [...seen.values()];
+  })();
+
   // Batch upsert product_matches for pending reviews
-  if (matchRows.length > 0) {
-    log('UPSERT', `Upserting ${matchRows.length} product_matches (pending review)...`);
-    for (let i = 0; i < matchRows.length; i += UPSERT_BATCH_SIZE) {
-      const batch = matchRows.slice(i, i + UPSERT_BATCH_SIZE);
+  if (dedupedMatchRows.length > 0) {
+    log('UPSERT', `Upserting ${dedupedMatchRows.length} product_matches (pending review)...`);
+    for (let i = 0; i < dedupedMatchRows.length; i += UPSERT_BATCH_SIZE) {
+      const batch = dedupedMatchRows.slice(i, i + UPSERT_BATCH_SIZE);
       const { error } = await supabase
         .from('product_matches')
         .upsert(batch, { onConflict: 'product_id,retailer_id' });
