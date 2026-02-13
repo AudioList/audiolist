@@ -21,12 +21,12 @@ export default function PPIBadge({ score, size = 'md', label: scoreLabel }: PPIB
   }
 
   const colorClasses = getPPIColor(score);
-  const qualityLabel = getPPILabel(score);
-  const display = score.toFixed(1);
+  const band = getPPILabel(score);
+  const numericScore = score.toFixed(1);
   const isSpinorama = scoreLabel === 'Spinorama';
   const isSinad = scoreLabel === 'SINAD';
   const tooltip = isSinad
-    ? `SINAD Score: ${display} — ${qualityLabel}. Normalized from raw dB measurement.`
+    ? `SINAD Score: ${numericScore} (${band}) — Normalized from raw dB measurement.`
     : getPPITooltip(score, isSpinorama);
 
   return (
@@ -34,8 +34,7 @@ export default function PPIBadge({ score, size = 'md', label: scoreLabel }: PPIB
       className={`inline-flex items-center gap-1 rounded-full font-bold shadow-sm ${colorClasses} ${sizeClasses[size]}${isGlass ? ' backdrop-blur-sm' : ''}`}
       title={tooltip}
     >
-      <span>{display}</span>
-      <span className="opacity-80 font-semibold">{qualityLabel}</span>
+      <span>{band}</span>
     </span>
   );
 }
