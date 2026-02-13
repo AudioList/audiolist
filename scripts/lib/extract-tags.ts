@@ -29,32 +29,28 @@ const PA_POLAR_PATTERN_MAP: Record<string, ExtractedTags['mic_pattern']> = {
   'hypercardioid': 'hypercardioid',
   'omnidirectional': 'omnidirectional',
   'figure-8': 'bidirectional',
-  'wide cardioid': 'cardioid',         // closest standard pattern
-  'open cardioid': 'cardioid',         // closest standard pattern
-  'line + gradient': 'shotgun',        // shotgun mic pickup pattern
-  'hemispherical': 'omnidirectional',  // boundary mic variant of omni
+  'wide cardioid': 'cardioid',
+  'open cardioid': 'cardioid',
+  'line + gradient': 'shotgun',
+  'hemispherical': 'omnidirectional',
   'm/s stereo': 'multipattern',
   'x/y stereo': 'multipattern',
 };
 
 /**
- * Extract structured values from prefixed Shopify tags (e.g. "polar_pattern_Cardioid").
- * Returns mic_pattern if a polar_pattern_* tag is found.
+ * Extract values from structured "prefix_Value" tags (e.g. "polar_pattern_Cardioid").
+ * Returns all matching values (some products have multiple pattern tags).
  */
-function extractStructuredTagValues(tags: string[]): Partial<ExtractedTags> {
-  const result: Partial<ExtractedTags> = {};
+function extractStructuredTagValues(tags: string[], prefix: string): string[] {
+  const prefixLower = `${prefix.toLowerCase()}_`;
+  const values: string[] = [];
   for (const tag of tags) {
-    const lower = tag.toLowerCase();
-    if (lower.startsWith('polar_pattern_')) {
-      const value = lower.slice('polar_pattern_'.length).trim();
-      const mapped = PA_POLAR_PATTERN_MAP[value];
-      if (mapped) {
-        result.mic_pattern = mapped;
-        break; // first match wins
-      }
+    const lower = tag.toLowerCase().trim();
+    if (lower.startsWith(prefixLower)) {
+      values.push(tag.slice(prefix.length + 1).trim());
     }
   }
-  return result;
+  return values;
 }
 
 /**
@@ -140,27 +136,50 @@ export function extractTagAttributes(tags: string[]): ExtractedTags {
     result.mic_type = 'ribbon';
   }
 
-  // Microphone polar pattern (simple tags first)
-  if (tagSet.has('multi-pattern') || tagSet.has('multipattern')) {
-    result.mic_pattern = 'multipattern';
-  } else if (tagSet.has('hypercardioid')) {
-    result.mic_pattern = 'hypercardioid';
-  } else if (tagSet.has('supercardioid')) {
-    result.mic_pattern = 'supercardioid';
-  } else if (tagSet.has('omnidirectional') || tagSet.has('omni')) {
-    result.mic_pattern = 'omnidirectional';
-  } else if (tagSet.has('bidirectional') || tagSet.has('figure-8') || tagSet.has('figure 8')) {
-    result.mic_pattern = 'bidirectional';
-  } else if (tagSet.has('shotgun')) {
-    result.mic_pattern = 'shotgun';
-  } else if (tagSet.has('cardioid')) {
-    result.mic_pattern = 'cardioid';
+  // Microphone polar pattern -- structured tags first (e.g. Performance Audio)
+  const polarValues = extractStructuredTagValues(tags, 'polar_pattern');
+  if (polarValues.length > 0) {
+    const mapped = polarValues
+      .map((v) => {
+        const pv = v.toLowerCase();
+        if (PA_POLAR_PATTERN_MAP[pv]) return PA_POLAR_PATTERN_MAP[pv];
+        if (pv.includes('shotgun')) return 'shotgun';
+        if (pv === 'hypercardioid') return 'hypercardioid';
+        if (pv === 'supercardioid') return 'supercardioid';
+        if (pv.includes('omni')) return 'omnidirectional';
+        if (pv.includes('figure') || pv.includes('bidirectional')) return 'bidirectional';
+        if (pv.includes('cardioid')) return 'cardioid';
+        return null;
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null);
+
+    if (mapped.length > 0) {
+      const uniquePatterns = new Set(mapped);
+      if (uniquePatterns.size > 1 || mapped.includes('multipattern')) {
+        result.mic_pattern = 'multipattern';
+      } else {
+        result.mic_pattern = mapped[0];
+      }
+    }
   }
 
-  // Structured tag fallback (Performance Audio "polar_pattern_*" format)
+  // Fallback: bare keyword tags
   if (!result.mic_pattern) {
-    const structured = extractStructuredTagValues(tags);
-    if (structured.mic_pattern) result.mic_pattern = structured.mic_pattern;
+    if (tagSet.has('multi-pattern') || tagSet.has('multipattern')) {
+      result.mic_pattern = 'multipattern';
+    } else if (tagSet.has('shotgun')) {
+      result.mic_pattern = 'shotgun';
+    } else if (tagSet.has('hypercardioid')) {
+      result.mic_pattern = 'hypercardioid';
+    } else if (tagSet.has('supercardioid')) {
+      result.mic_pattern = 'supercardioid';
+    } else if (tagSet.has('omnidirectional') || tagSet.has('omni')) {
+      result.mic_pattern = 'omnidirectional';
+    } else if (tagSet.has('bidirectional') || tagSet.has('figure-8') || tagSet.has('figure 8')) {
+      result.mic_pattern = 'bidirectional';
+    } else if (tagSet.has('cardioid')) {
+      result.mic_pattern = 'cardioid';
+    }
   }
 
   return result;

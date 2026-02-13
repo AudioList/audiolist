@@ -296,6 +296,23 @@ export function extractDriverType(name: string): DriverType | null {
   return null;
 }
 
+/**
+ * Extract microphone connection type from the Shopify product_type field.
+ * Examples: "USB Microphone" -> 'usb', "XLR Microphone" -> 'xlr'
+ */
+export function extractMicConnectionFromProductType(
+  productType: string | null
+): 'usb' | 'xlr' | 'usb_xlr' | 'wireless' | '3.5mm' | null {
+  if (!productType) return null;
+  const lower = productType.toLowerCase();
+  if (/\busb\b.*\bxlr\b|\bxlr\b.*\busb\b|usb\/xlr/.test(lower)) return 'usb_xlr';
+  if (/\busb\b/.test(lower)) return 'usb';
+  if (/\bxlr\b/.test(lower)) return 'xlr';
+  if (/\bwireless\b|\bbluetooth\b|\blavalier\b/.test(lower)) return 'wireless';
+  if (/\b3\.5\s?mm\b/.test(lower)) return '3.5mm';
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Product category detection (headphone vs IEM)
 // ---------------------------------------------------------------------------
