@@ -317,7 +317,7 @@ app.post("/amazon-link", async (req: Request, res: Response) => {
         affiliate_url: affiliateUrl,
         last_checked: new Date().toISOString(),
       },
-      { onConflict: "product_id,retailer_id" }
+      { onConflict: "retailer_id,external_id" }
     );
 
     // Update product price to lowest
@@ -435,7 +435,7 @@ async function approveMatch(matchId: string): Promise<void> {
       affiliate_url: affiliateUrl,
       last_checked: new Date().toISOString(),
     },
-    { onConflict: "product_id,retailer_id" }
+    { onConflict: "retailer_id,external_id" }
   );
 
   // 6. Update product price to the lowest across all in-stock listings

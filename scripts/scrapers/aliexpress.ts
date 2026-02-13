@@ -37,7 +37,7 @@ export type AliExpressProduct = {
   original_price: string;
   original_price_currency: string;
   discount: string;
-  shop_id: string;
+  shop_id: string | number;
   shop_url: string;
   product_main_image_url: string;
   second_level_category_id: number;
@@ -46,6 +46,8 @@ export type AliExpressProduct = {
   relevant_market_commission_rate: string;
   product_video_url?: string;
   lastest_volume?: string;
+  sku_id?: string;
+  product_small_image_urls?: { string?: string[] };
 };
 
 export type AliExpressCategory = {
@@ -157,7 +159,7 @@ function getTimestamp(): string {
 // Client factory
 // ---------------------------------------------------------------------------
 
-const API_ENDPOINT = 'http://gw.api.taobao.com/router/rest';
+const API_ENDPOINT = 'https://api-sg.aliexpress.com/sync';
 const DAILY_LIMIT = 5000;
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 2000;
@@ -271,7 +273,7 @@ export function createAliExpressClient(config: AliExpressConfig): AliExpressClie
       tracking_id: config.trackingId,
       page_no: String(params.pageNo ?? 1),
       page_size: String(Math.min(params.pageSize ?? 50, 50)),
-      ship_to_country: params.shipToCountry ?? 'US',
+      ...(params.shipToCountry ? { ship_to_country: params.shipToCountry } : {}),
     };
 
     if (params.categoryIds) apiParams.category_ids = params.categoryIds;

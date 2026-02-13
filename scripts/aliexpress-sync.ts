@@ -23,6 +23,7 @@
  *   --limit=N          Limit number of brands to process
  */
 
+import "./lib/env.js";
 import { getSupabase, getRetailers, type Retailer } from './config/retailers.ts';
 import {
   createAliExpressClient,
@@ -57,7 +58,7 @@ function getArg(name: string, defaultValue: string): string {
 const MODE = getArg('mode', 'discover') as 'discover' | 'refresh' | 'daily';
 const BRAND_FILTER = getArg('brand', '').toLowerCase() || null;
 const CATEGORY_FILTER = getArg('category', '') || null;
-const API_BUDGET = parseInt(getArg('budget', '4000'), 10);
+const API_BUDGET = parseInt(getArg('budget', '4500'), 10);
 const LIMIT = parseInt(getArg('limit', '0'), 10) || 0;
 const DRY_RUN = args.includes('--dry-run');
 
@@ -157,6 +158,7 @@ function detectAliExpressCategory(
 async function discoverProducts(
   client: AliExpressClient,
   stats: SyncStats,
+  budgetLimit?: number,
 ): Promise<void> {
   const supabase = getSupabase();
 
@@ -193,13 +195,16 @@ async function discoverProducts(
     stores = stores.slice(0, LIMIT);
   }
 
-  log('DISCOVER', `Processing ${stores.length} stores (budget: ${API_BUDGET}, remaining: ${client.getRemainingQuota()})`);
+  const discoverCallStart = client.getCallCount();
+  const effectiveBudget = budgetLimit ?? client.getRemainingQuota();
+  log('DISCOVER', `Processing ${stores.length} stores (discover budget: ${effectiveBudget}, remaining: ${client.getRemainingQuota()})`);
 
   const allRows: Record<string, unknown>[] = [];
 
   for (const store of stores) {
-    if (client.getRemainingQuota() < 10) {
-      log('BUDGET', 'API budget nearly exhausted, stopping discovery');
+    const callsUsed = client.getCallCount() - discoverCallStart;
+    if (callsUsed >= effectiveBudget || client.getRemainingQuota() < 10) {
+      log('BUDGET', `Discover budget used: ${callsUsed}/${effectiveBudget}, stopping discovery`);
       break;
     }
 
@@ -212,7 +217,7 @@ async function discoverProducts(
       let page = 1;
       let totalPages = 1;
 
-      while (page <= totalPages && client.getRemainingQuota() > 5) {
+      while (page <= totalPages && client.getRemainingQuota() > 5 && (client.getCallCount() - discoverCallStart) < effectiveBudget) {
         if (DRY_RUN) {
           log('DRY-RUN', `Would search: "${keyword}" page ${page}`);
           break;
@@ -235,7 +240,7 @@ async function discoverProducts(
 
           // Filter to only products from this curated store
           const fromStore = result.products.filter(p =>
-            p.shop_id === store.sellerId
+            String(p.shop_id) === String(store.sellerId)
           );
           stats.productsFromCurated += fromStore.length;
 
@@ -256,7 +261,7 @@ async function discoverProducts(
           const skippedExisting = fromStore.length - newProducts.length;
           stats.productsSkippedExisting += skippedExisting;
 
-          if (result.products.length < SEARCH_PAGE_SIZE) break; // Last page
+          if (result.products.length === 0) break; // No more results
 
           page++;
           await delay(SEARCH_DELAY_MS);
@@ -322,6 +327,13 @@ async function discoverProducts(
           evaluate_rate: p.evaluate_rate,
           shop_id: p.shop_id,
           ali_category_id: p.second_level_category_id,
+          ...(p.sku_id ? { sku_id: p.sku_id } : {}),
+          ...(p.product_small_image_urls?.string?.length
+            ? { variant_images: p.product_small_image_urls.string }
+            : {}),
+          ...(p.product_video_url ? { video_url: p.product_video_url } : {}),
+          ...(p.lastest_volume ? { sales_volume: p.lastest_volume } : {}),
+          last_seen_at: new Date().toISOString(),
         },
         imported_at: new Date().toISOString(),
         processed: false,
@@ -359,17 +371,18 @@ async function discoverProducts(
 async function refreshProducts(
   client: AliExpressClient,
   stats: SyncStats,
+  budgetLimit?: number,
 ): Promise<void> {
   const supabase = getSupabase();
 
   // Load existing AliExpress store_products, ordered by stalest first
   log('LOAD', 'Loading AliExpress store_products for refresh...');
-  const products: { id: string; external_id: string; retailer_id: string }[] = [];
+  const products: { id: string; external_id: string; retailer_id: string; raw_data: Record<string, unknown> | null }[] = [];
   let offset = 0;
   while (true) {
     let query = supabase
       .from('store_products')
-      .select('id, external_id, retailer_id')
+      .select('id, external_id, retailer_id, raw_data')
       .eq('retailer_id', 'aliexpress')
       .order('imported_at', { ascending: true });
 
@@ -394,9 +407,14 @@ async function refreshProducts(
 
   // Batch fetch product details (20 per API call)
   const DETAIL_BATCH_SIZE = 20;
+  const refreshCallStart = client.getCallCount();
+  const effectiveRefreshBudget = budgetLimit ?? client.getRemainingQuota();
+  log('REFRESH', `Refresh budget: ${effectiveRefreshBudget}`);
+
   for (let i = 0; i < products.length; i += DETAIL_BATCH_SIZE) {
-    if (client.getRemainingQuota() < 5) {
-      log('BUDGET', 'API budget nearly exhausted, stopping refresh');
+    const callsUsed = client.getCallCount() - refreshCallStart;
+    if (callsUsed >= effectiveRefreshBudget || client.getRemainingQuota() < 5) {
+      log('BUDGET', `Refresh budget used: ${callsUsed}/${effectiveRefreshBudget}, stopping refresh`);
       break;
     }
 
@@ -405,6 +423,7 @@ async function refreshProducts(
 
     try {
       const details = await client.getProductDetails(productIds);
+      const now = new Date().toISOString();
 
       // Update each product with fresh data
       const updates: Record<string, unknown>[] = [];
@@ -415,22 +434,49 @@ async function refreshProducts(
           external_id: detail.product_id,
           price: isNaN(price) ? null : price,
           in_stock: true,
-          imported_at: new Date().toISOString(),
+          imported_at: now,
           processed: false, // Re-process with updated price
+          raw_data: {
+            ...(batch.find(b => b.external_id === detail.product_id)?.raw_data ?? {}),
+            original_price: detail.original_price,
+            discount: detail.discount,
+            evaluate_rate: detail.evaluate_rate,
+            shop_id: detail.shop_id,
+            last_seen_at: now,
+          },
         });
       }
 
-      // Mark products not found in API response as out of stock
+      // Handle products not found in API response with grace period
       const foundIds = new Set(details.map(d => d.product_id));
       for (const p of batch) {
         if (!foundIds.has(p.external_id)) {
-          updates.push({
-            retailer_id: 'aliexpress',
-            external_id: p.external_id,
-            in_stock: false,
-            imported_at: new Date().toISOString(),
-            processed: false,
-          });
+          const lastSeen = (p.raw_data as Record<string, unknown>)?.last_seen_at as string | undefined;
+          const hasGrace = lastSeen != null;
+
+          if (hasGrace) {
+            // Product was seen on a previous scan -- give one grace period.
+            // Remove last_seen_at so next miss will mark out-of-stock.
+            const { last_seen_at: _, ...restRawData } = (p.raw_data ?? {}) as Record<string, unknown>;
+            updates.push({
+              retailer_id: 'aliexpress',
+              external_id: p.external_id,
+              in_stock: true, // Keep in stock during grace period
+              imported_at: now,
+              processed: false,
+              raw_data: restRawData,
+            });
+            log('GRACE', `Keeping "${p.external_id}" in stock (grace period, last seen: ${lastSeen})`);
+          } else {
+            // No last_seen_at -- already used its grace period or never seen
+            updates.push({
+              retailer_id: 'aliexpress',
+              external_id: p.external_id,
+              in_stock: false,
+              imported_at: now,
+              processed: false,
+            });
+          }
         }
       }
 
@@ -497,14 +543,38 @@ async function main(): Promise<void> {
   const stats = emptyStats();
 
   try {
-    if (MODE === 'discover' || MODE === 'daily') {
-      log('MODE', 'Starting DISCOVER phase...');
-      await discoverProducts(client, stats);
-    }
+    if (MODE === 'daily') {
+      // Dynamic budget allocation for daily mode
+      const supabase = getSupabase();
+      const { count: existingCount } = await supabase
+        .from('store_products')
+        .select('id', { count: 'exact', head: true })
+        .eq('retailer_id', 'aliexpress');
 
-    if (MODE === 'refresh' || MODE === 'daily') {
+      const totalBudget = API_BUDGET - 500; // Reserve 500 for safety
+      const refreshCallsNeeded = Math.ceil((existingCount ?? 0) / 20) + 50; // 20 IDs per detail call + buffer
+      const refreshBudget = existingCount
+        ? Math.min(refreshCallsNeeded, Math.floor(totalBudget * 0.4)) // Cap refresh at 40%
+        : 0; // No existing products: give 100% to discover
+      const discoverBudget = totalBudget - refreshBudget;
+
+      log('BUDGET', `Dynamic allocation: total=${totalBudget}, discover=${discoverBudget}, refresh=${refreshBudget} (${existingCount ?? 0} existing products)`);
+
+      log('MODE', 'Starting DISCOVER phase...');
+      await discoverProducts(client, stats, discoverBudget);
+
       log('MODE', 'Starting REFRESH phase...');
-      await refreshProducts(client, stats);
+      await refreshProducts(client, stats, refreshBudget);
+    } else {
+      if (MODE === 'discover') {
+        log('MODE', 'Starting DISCOVER phase...');
+        await discoverProducts(client, stats);
+      }
+
+      if (MODE === 'refresh') {
+        log('MODE', 'Starting REFRESH phase...');
+        await refreshProducts(client, stats);
+      }
     }
   } catch (err) {
     logError('FATAL', 'Unhandled error', err);

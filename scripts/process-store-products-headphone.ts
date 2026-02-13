@@ -7,6 +7,7 @@
  *   SUPABASE_SERVICE_KEY=<key> npx tsx scripts/process-store-products-headphone.ts [--dev]
  */
 
+import "./lib/env.js";
 import { CATEGORY_GROUPS } from './config/store-collections.ts';
 import { runProcessStoreProducts } from './lib/process-store-products-core.ts';
 

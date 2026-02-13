@@ -41,6 +41,7 @@ export const STORE_COLLECTIONS: Record<string, StoreConfig> = {
       { handle: 'headphones', categoryId: 'headphone' },
       { handle: 'dacs', categoryId: 'dac' },
       { handle: 'desktop-amps', categoryId: 'amp' },
+      { handle: 'speaker-amps', categoryId: 'amp' },
       { handle: 'daps', categoryId: 'dap' },
       { handle: 'cables', categoryId: 'cable' },
       { handle: 'bookshelf-speakers', categoryId: 'speaker' },
@@ -73,6 +74,7 @@ export const STORE_COLLECTIONS: Record<string, StoreConfig> = {
       { handle: 'dacs', categoryId: 'dac' },
       { handle: 'amplifiers', categoryId: 'amp' },
       { handle: 'headphone-amplifiers', categoryId: 'amp' },
+      { handle: 'speaker-amplifiers', categoryId: 'amp' },
       { handle: 'cables', categoryId: 'cable' },
       { handle: 'ear-pads-tips-1', categoryId: 'hp_pads' },
       { handle: 'headphone-cables', categoryId: 'hp_cable' },
@@ -89,8 +91,10 @@ export const STORE_COLLECTIONS: Record<string, StoreConfig> = {
       { handle: 'headphone', categoryId: 'headphone' },
       { handle: 'desktop-dacs', categoryId: 'dac' },
       { handle: 'desktop-pre-amp-amplifier', categoryId: 'amp' },
+      { handle: 'power-amplifier', categoryId: 'amp' },
       { handle: 'audio-player', categoryId: 'dap' },
       { handle: 'audio-cable', categoryId: 'cable' },
+      { handle: 'lineout-cable', categoryId: 'cable' },
       { handle: 'eartips', categoryId: 'iem_tips' },
       { handle: 'headphone-cable', categoryId: 'hp_cable' },
       { handle: 'earpads', categoryId: 'hp_pads' },
@@ -114,6 +118,7 @@ export const STORE_COLLECTIONS: Record<string, StoreConfig> = {
     retailerId: 'linsoul',
     collections: [
       { handle: 'in-ear-monitors', categoryId: 'iem' },
+      { handle: 'tws-in-ear-monitors', categoryId: 'iem' },
       { handle: 'headphones', categoryId: 'headphone' },
       { handle: 'amp-dacs', categoryId: 'dac' },
       { handle: 'portable-dac-amps', categoryId: 'dac' },
@@ -132,9 +137,11 @@ export const STORE_COLLECTIONS: Record<string, StoreConfig> = {
       { handle: 'in-ear-headphone', categoryId: 'iem' },
       { handle: 'over-ear-headphones', categoryId: 'headphone' },
       { handle: 'dac', categoryId: 'dac' },
+      { handle: 'portable-dac', categoryId: 'dac' },
+      { handle: 'desktop-dac', categoryId: 'dac' },
       { handle: 'headphone-amplifiers', categoryId: 'amp' },
       { handle: 'speaker-amplifier', categoryId: 'amp' },
-      { handle: 'audio-players', categoryId: 'dap' },
+      { handle: 'zy-cable', categoryId: 'cable' },
     ],
   },
   'www.headamp.com': {
@@ -144,6 +151,7 @@ export const STORE_COLLECTIONS: Record<string, StoreConfig> = {
       { handle: 'headphones', categoryId: 'headphone' },
       { handle: 'dacs', categoryId: 'dac' },
       { handle: 'amplifiers', categoryId: 'amp' },
+      { handle: 'speaker-amplifiers', categoryId: 'amp' },
       { handle: 'cables', categoryId: 'cable' },
       { handle: 'ear-pads-headbands', categoryId: 'hp_pads' },
       { handle: 'headphone-cables', categoryId: 'hp_cable' },
@@ -156,6 +164,9 @@ export const STORE_COLLECTIONS: Record<string, StoreConfig> = {
       { handle: '03-earphone', categoryId: 'iem' },
       { handle: '02-headphone', categoryId: 'headphone' },
       { handle: 'amplifier', categoryId: 'amp' },
+      { handle: 'portable-amplifier', categoryId: 'amp' },
+      { handle: 'tube-amplifier', categoryId: 'amp' },
+      { handle: 'solid-state-amplifier', categoryId: 'amp' },
       { handle: 'audio-player', categoryId: 'dap' },
       { handle: '06-cable', categoryId: 'cable' },
       { handle: '05-speaker', categoryId: 'speaker' },
@@ -166,9 +177,11 @@ export const STORE_COLLECTIONS: Record<string, StoreConfig> = {
     collections: [
       { handle: 'svs-bookshelf-speakers', categoryId: 'speaker' },
       { handle: 'svs-center-channel-speakers', categoryId: 'speaker' },
+      { handle: 'svs-tower-speakers', categoryId: 'speaker' },
       { handle: 'sealed-subwoofers', categoryId: 'speaker' },
       { handle: 'ported-subwoofers', categoryId: 'speaker' },
     ],
+    dealCollections: ['speaker-outlet', 'subwoofer-outlet'],
   },
   'us.kef.com': {
     retailerId: 'kef',
@@ -184,9 +197,11 @@ export const STORE_COLLECTIONS: Record<string, StoreConfig> = {
     retailerId: 'emotiva',
     collections: [
       { handle: 'loudspeakers', categoryId: 'speaker' },
+      { handle: 'subwoofers', categoryId: 'speaker' },
       { handle: 'amps', categoryId: 'amp' },
       { handle: 'dacs', categoryId: 'dac' },
     ],
+    dealCollections: ['last-chance'],
   },
   'www.peachtreeaudio.com': {
     retailerId: 'peachtreeaudio',
@@ -200,7 +215,7 @@ export const STORE_COLLECTIONS: Record<string, StoreConfig> = {
     retailerId: 'psaudio',
     collections: [
       { handle: 'loudspeakers', categoryId: 'speaker' },
-      { handle: 'amplifiers', categoryId: 'amp' },
+      { handle: 'power-amplifiers', categoryId: 'amp' },
       { handle: 'dacs-and-sources', categoryId: 'dac' },
     ],
   },
@@ -218,6 +233,7 @@ export const STORE_COLLECTIONS: Record<string, StoreConfig> = {
       { handle: 'tower-speakers', categoryId: 'speaker' },
       { handle: 'bravus-subwoofers', categoryId: 'speaker' },
       { handle: 'surround-speakers', categoryId: 'speaker' },
+      { handle: 'energy-amplifier-collection', categoryId: 'amp' },
     ],
   },
   'www.qacoustics.com': {
@@ -268,6 +284,7 @@ export const STORE_COLLECTIONS: Record<string, StoreConfig> = {
     collections: [
       { handle: 'all-iems', categoryId: 'iem' },
       { handle: 'cables-and-adaptors', categoryId: 'iem_cable' },
+      { handle: 'eartips', categoryId: 'iem_tips' },
     ],
   },
   'www.campfireaudio.com': {
@@ -298,18 +315,24 @@ export const STORE_COLLECTIONS: Record<string, StoreConfig> = {
     retailerId: 'tonor',
     collections: [
       { handle: 'microphones', categoryId: 'microphone' },
+      { handle: 'accessories', categoryId: 'mic_accessory' },
     ],
   },
   'fifinemicrophone.com': {
     retailerId: 'fifine',
     collections: [
       { handle: 'microphones', categoryId: 'microphone' },
+      { handle: 'microphone-boom-arm-stands', categoryId: 'mic_accessory' },
     ],
   },
   'www.maono.com': {
     retailerId: 'maono',
     collections: [
       { handle: 'microphones', categoryId: 'microphone' },
+      { handle: 'mic-accessories', categoryId: 'mic_accessory' },
+      { handle: 'mic-stand', categoryId: 'mic_accessory' },
+      { handle: 'microphone-pop-filter-and-foam-windscreen', categoryId: 'mic_accessory' },
+      { handle: 'headphones', categoryId: 'headphone' },
     ],
   },
   // --- Multi-brand pro audio retailer ---
@@ -386,6 +409,7 @@ export const STORE_COLLECTIONS: Record<string, StoreConfig> = {
     retailerId: 'sontronics',
     collections: [
       { handle: 'all-products', categoryId: 'microphone' },
+      { handle: 'accessories-1', categoryId: 'mic_accessory' },
     ],
   },
   'www.syncoaudio.com': {
@@ -398,6 +422,7 @@ export const STORE_COLLECTIONS: Record<string, StoreConfig> = {
     retailerId: 'cloud-microphones',
     collections: [
       { handle: 'microphones', categoryId: 'microphone' },
+      { handle: 'cloudlifters', categoryId: 'mic_accessory' },
     ],
   },
 };

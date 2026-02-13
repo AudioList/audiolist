@@ -26,14 +26,9 @@ const ALIEXPRESS_JUNK_PATTERNS: RegExp[] = [
   /\bimitation\b/i,
   /\bOEM\b(?!\s+(?:driver|diaphragm))/i,
 
-  // Accessory / non-product listings
-  /\bcase\s+only\b/i,
-  /\bsilicone\s+(?:cover|case|sleeve)\b/i,
-  /\bprotective\s+case\b/i,
-  /\bscreen\s+protector\b/i,
+  // Accessory / non-product listings (keep audio accessories like cases, tips, covers)
   /\bsticker\b/i,
   /\bwrist\s*(?:band|strap)\b/i,
-  /\bcleaning\s+kit\b/i,
   /\bwall\s+(?:mount|charger)\b/i,
   /\bphone\s+holder\b/i,
   /\bcar\s+charger\b/i,

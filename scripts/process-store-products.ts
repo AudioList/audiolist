@@ -10,6 +10,7 @@
  * --dev: Limit to 100 unprocessed store_products per category.
  */
 
+import "./lib/env.js";
 import { getSupabase, buildAffiliateUrl, getRetailers, type Retailer } from './config/retailers.ts';
 import { extractBrand } from './brand-config.ts';
 import { normalizeName, diceCoefficient, findBestMatch, buildCandidateIndex, findBestMatchIndexed, type IndexedCandidate } from './scrapers/matcher.ts';
@@ -398,11 +399,11 @@ async function processStoreProducts(
     }
   }
 
-  // Deduplicate price_listings by (product_id, retailer_id), keeping the cheapest
+  // Deduplicate price_listings by (retailer_id, external_id), keeping the cheapest
   const dedupedListings = (() => {
     const map = new Map<string, typeof listingRows[0]>();
     for (const row of listingRows) {
-      const key = `${row.product_id}::${row.retailer_id}`;
+      const key = `${row.retailer_id}::${row.external_id}`;
       const existing = map.get(key);
       if (!existing || (row.price !== null && (existing.price === null || row.price < existing.price))) {
         map.set(key, row);
@@ -418,7 +419,7 @@ async function processStoreProducts(
       const batch = dedupedListings.slice(i, i + UPSERT_BATCH_SIZE);
       const { error } = await supabase
         .from('price_listings')
-        .upsert(batch, { onConflict: 'product_id,retailer_id' });
+        .upsert(batch, { onConflict: 'retailer_id,external_id' });
 
       if (error) {
         logError('UPSERT', 'price_listings batch', error);

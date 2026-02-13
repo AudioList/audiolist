@@ -1,0 +1,61 @@
+name: Sync AliExpress Products
+
+on:
+  schedule:
+    # Run twice daily: 01:00 and 13:00 UTC (non-overlapping with other syncs)
+    - cron: '0 1,13 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Run mode: daily (discover+refresh), discover (new only), refresh (existing only)'
+        default: 'daily'
+        type: choice
+        options:
+          - daily
+          - discover
+          - refresh
+      budget:
+        description: 'API call budget (default: 4500, max 5000/day)'
+        default: '4500'
+      brand:
+        description: 'Filter to single brand (optional, case-insensitive)'
+        default: ''
+
+concurrency:
+  group: sync-aliexpress
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run AliExpress sync
+        env:
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          ALIEXPRESS_APP_KEY: ${{ secrets.ALIEXPRESS_APP_KEY }}
+          ALIEXPRESS_APP_SECRET: ${{ secrets.ALIEXPRESS_APP_SECRET }}
+          ALIEXPRESS_TRACKING_ID: ${{ secrets.ALIEXPRESS_TRACKING_ID }}
+        run: >-
+          npx tsx scripts/aliexpress-sync.ts
+          --mode=${{ inputs.mode || 'daily' }}
+          --budget=${{ inputs.budget || '4500' }}
+          ${{ inputs.brand && format('--brand={0}', inputs.brand) || '' }}
+
+      - name: Process store products
+        env:
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: npx tsx scripts/process-store-products.ts

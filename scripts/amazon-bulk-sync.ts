@@ -23,6 +23,7 @@
  *   --no-resume        Start fresh, ignore progress file
  */
 
+import "./lib/env.js";
 import {
   getBrowser,
   closeBrowser,
@@ -885,7 +886,7 @@ class WorkerPool {
     log("FLUSH", `Upserting ${matchCount} matches, ${listingCount} listings...`);
 
     await upsertBatch("product_matches", [...this.matchRows], "product_id,retailer_id", "FLUSH");
-    await upsertBatch("price_listings", [...this.listingRows], "product_id,retailer_id", "FLUSH");
+    await upsertBatch("price_listings", [...this.listingRows], "retailer_id,external_id", "FLUSH");
 
     this.matchRows.length = 0;
     this.listingRows.length = 0;

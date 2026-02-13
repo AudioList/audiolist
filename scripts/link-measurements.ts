@@ -12,6 +12,7 @@
  * --dev: Limit to top 100 measurements by PPI score per data file.
  */
 
+import "./lib/env.js";
 import { getSupabase } from './config/retailers.ts';
 import { extractBrand } from './brand-config.ts';
 import { normalizeName, findBestMatch, buildCandidateIndex, findBestMatchIndexed, type IndexedCandidate } from './scrapers/matcher.ts';

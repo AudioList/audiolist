@@ -10,6 +10,7 @@
  * --dev: Limit to 100 products per collection for faster local development.
  */
 
+import "./lib/env.js";
 import { getSupabase, getRetailers, buildAffiliateUrl, type Retailer } from './config/retailers.ts';
 import { fetchShopifyCollection, type ShopifyProduct } from './scrapers/shopify.ts';
 import { STORE_COLLECTIONS, type CollectionMapping } from './config/store-collections.ts';

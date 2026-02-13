@@ -7,6 +7,7 @@ export interface DealListing {
   product_brand: string | null;
   product_category: string;
   product_image: string | null;
+  ppi_score: number | null;
   retailer_id: string;
   retailer_name: string;
   price: number;
@@ -48,7 +49,7 @@ export function useDeals(): UseDealsReturn {
             product_url,
             affiliate_url,
             retailer:retailers!retailer_id(name),
-            product:products!product_id(name, brand, category_id, image_url)
+            product:products!product_id(name, brand, category_id, image_url, ppi_score)
           `)
           .eq('in_stock', true)
           .or('on_sale.eq.true,compare_at_price.not.is.null')
@@ -58,7 +59,7 @@ export function useDeals(): UseDealsReturn {
 
         const listings: DealListing[] = (data ?? [])
           .map((row: Record<string, unknown>) => {
-            const product = row.product as { name: string; brand: string | null; category_id: string; image_url: string | null } | null;
+            const product = row.product as { name: string; brand: string | null; category_id: string; image_url: string | null; ppi_score: number | null } | null;
             const retailer = row.retailer as { name: string } | null;
             const price = Number(row.price);
             const compareAt = row.compare_at_price ? Number(row.compare_at_price) : null;
@@ -72,6 +73,7 @@ export function useDeals(): UseDealsReturn {
               product_brand: product?.brand ?? null,
               product_category: product?.category_id ?? '',
               product_image: product?.image_url ?? null,
+              ppi_score: product?.ppi_score ?? null,
               retailer_id: row.retailer_id as string,
               retailer_name: retailer?.name ?? 'Unknown',
               price,

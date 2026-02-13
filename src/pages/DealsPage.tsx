@@ -5,6 +5,7 @@ import { useCoupons } from '../hooks/useCoupons';
 import { useGlassMode } from '../context/GlassModeContext';
 import DealBadge from '../components/shared/DealBadge';
 import CouponChip from '../components/shared/CouponChip';
+import PPIBadge from '../components/shared/PPIBadge';
 import type { RetailerCoupon } from '../types';
 
 type DealTab = 'all' | 'on-sale' | 'coupons';
@@ -198,11 +199,14 @@ export default function DealsPage() {
                       <p className="text-sm font-semibold text-surface-900 group-hover:text-primary-600 dark:text-surface-100 dark:group-hover:text-primary-400 line-clamp-2">
                         {deal.product_name}
                       </p>
-                      {deal.product_brand && (
-                        <p className="text-xs text-surface-500 dark:text-surface-400">
-                          {deal.product_brand}
-                        </p>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        {deal.product_brand && (
+                          <span className="text-xs text-surface-500 dark:text-surface-400">
+                            {deal.product_brand}
+                          </span>
+                        )}
+                        <PPIBadge score={deal.ppi_score} size="sm" />
+                      </div>
                     </div>
                   </div>
 

@@ -17,6 +17,7 @@
  *   --category=iem      Only process products in this category
  */
 
+import "./lib/env.js";
 import {
   getRetailers,
   getSupabase,
@@ -426,7 +427,7 @@ async function matchProducts(
     if (matchRows.length > 0) {
       log("PHASE-B", `Flushing ${matchRows.length} matches, ${listingRows.length} listings to Supabase...`);
       await upsertBatch("product_matches", [...matchRows], "product_id,retailer_id", "PHASE-B-FLUSH");
-      await upsertBatch("price_listings", [...listingRows], "product_id,retailer_id", "PHASE-B-FLUSH");
+      await upsertBatch("price_listings", [...listingRows], "retailer_id,external_id", "PHASE-B-FLUSH");
       matchRows.length = 0;
       listingRows.length = 0;
     }

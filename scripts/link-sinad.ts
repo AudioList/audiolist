@@ -15,6 +15,7 @@
  *   --category=X    Only process 'dac' or 'amp' (default: both)
  */
 
+import "./lib/env.js";
 import { getSupabase } from './config/retailers.ts';
 import { extractBrand } from './brand-config.ts';
 import {
