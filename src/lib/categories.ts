@@ -51,11 +51,22 @@ export function getPPIColor(score: number): string {
 }
 
 export function getPPILabel(score: number): string {
-  if (score >= 85) return 'Excellent';
-  if (score >= 70) return 'Great';
-  if (score >= 55) return 'Good';
-  if (score >= 40) return 'Fair';
-  return 'Poor';
+  if (score >= 97) return 'S+';
+  if (score >= 93) return 'S';
+  if (score >= 90) return 'S-';
+  if (score >= 87) return 'A+';
+  if (score >= 83) return 'A';
+  if (score >= 80) return 'A-';
+  if (score >= 77) return 'B+';
+  if (score >= 73) return 'B';
+  if (score >= 70) return 'B-';
+  if (score >= 67) return 'C+';
+  if (score >= 63) return 'C';
+  if (score >= 60) return 'C-';
+  if (score >= 55) return 'D+';
+  if (score >= 50) return 'D';
+  if (score >= 40) return 'D-';
+  return 'F';
 }
 
 /** Get the measurement score label for a category.
