@@ -37,6 +37,9 @@ lerna-debug.log*
 # Sync script data
 scripts/data/
 
+# Local AI tool config
+.claude/
+
 # Squig-Rank clone
 squig-rank/
 
