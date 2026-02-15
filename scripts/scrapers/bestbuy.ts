@@ -6,6 +6,8 @@ export type BestBuyProduct = {
   onSale: boolean | null;
   onlineAvailability: boolean | null;
   url: string | null;
+  // NOTE: Best Buy's affiliateUrl field may require extra permissions.
+  // We do not request it in `show=` to avoid 403 auth errors.
   affiliateUrl: string | null;
   image: string | null;
   manufacturer: string | null;
@@ -184,7 +186,6 @@ export async function searchBestBuy(
     'onSale',
     'onlineAvailability',
     'url',
-    'affiliateUrl',
     'image',
     'manufacturer',
     'modelNumber',
@@ -217,7 +218,6 @@ export async function getBestBuyProductsBySkus(
     'onSale',
     'onlineAvailability',
     'url',
-    'affiliateUrl',
     'image',
     'manufacturer',
     'modelNumber',
@@ -253,7 +253,6 @@ export async function listBestBuyProductsByCategoryIds(
     'onSale',
     'onlineAvailability',
     'url',
-    'affiliateUrl',
     'image',
     'manufacturer',
     'modelNumber',
