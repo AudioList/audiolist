@@ -13,7 +13,7 @@ const EXPLANATIONS: Record<string, { title: string; description: string; scale: 
   ppi: {
     title: 'Predicted Preference Index',
     description: 'This score measures how closely the sound signature matches what most listeners prefer, based on scientific target curves. It does not measure build quality, comfort, or features -- only sound tuning accuracy.',
-    scale: 'Higher is better. 85+ is excellent, 70+ is great, 55+ is good.',
+    scale: 'Shown as letter bands from S+ (best) to F. A-range and above are top performers, B-range is solid for most listeners.',
   },
   sinad: {
     title: 'Signal-to-Noise and Distortion',
@@ -29,13 +29,13 @@ const EXPLANATIONS: Record<string, { title: string; description: string; scale: 
 
 function getScoreContext(scoreType: string, score: number): string {
   if (scoreType === 'ppi') {
-    const label = getPPILabel(score).toLowerCase();
-    return `A score of ${score.toFixed(1)} is rated "${label}" -- ${
-      score >= 85 ? 'among the best-tuned products measured.' :
-      score >= 70 ? 'above average and well-tuned for most listeners.' :
-      score >= 55 ? 'solid performance that most people will enjoy.' :
-      score >= 40 ? 'noticeable deviations from the target curve.' :
-      'significant tuning differences from the preferred target.'
+    const band = getPPILabel(score);
+    return `A score of ${score.toFixed(1)} is in band ${band} -- ${
+      score >= 90 ? 'this is top-tier measured performance.' :
+      score >= 80 ? 'this is strong measured performance.' :
+      score >= 70 ? 'this is good measured performance for most people.' :
+      score >= 60 ? 'this is mixed measured performance with tradeoffs.' :
+      'this is weak measured performance and likely has clear compromises.'
     }`;
   }
   if (scoreType === 'sinad') {

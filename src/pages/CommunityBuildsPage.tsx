@@ -23,6 +23,7 @@ export default function CommunityBuildsPage() {
   const { setProduct, setName, setDescription, clearBuild } = useBuild();
   const { addToast } = useToast();
   const isGlass = useGlassMode();
+  const builderPath = isGlass ? '/glass/builder' : '/builder';
   const [votingId, setVotingId] = useState<string | null>(null);
   const [votedIds, setVotedIds] = useState<Set<string>>(() => {
     try {
@@ -41,12 +42,12 @@ export default function CommunityBuildsPage() {
 
   // Persist votedIds to localStorage
   useEffect(() => {
-    try { localStorage.setItem('audiolist_voted_ids', JSON.stringify([...votedIds])); } catch {}
+    try { localStorage.setItem('audiolist_voted_ids', JSON.stringify([...votedIds])); } catch { /* ignore localStorage errors */ }
   }, [votedIds]);
 
   // Persist voteAdjustments to localStorage
   useEffect(() => {
-    try { localStorage.setItem('audiolist_vote_adjustments', JSON.stringify(voteAdjustments)); } catch {}
+    try { localStorage.setItem('audiolist_vote_adjustments', JSON.stringify(voteAdjustments)); } catch { /* ignore localStorage errors */ }
   }, [voteAdjustments]);
 
   const handleVote = useCallback(
@@ -115,7 +116,7 @@ export default function CommunityBuildsPage() {
         setCloneLoadingId(null);
       }
     },
-    [setProduct, setName, setDescription, clearBuild]
+    [setProduct, setName, setDescription, clearBuild, addToast]
   );
 
   return (
@@ -163,13 +164,13 @@ export default function CommunityBuildsPage() {
           <p className="text-lg font-medium text-surface-600 dark:text-surface-400">
             No community builds yet.
           </p>
-          <p className="mt-1 text-sm text-surface-400 dark:text-surface-500">
-            Be the first to share a build! Go to the{' '}
-            <Link to="/" className="text-primary-600 hover:underline dark:text-primary-400">
-              Builder
-            </Link>{' '}
-            and click Share.
-          </p>
+            <p className="mt-1 text-sm text-surface-400 dark:text-surface-500">
+              Be the first to share a build! Go to the{' '}
+              <Link to={builderPath} className="text-primary-600 hover:underline dark:text-primary-400">
+                Builder
+              </Link>{' '}
+              and click Share.
+            </p>
         </div>
       )}
 

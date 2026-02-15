@@ -1,6 +1,6 @@
 export type CategoryId =
   | 'iem' | 'headphone' | 'dac' | 'amp' | 'speaker' | 'cable' | 'dap' | 'microphone'
-  | 'iem_tips' | 'iem_cable' | 'iem_filter' | 'hp_pads' | 'hp_cable' | 'mic_accessory';
+  | 'iem_tips' | 'iem_cable' | 'iem_filter' | 'hp_pads' | 'hp_cable' | 'hp_accessory' | 'mic_accessory';
 
 export type TargetType = 'df' | 'harman';
 
@@ -64,6 +64,7 @@ export interface Product {
   spinorama_origin: string | null;
   editorial_blurb: string | null;
   headphone_design: 'open' | 'closed' | null;
+  headphone_type: 'passive' | 'active' | null;
   iem_type: 'passive' | 'active' | 'tws' | null;
   mic_connection: 'usb' | 'xlr' | 'usb_xlr' | 'wireless' | '3.5mm' | null;
   mic_type: 'dynamic' | 'condenser' | 'ribbon' | null;
@@ -135,6 +136,7 @@ export interface ProductFilters {
   sinadMin: number | null;
   sinadMax: number | null;
   headphoneDesigns: string[];
+  headphoneTypes: string[];
   iemTypes: string[];
   driverTypes: string[];
   micConnections: string[];

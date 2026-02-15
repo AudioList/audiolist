@@ -48,7 +48,11 @@ export default function TriagePage() {
   }, [filterCategory]);
 
   useEffect(() => {
-    if (isDev) fetchProducts();
+    if (!isDev) return;
+    const timer = window.setTimeout(() => {
+      void fetchProducts();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [isDev, fetchProducts]);
 
   if (!isDev) {

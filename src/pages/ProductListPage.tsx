@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { CategoryId, ProductFilters, ProductSort, Product } from '../types';
-import { CATEGORIES, CATEGORY_MAP, getScoreLabel, isSpinormaCategory, isSinadCategory, sinadToScore } from '../lib/categories';
+import { CATEGORIES, CATEGORY_MAP, getScoreBandOptions, getScoreLabel, isSpinormaCategory, isSinadCategory, scoreToSinad, sinadToScore } from '../lib/categories';
 import { useExperienceMode } from '../context/ExperienceModeContext';
 import { useGlassMode } from '../context/GlassModeContext';
 import { useProducts, useFilterOptions } from '../hooks/useProducts';
@@ -15,6 +15,26 @@ import { getDisplayName, getBestModeLabel } from '../lib/productUtils';
 const DEFAULT_CATEGORY: CategoryId = 'iem';
 
 const SESSION_KEY = 'audiolist_product_list_state';
+const SCORE_BANDS = getScoreBandOptions();
+
+function getBandFromThreshold(
+  minValue: number | null,
+  maxValue: number | null,
+  toThreshold: (bandMin: number) => number = (bandMin) => bandMin,
+): string | null {
+  if (minValue === null || maxValue !== null) return null;
+  for (const band of SCORE_BANDS) {
+    const threshold = toThreshold(band.min);
+    if (Math.abs(minValue - threshold) < 0.2) {
+      return band.band;
+    }
+  }
+  return null;
+}
+
+function getSinadThresholdForBand(bandMin: number): number {
+  return Number(scoreToSinad(bandMin).toFixed(1));
+}
 
 function getDefaultFilters(): ProductFilters {
   return {
@@ -32,6 +52,7 @@ function getDefaultFilters(): ProductFilters {
     sinadMin: null,
     sinadMax: null,
     headphoneDesigns: [],
+    headphoneTypes: [],
     iemTypes: [],
     driverTypes: [],
     micConnections: [],
@@ -91,18 +112,19 @@ export default function ProductListPage() {
   const category = CATEGORY_MAP.get(categoryId)!;
 
   // On mount, try to restore saved state for this category
-  const savedState = useRef(loadListState(categoryId));
+  const initialState = loadListState(categoryId);
 
   const [filters, setFilters] = useState<ProductFilters>(
-    savedState.current?.filters ?? getDefaultFilters(),
+    initialState?.filters ?? getDefaultFilters(),
   );
 
   const [sort, setSort] = useState<ProductSort>(
-    savedState.current?.sort ?? getDefaultSort(categoryId),
+    initialState?.sort ?? getDefaultSort(categoryId),
   );
+  const [brandSearch, setBrandSearch] = useState('');
 
   // Restore scroll position after products render
-  const pendingScrollY = useRef(savedState.current?.scrollY ?? 0);
+  const pendingScrollY = useRef(initialState?.scrollY ?? 0);
 
   // Track previous categoryId to detect actual category changes vs. remounts
   const prevCategoryId = useRef(categoryId);
@@ -113,10 +135,13 @@ export default function ProductListPage() {
     if (prevCategoryId.current !== categoryId) {
       prevCategoryId.current = categoryId;
       clearListState();
-      setFilters(getDefaultFilters());
-      setBrandSearch('');
-      setSort(getDefaultSort(categoryId));
       pendingScrollY.current = 0;
+      const timer = window.setTimeout(() => {
+        setFilters(getDefaultFilters());
+        setBrandSearch('');
+        setSort(getDefaultSort(categoryId));
+      }, 0);
+      return () => window.clearTimeout(timer);
     }
   }, [categoryId]);
 
@@ -142,8 +167,7 @@ export default function ProductListPage() {
   );
 
   const { products, loading, error, hasMore, total, loadMore } = useProducts(hookOptions);
-  const { brands, retailers, speakerTypes, headphoneDesigns, iemTypes, driverTypes, micConnections, micTypes, micPatterns } = useFilterOptions(categoryId);
-  const [brandSearch, setBrandSearch] = useState('');
+  const { brands, retailers, speakerTypes, headphoneDesigns, headphoneTypes, iemTypes, driverTypes, micConnections, micTypes, micPatterns } = useFilterOptions(categoryId);
 
   // Restore scroll position after products load (only once, on initial mount)
   const scrollRestored = useRef(false);
@@ -160,6 +184,16 @@ export default function ProductListPage() {
   const visibleBrands = brandSearch
     ? brands.filter((b) => b.toLowerCase().includes(brandSearch.toLowerCase()))
     : brands;
+
+  const activePpiBand = useMemo(
+    () => getBandFromThreshold(filters.ppiMin, filters.ppiMax),
+    [filters.ppiMin, filters.ppiMax],
+  );
+
+  const activeSinadBand = useMemo(
+    () => getBandFromThreshold(filters.sinadMin, filters.sinadMax, getSinadThresholdForBand),
+    [filters.sinadMin, filters.sinadMax],
+  );
 
   function handleCategoryChange(id: CategoryId) {
     // Navigate only -- the categoryId useEffect handles filter/sort reset
@@ -285,6 +319,40 @@ export default function ProductListPage() {
                       />
                       <span className="truncate">{hd.label}</span>
                       <span className="ml-auto text-xs text-surface-400">{hd.count}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Headphone Type (only for headphone category) */}
+            {categoryId === 'headphone' && headphoneTypes.length > 0 && (
+              <div className="mb-3 space-y-2">
+                <label className="block text-xs font-semibold text-surface-700 dark:text-surface-300">
+                  Headphone Type
+                  {filters.headphoneTypes.length > 0 && (
+                    <span className="ml-1.5 text-primary-400">({filters.headphoneTypes.length})</span>
+                  )}
+                </label>
+                <div className="space-y-1">
+                  {headphoneTypes.map((ht) => (
+                    <label
+                      key={ht.value}
+                      className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={filters.headphoneTypes.includes(ht.value)}
+                        onChange={() => {
+                          const next = filters.headphoneTypes.includes(ht.value)
+                            ? filters.headphoneTypes.filter((t) => t !== ht.value)
+                            : [...filters.headphoneTypes, ht.value];
+                          setFilters((prev) => ({ ...prev, headphoneTypes: next }));
+                        }}
+                        className="h-3.5 w-3.5 rounded border-surface-300 text-primary-500 focus:ring-primary-500/40 dark:border-surface-500 dark:bg-surface-700"
+                      />
+                      <span className="truncate">{ht.label}</span>
+                      <span className="ml-auto text-xs text-surface-400">{ht.count}</span>
                     </label>
                   ))}
                 </div>
@@ -495,75 +563,96 @@ export default function ProductListPage() {
               </div>
             </div>
 
-            {/* PPI / Score range (only for categories with PPI) */}
+            {/* Score band (only for categories with score-based ranking) */}
             {category.has_ppi && (
               <div className="mt-4 space-y-2">
                 <label className="block text-xs font-semibold text-surface-700 dark:text-surface-300">
-                  {getScoreLabel(categoryId, mode)} Range
+                  {getScoreLabel(categoryId, mode)} Band
                 </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    placeholder="Min"
-                    value={filters.ppiMin ?? ''}
-                    onChange={(e) =>
-                      setFilters((prev) => ({
-                        ...prev,
-                        ppiMin: e.target.value ? Number(e.target.value) : null,
-                      }))
-                    }
-                    className="w-full rounded-md border border-surface-300 bg-white px-2 py-1.5 text-sm text-surface-900 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-100"
-                  />
-                  <span className="text-surface-400">-</span>
-                  <input
-                    type="number"
-                    placeholder="Max"
-                    value={filters.ppiMax ?? ''}
-                    onChange={(e) =>
-                      setFilters((prev) => ({
-                        ...prev,
-                        ppiMax: e.target.value ? Number(e.target.value) : null,
-                      }))
-                    }
-                    className="w-full rounded-md border border-surface-300 bg-white px-2 py-1.5 text-sm text-surface-900 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-100"
-                  />
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setFilters((prev) => ({ ...prev, ppiMin: null, ppiMax: null }))}
+                    className={`rounded-md border px-2 py-1 text-xs font-semibold transition-colors ${
+                      activePpiBand === null
+                        ? 'border-primary-500 bg-primary-500 text-white'
+                        : 'border-surface-300 bg-white text-surface-700 hover:bg-surface-100 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-300 dark:hover:bg-surface-700'
+                    }`}
+                  >
+                    Any
+                  </button>
+                  {SCORE_BANDS.map((band) => {
+                    const selected = activePpiBand === band.band;
+                    return (
+                      <button
+                        key={band.band}
+                        type="button"
+                        onClick={() =>
+                          setFilters((prev) =>
+                            selected
+                              ? { ...prev, ppiMin: null, ppiMax: null }
+                              : { ...prev, ppiMin: band.min, ppiMax: null }
+                          )
+                        }
+                        className={`rounded-md border px-2 py-1 text-xs font-semibold transition-colors ${
+                          selected
+                            ? 'border-primary-500 bg-primary-500 text-white'
+                            : 'border-surface-300 bg-white text-surface-700 hover:bg-surface-100 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-300 dark:hover:bg-surface-700'
+                        }`}
+                      >
+                        {band.band}
+                      </button>
+                    );
+                  })}
                 </div>
+                <p className="text-[11px] text-surface-500 dark:text-surface-400">Shows this band and higher.</p>
               </div>
             )}
 
-            {/* SINAD / Score range (only for DAC/Amp categories) */}
+            {/* SINAD band (DAC/Amp only; stored as numeric dB in filters) */}
             {isSinadCategory(categoryId) && (
               <div className="mt-4 space-y-2">
                 <label className="block text-xs font-semibold text-surface-700 dark:text-surface-300">
-                  {mode === 'beginner' ? 'Score' : 'SINAD'} Range{mode !== 'beginner' ? ' (dB)' : ''}
+                  {mode === 'beginner' ? 'Score' : 'SINAD'} Band
                 </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    placeholder="Min"
-                    value={filters.sinadMin ?? ''}
-                    onChange={(e) =>
-                      setFilters((prev) => ({
-                        ...prev,
-                        sinadMin: e.target.value ? Number(e.target.value) : null,
-                      }))
-                    }
-                    className="w-full rounded-md border border-surface-300 bg-white px-2 py-1.5 text-sm text-surface-900 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-100"
-                  />
-                  <span className="text-surface-400">-</span>
-                  <input
-                    type="number"
-                    placeholder="Max"
-                    value={filters.sinadMax ?? ''}
-                    onChange={(e) =>
-                      setFilters((prev) => ({
-                        ...prev,
-                        sinadMax: e.target.value ? Number(e.target.value) : null,
-                      }))
-                    }
-                    className="w-full rounded-md border border-surface-300 bg-white px-2 py-1.5 text-sm text-surface-900 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-100"
-                  />
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setFilters((prev) => ({ ...prev, sinadMin: null, sinadMax: null }))}
+                    className={`rounded-md border px-2 py-1 text-xs font-semibold transition-colors ${
+                      activeSinadBand === null
+                        ? 'border-primary-500 bg-primary-500 text-white'
+                        : 'border-surface-300 bg-white text-surface-700 hover:bg-surface-100 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-300 dark:hover:bg-surface-700'
+                    }`}
+                  >
+                    Any
+                  </button>
+                  {SCORE_BANDS.map((band) => {
+                    const threshold = getSinadThresholdForBand(band.min);
+                    const selected = activeSinadBand === band.band;
+                    return (
+                      <button
+                        key={band.band}
+                        type="button"
+                        onClick={() =>
+                          setFilters((prev) =>
+                            selected
+                              ? { ...prev, sinadMin: null, sinadMax: null }
+                              : { ...prev, sinadMin: threshold, sinadMax: null }
+                          )
+                        }
+                        className={`rounded-md border px-2 py-1 text-xs font-semibold transition-colors ${
+                          selected
+                            ? 'border-primary-500 bg-primary-500 text-white'
+                            : 'border-surface-300 bg-white text-surface-700 hover:bg-surface-100 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-300 dark:hover:bg-surface-700'
+                        }`}
+                      >
+                        {band.band}
+                      </button>
+                    );
+                  })}
                 </div>
+                <p className="text-[11px] text-surface-500 dark:text-surface-400">Backend filter remains numeric dB; bands are a UI shortcut.</p>
               </div>
             )}
 
@@ -664,6 +753,7 @@ export default function ProductListPage() {
                   sinadMin: null,
                   sinadMax: null,
                   headphoneDesigns: [],
+                  headphoneTypes: [],
                   iemTypes: [],
                   driverTypes: [],
                   micConnections: [],

@@ -43,6 +43,13 @@ function relativeTime(dateString: string): string {
   return 'just now';
 }
 
+function isOlderThanHours(dateString: string, hours: number): boolean {
+  const then = new Date(dateString).getTime();
+  if (Number.isNaN(then)) return false;
+  const ageMs = Date.now() - then;
+  return ageMs > hours * 60 * 60 * 1000;
+}
+
 function BundleRow({
   bundle,
   productName,
@@ -167,6 +174,7 @@ export default function WhereToBuy({ productId, productName, discontinued }: Whe
         new Date(l.last_checked) > new Date(latest) ? l.last_checked : latest,
       listings[0].last_checked)
     : null;
+  const pricesStale = lastChecked ? isOlderThanHours(lastChecked, 72) : false;
 
   const hasAnyContent = listings.length > 0 || bundles.length > 0;
 
@@ -399,10 +407,13 @@ export default function WhereToBuy({ productId, productName, discontinued }: Whe
             </div>
 
             {lastChecked && (
-              <p className="mt-3 text-xs text-surface-400 dark:text-surface-500">
-                Prices updated {relativeTime(lastChecked)}
+              <p className={`mt-3 text-xs ${pricesStale ? 'text-amber-600 dark:text-amber-400' : 'text-surface-400 dark:text-surface-500'}`}>
+                Prices updated {relativeTime(lastChecked)}{pricesStale ? ' (data may be stale)' : ''}
               </p>
             )}
+            <p className="mt-2 text-xs text-surface-500 dark:text-surface-400">
+              Rankings are based on measurements. Retailer links may be affiliate links and do not influence ranking.
+            </p>
           </>
         )}
       </div>

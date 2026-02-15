@@ -3,7 +3,7 @@
  *
  * AliExpress product sync via the Affiliate API. Discovers products from
  * curated official brand stores, generates affiliate links, and upserts
- * to the store_products staging table for processing.
+ * to the retailer_products ingestion table for processing.
  *
  * Usage:
  *   SUPABASE_SERVICE_KEY=<key> ALIEXPRESS_APP_KEY=<key> \
@@ -12,7 +12,7 @@
  *
  * Modes:
  *   --mode=discover    Search for new products from curated stores (default)
- *   --mode=refresh     Update prices for existing AliExpress store_products
+ *   --mode=refresh     Update prices for existing AliExpress retailer_products
  *   --mode=daily       Run discover then refresh within API budget (for cron)
  *
  * Options:
@@ -24,7 +24,7 @@
  */
 
 import "./lib/env.js";
-import { getSupabase, getRetailers, type Retailer } from './config/retailers.ts';
+import { getSupabase } from './config/retailers.ts';
 import {
   createAliExpressClient,
   type AliExpressClient,
@@ -39,9 +39,58 @@ import {
   type AliExpressStoreConfig,
 } from './config/aliexpress-stores.ts';
 import { isAliExpressJunk } from './lib/aliexpress-quality-gate.ts';
-import { detectCorrectCategory } from './scrapers/matcher.ts';
+import { detectCorrectCategory, normalizeName } from './scrapers/matcher.ts';
 import { extractBrand } from './brand-config.ts';
 import type { CategoryId } from './config/store-collections.ts';
+
+type RetailerProductUpsertRow = {
+  id: string;
+  retailer_id: string;
+  external_id: string;
+  canonical_device_id: string | null;
+  price: number | null;
+  compare_at_price: number | null;
+  on_sale: boolean;
+  in_stock: boolean;
+  product_url: string | null;
+  affiliate_url: string | null;
+  image_url: string | null;
+};
+
+async function upsertDeviceOffersFromRetailerProducts(
+  retailerProductRows: RetailerProductUpsertRow[],
+  nowIso: string,
+  label: string,
+): Promise<void> {
+  const offerRows = retailerProductRows
+    .filter((rp) => rp.canonical_device_id && rp.price != null)
+    .map((rp) => ({
+      device_id: rp.canonical_device_id,
+      retailer_product_id: rp.id,
+      retailer_id: rp.retailer_id,
+      external_id: rp.external_id,
+      price: rp.price,
+      compare_at_price: rp.compare_at_price,
+      on_sale: rp.on_sale || (rp.compare_at_price != null && rp.price != null && rp.compare_at_price > rp.price),
+      currency: 'USD',
+      in_stock: rp.in_stock,
+      product_url: rp.product_url,
+      affiliate_url: rp.affiliate_url ?? rp.product_url,
+      image_url: rp.image_url,
+      last_checked: nowIso,
+    }));
+
+  if (offerRows.length === 0) return;
+
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from('device_offers')
+    .upsert(offerRows, { onConflict: 'retailer_id,external_id' });
+
+  if (error) {
+    logError('OFFERS', `device_offers upsert failed (${label})`, error);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // CLI argument parsing
@@ -162,13 +211,13 @@ async function discoverProducts(
 ): Promise<void> {
   const supabase = getSupabase();
 
-  // Load existing AliExpress store_products to skip duplicates
-  log('LOAD', 'Loading existing AliExpress store_products...');
+  // Load existing AliExpress retailer_products to skip duplicates
+  log('LOAD', 'Loading existing AliExpress retailer_products...');
   const existingIds = new Set<string>();
   let offset = 0;
   while (true) {
     const { data, error } = await supabase
-      .from('store_products')
+      .from('retailer_products')
       .select('external_id')
       .eq('retailer_id', 'aliexpress')
       .range(offset, offset + 999);
@@ -178,7 +227,7 @@ async function discoverProducts(
     offset += data.length;
     if (data.length < 1000) break;
   }
-  log('LOAD', `Found ${existingIds.size} existing AliExpress store_products`);
+  log('LOAD', `Found ${existingIds.size} existing AliExpress retailer_products`);
 
   // Filter stores based on CLI args
   let stores = [...ALIEXPRESS_STORES];
@@ -302,7 +351,7 @@ async function discoverProducts(
       }
     }
 
-    // Transform to store_products rows
+    // Transform to retailer_products rows
     for (const p of storeNewProducts) {
       const price = parseFloat(p.sale_price);
       const categoryId = detectAliExpressCategory(p, store);
@@ -312,11 +361,14 @@ async function discoverProducts(
         retailer_id: 'aliexpress',
         external_id: p.product_id,
         title: p.product_title,
+        normalized_title: normalizeName(p.product_title),
         vendor: store.brandName,
         product_type: null,
         tags: [],
-        category_id: categoryId,
+        source_category_id: categoryId,
         price: isNaN(price) ? null : price,
+        compare_at_price: null,
+        on_sale: false,
         in_stock: true,
         image_url: p.product_main_image_url || null,
         product_url: p.product_url,
@@ -336,25 +388,32 @@ async function discoverProducts(
           last_seen_at: new Date().toISOString(),
         },
         imported_at: new Date().toISOString(),
-        processed: false,
+        last_seen_at: new Date().toISOString(),
       });
     }
   }
 
   // Batch upsert all rows
   if (allRows.length > 0 && !DRY_RUN) {
-    log('UPSERT', `Upserting ${allRows.length} store_products...`);
+    log('UPSERT', `Upserting ${allRows.length} retailer_products...`);
     for (let i = 0; i < allRows.length; i += UPSERT_BATCH_SIZE) {
       const batch = allRows.slice(i, i + UPSERT_BATCH_SIZE);
       try {
-        const { error } = await supabase
-          .from('store_products')
-          .upsert(batch, { onConflict: 'retailer_id,external_id' });
+        const nowIso = new Date().toISOString();
+        const { data, error } = await supabase
+          .from('retailer_products')
+          .upsert(batch, { onConflict: 'retailer_id,external_id' })
+          .select('id, retailer_id, external_id, canonical_device_id, price, compare_at_price, on_sale, in_stock, product_url, affiliate_url, image_url');
         if (error) {
           logError('UPSERT', `Batch ${Math.floor(i / UPSERT_BATCH_SIZE) + 1}`, error);
           stats.errors++;
         } else {
           stats.productsUpserted += batch.length;
+          await upsertDeviceOffersFromRetailerProducts(
+            (data ?? []) as RetailerProductUpsertRow[],
+            nowIso,
+            `aliexpress:discover:batch-${Math.floor(i / UPSERT_BATCH_SIZE) + 1}`,
+          );
         }
       } catch (err) {
         logError('UPSERT', 'Batch exception', err);
@@ -375,13 +434,13 @@ async function refreshProducts(
 ): Promise<void> {
   const supabase = getSupabase();
 
-  // Load existing AliExpress store_products, ordered by stalest first
-  log('LOAD', 'Loading AliExpress store_products for refresh...');
+  // Load existing AliExpress retailer_products, ordered by stalest first
+  log('LOAD', 'Loading AliExpress retailer_products for refresh...');
   const products: { id: string; external_id: string; retailer_id: string; raw_data: Record<string, unknown> | null }[] = [];
   let offset = 0;
   while (true) {
     let query = supabase
-      .from('store_products')
+      .from('retailer_products')
       .select('id, external_id, retailer_id, raw_data')
       .eq('retailer_id', 'aliexpress')
       .order('imported_at', { ascending: true });
@@ -394,7 +453,7 @@ async function refreshProducts(
 
     query = query.range(offset, offset + 999);
     const { data, error } = await query;
-    if (error) { logError('LOAD', 'Failed to load store_products', error); break; }
+    if (error) { logError('LOAD', 'Failed to load retailer_products', error); break; }
     if (!data || data.length === 0) break;
     products.push(...data);
     offset += data.length;
@@ -435,7 +494,7 @@ async function refreshProducts(
           price: isNaN(price) ? null : price,
           in_stock: true,
           imported_at: now,
-          processed: false, // Re-process with updated price
+          last_seen_at: now,
           raw_data: {
             ...(batch.find(b => b.external_id === detail.product_id)?.raw_data ?? {}),
             original_price: detail.original_price,
@@ -463,7 +522,6 @@ async function refreshProducts(
               external_id: p.external_id,
               in_stock: true, // Keep in stock during grace period
               imported_at: now,
-              processed: false,
               raw_data: restRawData,
             });
             log('GRACE', `Keeping "${p.external_id}" in stock (grace period, last seen: ${lastSeen})`);
@@ -474,7 +532,6 @@ async function refreshProducts(
               external_id: p.external_id,
               in_stock: false,
               imported_at: now,
-              processed: false,
             });
           }
         }
@@ -482,14 +539,20 @@ async function refreshProducts(
 
       // Upsert updates
       if (updates.length > 0) {
-        const { error } = await supabase
-          .from('store_products')
-          .upsert(updates, { onConflict: 'retailer_id,external_id' });
+        const { data, error } = await supabase
+          .from('retailer_products')
+          .upsert(updates, { onConflict: 'retailer_id,external_id' })
+          .select('id, retailer_id, external_id, canonical_device_id, price, compare_at_price, on_sale, in_stock, product_url, affiliate_url, image_url');
         if (error) {
           logError('REFRESH', 'Upsert failed', error);
           stats.errors++;
         } else {
           stats.productsUpserted += updates.length;
+          await upsertDeviceOffersFromRetailerProducts(
+            (data ?? []) as RetailerProductUpsertRow[],
+            now,
+            `aliexpress:refresh:batch-${Math.floor(i / DETAIL_BATCH_SIZE) + 1}`,
+          );
         }
       }
 
@@ -547,7 +610,7 @@ async function main(): Promise<void> {
       // Dynamic budget allocation for daily mode
       const supabase = getSupabase();
       const { count: existingCount } = await supabase
-        .from('store_products')
+        .from('retailer_products')
         .select('id', { count: 'exact', head: true })
         .eq('retailer_id', 'aliexpress');
 

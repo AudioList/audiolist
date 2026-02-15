@@ -5,13 +5,14 @@
  * Parameterized by category filter for category-specific pipelines.
  */
 
-import { getSupabase, getRetailers, type Retailer } from '../config/retailers.ts';
+import { getSupabase } from '../config/retailers.ts';
 import { extractBrand } from '../brand-config.ts';
 import {
   normalizeName,
   buildCandidateIndex,
   findBestMatchIndexed,
   extractHeadphoneDesign,
+  extractHeadphoneType,
   extractIemType,
   extractDriverType,
   extractMicConnection,
@@ -188,6 +189,7 @@ type StoreProduct = {
   image_url: string | null;
   product_url: string | null;
   affiliate_url: string | null;
+  canonical_device_id?: string | null;
 };
 
 type ExistingProduct = {
@@ -224,17 +226,17 @@ async function loadUnprocessed(
   const all: StoreProduct[] = [];
   let offset = 0;
 
-  log('LOAD', 'Loading unprocessed store_products...');
+  log('LOAD', 'Loading unprocessed retailer_products...');
 
   while (true) {
     let query = supabase
-      .from('store_products')
-      .select('id, retailer_id, external_id, title, vendor, product_type, tags, category_id, price, compare_at_price, on_sale, in_stock, image_url, product_url, affiliate_url')
+      .from('retailer_products')
+      .select('id, retailer_id, external_id, title, vendor, product_type, tags, category_id:source_category_id, price, compare_at_price, on_sale, in_stock, image_url, product_url, affiliate_url, canonical_device_id')
       .eq('processed', false)
-      .not('category_id', 'is', null);
+      .not('source_category_id', 'is', null);
 
     if (categoryFilter) {
-      query = query.in('category_id', [...categoryFilter]);
+      query = query.in('source_category_id', [...categoryFilter]);
     }
 
     query = query.range(offset, offset + BATCH_SIZE - 1);
@@ -254,7 +256,7 @@ async function loadUnprocessed(
     if (batch.length < BATCH_SIZE) break;
   }
 
-  log('LOAD', `Loaded ${all.length} unprocessed store_products`);
+  log('LOAD', `Loaded ${all.length} unprocessed retailer_products`);
 
   if (devMode && all.length > 0) {
     const byCategory = new Map<string, StoreProduct[]>();
@@ -285,11 +287,11 @@ async function loadExistingProducts(
   const all: ExistingProduct[] = [];
   let offset = 0;
 
-  log('LOAD', 'Loading existing products for dedup matching...');
+  log('LOAD', 'Loading existing devices for dedup matching...');
 
   while (true) {
     let query = supabase
-      .from('products')
+      .from('devices')
       .select('id, name, brand, category_id');
 
     if (categoryFilter) {
@@ -320,14 +322,13 @@ async function loadExistingProducts(
     else byCategory.set(p.category_id, [p]);
   }
 
-  log('LOAD', `Loaded ${all.length} existing products across ${byCategory.size} categories`);
+  log('LOAD', `Loaded ${all.length} existing devices across ${byCategory.size} categories`);
   return byCategory;
 }
 
 async function processStoreProducts(
   storeProducts: StoreProduct[],
-  existingByCategory: Map<string, ExistingProduct[]>,
-  retailerMap: Map<string, Retailer>
+  existingByCategory: Map<string, ExistingProduct[]>
 ): Promise<Stats> {
   const supabase = getSupabase();
   const stats: Stats = {
@@ -339,10 +340,19 @@ async function processStoreProducts(
     listingsCreated: 0,
   };
 
-  const listingRows: Record<string, unknown>[] = [];
-  const matchRows: Record<string, unknown>[] = [];
-  const spUpdateWithCanonical: { id: string; canonicalProductId: string }[] = [];
+  const offerRows: Record<string, unknown>[] = [];
+  const reviewTaskRows: Record<string, unknown>[] = [];
+  const spUpdateWithCanonical: { id: string; canonicalDeviceId: string }[] = [];
   const spUpdateProcessedOnly: string[] = [];
+
+  // Retailers that are too noisy to safely auto-create catalog devices.
+  // For these sources, we only auto-link offers to existing devices when the
+  // match is very confident; otherwise we queue an offer_link review task.
+  // Review-gated retailers are too noisy to safely auto-create catalog devices.
+  // Best Buy is treated as valid for existence within curated categories.
+  const REVIEW_GATED_RETAILERS = new Set(['amazon', 'aliexpress']);
+  const REVIEW_GATED_AUTO_LINK_THRESHOLD = 0.95;
+  const REVIEW_GATED_REVIEW_THRESHOLD = 0.85;
 
   // Build a product-id-to-category lookup for cross-category guard
   const productCategoryMap = new Map<string, string>();
@@ -394,9 +404,34 @@ async function processStoreProducts(
     }
 
     try {
-      const brand = extractStoreBrand(sp);
-      const retailer = retailerMap.get(sp.retailer_id);
+      // Fast path: already linked to a canonical device. Only refresh offers.
+      if (sp.canonical_device_id) {
+        const canonicalDeviceId = sp.canonical_device_id;
 
+        if (sp.price != null) {
+          offerRows.push({
+            device_id: canonicalDeviceId,
+            retailer_product_id: sp.id,
+            retailer_id: sp.retailer_id,
+            external_id: sp.external_id,
+            price: sp.price,
+            compare_at_price: sp.compare_at_price,
+            on_sale: sp.on_sale || (sp.compare_at_price != null && sp.compare_at_price > sp.price),
+            currency: 'USD',
+            in_stock: sp.in_stock,
+            product_url: sp.product_url,
+            affiliate_url: sp.affiliate_url ?? sp.product_url,
+            image_url: sp.image_url,
+            last_checked: new Date().toISOString(),
+          });
+          stats.listingsCreated++;
+        }
+
+        spUpdateWithCanonical.push({ id: sp.id, canonicalDeviceId });
+        continue;
+      }
+
+      const brand = extractStoreBrand(sp);
       // Category override: detect misclassification across all categories
       let effectiveCategoryId = categoryId;
 
@@ -449,14 +484,19 @@ async function processStoreProducts(
         const ptLower = sp.product_type.toLowerCase();
         const allowedSet = BLOOM_ALLOWED_PRODUCT_TYPES[categoryId];
 
-        if (allowedSet && !allowedSet.has(ptLower)) {
-          if (ptLower === 'accessory') {
-            // Accessories outside hp_pads have no target category -- skip
-            log('BLOOM_GATE', `Skipping accessory: "${sp.title}" (collection=${categoryId})`);
-            spUpdateProcessedOnly.push(sp.id);
-            stats.skipped++;
-            continue;
-          } else if (ptLower === 'headphones') {
+          if (allowedSet && !allowedSet.has(ptLower)) {
+            if (ptLower === 'accessory') {
+              // Route headphone accessories into the dedicated category.
+              if (categoryId === 'headphone' || categoryId === 'hp_pads' || categoryId === 'hp_cable' || categoryId === 'hp_accessory') {
+                effectiveCategoryId = 'hp_accessory';
+                log('BLOOM_GATE', `product_type="${sp.product_type}" override: "${sp.title}" ${categoryId} -> hp_accessory`);
+              } else {
+                log('BLOOM_GATE', `Skipping accessory: "${sp.title}" (collection=${categoryId})`);
+                spUpdateProcessedOnly.push(sp.id);
+                stats.skipped++;
+                continue;
+              }
+            } else if (ptLower === 'headphones') {
             // "Headphones" in non-IEM/headphone collection -> default to headphone
             effectiveCategoryId = 'headphone';
             log('BLOOM_GATE', `product_type="${sp.product_type}" override: "${sp.title}" ${categoryId} -> headphone`);
@@ -532,6 +572,33 @@ async function processStoreProducts(
 
       const detected = detectCorrectCategory(sp.title, brand, effectiveCategoryId as CategoryId);
       if (detected) {
+        // BestBuy guardrail: treat validated BestBuy categories as source-of-truth.
+        // BestBuy category IDs can be noisy (e.g. earbuds inside a headphone category).
+        // Do NOT auto-reclassify BestBuy items; instead queue a retailer_category task
+        // and stop processing this row until a human resolves the category.
+        if (sp.retailer_id === 'bestbuy' && detected !== effectiveCategoryId) {
+          log('CATEGORY', `BestBuy category conflict: "${sp.title}" store=${effectiveCategoryId} detected=${detected} (queued retailer_category)`);
+          reviewTaskRows.push({
+            task_type: 'retailer_category',
+            status: 'open',
+            priority: 80,
+            retailer_product_id: sp.id,
+            payload: {
+              retailer_id: sp.retailer_id,
+              external_id: sp.external_id,
+              title: sp.title,
+              brand,
+              source_category_id: effectiveCategoryId,
+              detected_category_id: detected,
+              note: 'BestBuy category override disabled; resolve category then reprocess.',
+            },
+            reason: `Category conflict: source=${effectiveCategoryId} detected=${detected}`,
+          });
+          stats.pendingReview++;
+          spUpdateProcessedOnly.push(sp.id);
+          continue;
+        }
+
         log('CATEGORY', `Override: "${sp.title}" store=${effectiveCategoryId} -> detected=${detected}`);
         effectiveCategoryId = detected;
       }
@@ -546,7 +613,7 @@ async function processStoreProducts(
         ? findBestMatchIndexed(matchTitle, candidateIndex, { productBrand: brand })
         : null;
 
-      let canonicalProductId: string | null = null;
+      let canonicalDeviceId: string | null = null;
 
       // Cross-category guard: skip match if the matched product is in a different category
       const matchedCategory = match ? productCategoryMap.get(match.id) : undefined;
@@ -559,24 +626,60 @@ async function processStoreProducts(
       const effectiveMergeThreshold = usingBrandIndex ? MERGE_THRESHOLD : 0.92;
       const effectiveReviewThreshold = usingBrandIndex ? REVIEW_THRESHOLD : 0.75;
 
-      if (match && match.score >= effectiveMergeThreshold && !crossCategory) {
-        canonicalProductId = match.id;
+      const shouldAutoMerge = !!(match && match.score >= effectiveMergeThreshold && !crossCategory);
+      const shouldQueueMergeReview = !!(match && match.score >= effectiveReviewThreshold && !crossCategory);
+
+      const isReviewGatedRetailer = REVIEW_GATED_RETAILERS.has(sp.retailer_id);
+      const shouldReviewGatedAutoLink = !!(
+        isReviewGatedRetailer &&
+        match &&
+        match.score >= REVIEW_GATED_AUTO_LINK_THRESHOLD &&
+        !crossCategory
+      );
+
+      const shouldReviewGatedQueue = !!(
+        isReviewGatedRetailer &&
+        (!match || crossCategory || match.score < REVIEW_GATED_AUTO_LINK_THRESHOLD)
+      );
+
+      if ((shouldAutoMerge && match) || shouldReviewGatedAutoLink) {
+        canonicalDeviceId = match!.id;
         stats.merged++;
-      } else if (match && match.score >= effectiveReviewThreshold && !crossCategory) {
-        matchRows.push({
-          product_id: match.id,
-          retailer_id: sp.retailer_id,
-          external_id: sp.external_id,
-          external_name: sp.title,
-          external_price: sp.price,
-          match_score: match.score,
-          status: 'pending',
+      } else if (shouldReviewGatedQueue) {
+        // Marketplace/off-brand sources: require manual review instead of creating a new device.
+        reviewTaskRows.push({
+          task_type: 'offer_link',
+          status: 'open',
+          priority: match ? Math.round(match.score * 100) : 50,
+          retailer_product_id: sp.id,
+          payload: {
+            retailer_id: sp.retailer_id,
+            external_id: sp.external_id,
+            source_category_id: effectiveCategoryId,
+            title: sp.title,
+            cleaned_title: matchTitle,
+            brand,
+            suggested_device_id: match?.id ?? null,
+            suggested_device_name: match?.name ?? null,
+            score: match?.score ?? null,
+            review_threshold: REVIEW_GATED_REVIEW_THRESHOLD,
+            auto_link_threshold: REVIEW_GATED_AUTO_LINK_THRESHOLD,
+            cross_category: crossCategory,
+          },
+          reason: match && match.score >= REVIEW_GATED_REVIEW_THRESHOLD
+            ? `Offer link needs review (score=${match.score.toFixed(3)})`
+            : 'Offer link needs review (no confident match)',
         });
         stats.pendingReview++;
+        spUpdateProcessedOnly.push(sp.id);
+        continue;
       } else {
-        // Extract headphone design type from title and/or Shopify tags
+        // Extract headphone design/type from title and/or Shopify tags
         let headphoneDesign = effectiveCategoryId === 'headphone'
           ? extractHeadphoneDesign(sp.title)
+          : null;
+        const headphoneType = effectiveCategoryId === 'headphone'
+          ? extractHeadphoneType(sp.title)
           : null;
 
         // Extract structured attributes from Shopify tags (driver_type, wearing_style, headphone_design)
@@ -639,18 +742,16 @@ async function processStoreProducts(
           }
         }
 
-        const { data: newProduct, error: insertError } = await supabase
-          .from('products')
+        const { data: newDevice, error: insertError } = await supabase
+          .from('devices')
           .insert({
-            source_id: `store:${sp.retailer_id}:${sp.external_id}`,
             category_id: effectiveCategoryId,
             name: sp.title,
             brand,
-            price: sp.price,
+            normalized_name: normalizeName(sp.title),
             image_url: sp.image_url,
-            affiliate_url: sp.affiliate_url ?? sp.product_url,
-            source_type: 'store',
-            in_stock: sp.in_stock,
+            created_from_retailer_product_id: sp.id,
+            ...(headphoneType ? { headphone_type: headphoneType } : {}),
             ...(headphoneDesign ? { headphone_design: headphoneDesign } : {}),
             ...(iemType ? { iem_type: iemType } : {}),
             ...(micConnection ? { mic_connection: micConnection } : {}),
@@ -665,242 +766,232 @@ async function processStoreProducts(
         if (insertError) {
           if (insertError.code === '23505') {
             const { data: existing } = await supabase
-              .from('products')
+              .from('devices')
               .select('id')
-              .eq('source_id', `store:${sp.retailer_id}:${sp.external_id}`)
+              .eq('created_from_retailer_product_id', sp.id)
               .single();
 
             if (existing) {
-              canonicalProductId = existing.id;
-              stats.merged++;
+              canonicalDeviceId = existing.id;
             } else {
               stats.errors++;
               continue;
             }
           } else {
-            logError('PROCESS', `Insert product "${sp.title}"`, insertError);
+            logError('PROCESS', `Insert device "${sp.title}"`, insertError);
+            reviewTaskRows.push({
+              task_type: 'ingest_error',
+              status: 'open',
+              priority: 90,
+              retailer_product_id: sp.id,
+              payload: {
+                phase: 'process-store-products',
+                action: 'insert_device',
+                retailer_id: sp.retailer_id,
+                external_id: sp.external_id,
+                title: sp.title,
+                category_id: effectiveCategoryId,
+                error_code: insertError.code,
+                error_message: insertError.message,
+              },
+              reason: `Device insert failed: ${insertError.message}`,
+            });
             stats.errors++;
             continue;
           }
-        } else if (newProduct) {
-          canonicalProductId = newProduct.id;
+        } else if (newDevice) {
+          canonicalDeviceId = newDevice.id;
           stats.created++;
 
-          const existingList = existingByCategory.get(categoryId);
-          const newEntry = { id: newProduct.id, name: sp.title, brand, category_id: categoryId };
+          const existingList = existingByCategory.get(effectiveCategoryId);
+          const newEntry = { id: newDevice.id, name: sp.title, brand, category_id: effectiveCategoryId };
           if (existingList) existingList.push(newEntry);
-          else existingByCategory.set(categoryId, [newEntry]);
-          productCategoryMap.set(newProduct.id, categoryId);
+          else existingByCategory.set(effectiveCategoryId, [newEntry]);
+          productCategoryMap.set(newDevice.id, effectiveCategoryId);
 
-          const idx = categoryIndices.get(categoryId);
+          const idx = categoryIndices.get(effectiveCategoryId);
           if (idx) {
-            const [newIndexed] = buildCandidateIndex([{ name: sp.title, id: newProduct.id, brand }]);
+            const [newIndexed] = buildCandidateIndex([{ name: sp.title, id: newDevice.id, brand }]);
             idx.push(newIndexed);
           }
           if (brandKey) {
-            let brandMap = brandIndices.get(categoryId);
+            let brandMap = brandIndices.get(effectiveCategoryId);
             if (!brandMap) {
               brandMap = new Map();
-              brandIndices.set(categoryId, brandMap);
+              brandIndices.set(effectiveCategoryId, brandMap);
             }
             const bIdx = brandMap.get(brandKey);
-            const [newIndexed] = buildCandidateIndex([{ name: sp.title, id: newProduct.id, brand }]);
+            const [newIndexed] = buildCandidateIndex([{ name: sp.title, id: newDevice.id, brand }]);
             if (bIdx) bIdx.push(newIndexed);
             else brandMap.set(brandKey, [newIndexed]);
           }
         }
+
+        if (canonicalDeviceId && shouldQueueMergeReview && match) {
+          reviewTaskRows.push({
+            task_type: 'device_merge',
+            status: 'open',
+            priority: Math.round(match.score * 100),
+            retailer_product_id: sp.id,
+            device_id: canonicalDeviceId,
+            payload: {
+              suggested_device_id: match.id,
+              suggested_device_name: match.name,
+              score: match.score,
+              used_brand_index: usingBrandIndex,
+              detected_category_id: effectiveCategoryId,
+            },
+            reason: `Possible duplicate of ${match.name} (${match.score.toFixed(3)})`,
+          });
+          stats.pendingReview++;
+        }
       }
 
-      if (canonicalProductId) {
-        listingRows.push({
-          product_id: canonicalProductId,
-          retailer_id: sp.retailer_id,
-          external_id: sp.external_id,
-          price: sp.price,
-          compare_at_price: sp.compare_at_price,
-          on_sale: sp.on_sale || (sp.compare_at_price != null && sp.price != null && sp.compare_at_price > sp.price),
-          currency: 'USD',
-          in_stock: sp.in_stock,
-          product_url: sp.product_url,
-          affiliate_url: sp.affiliate_url ?? sp.product_url,
-          image_url: sp.image_url,
-          last_checked: new Date().toISOString(),
-        });
-        stats.listingsCreated++;
-        spUpdateWithCanonical.push({ id: sp.id, canonicalProductId });
+      if (canonicalDeviceId) {
+        // device_offers.price is NOT NULL. Skip offer write if we couldn't extract a valid price.
+        if (sp.price != null) {
+          offerRows.push({
+            device_id: canonicalDeviceId,
+            retailer_product_id: sp.id,
+            retailer_id: sp.retailer_id,
+            external_id: sp.external_id,
+            price: sp.price,
+            compare_at_price: sp.compare_at_price,
+            on_sale: sp.on_sale || (sp.compare_at_price != null && sp.compare_at_price > sp.price),
+            currency: 'USD',
+            in_stock: sp.in_stock,
+            product_url: sp.product_url,
+            affiliate_url: sp.affiliate_url ?? sp.product_url,
+            image_url: sp.image_url,
+            last_checked: new Date().toISOString(),
+          });
+          stats.listingsCreated++;
+        }
+
+        spUpdateWithCanonical.push({ id: sp.id, canonicalDeviceId });
       } else {
         spUpdateProcessedOnly.push(sp.id);
       }
     } catch (err) {
       logError('PROCESS', `Exception processing "${sp.title}"`, err);
+      reviewTaskRows.push({
+        task_type: 'ingest_error',
+        status: 'open',
+        priority: 80,
+        retailer_product_id: sp.id,
+        payload: {
+          phase: 'process-store-products',
+          action: 'exception',
+          retailer_id: sp.retailer_id,
+          external_id: sp.external_id,
+          title: sp.title,
+          error: err instanceof Error ? { message: err.message, stack: err.stack } : String(err),
+        },
+        reason: 'Unhandled exception while processing retailer product',
+      });
       stats.errors++;
     }
   }
 
-  // Batch mark all store_products as processed
-  const allProcessedIds = [...spUpdateProcessedOnly, ...spUpdateWithCanonical.map((u) => u.id)];
-  if (allProcessedIds.length > 0) {
-    log('BATCH', `Marking ${allProcessedIds.length} store_products as processed...`);
-    for (let i = 0; i < allProcessedIds.length; i += UPSERT_BATCH_SIZE) {
-      const batch = allProcessedIds.slice(i, i + UPSERT_BATCH_SIZE);
-      await supabase.from('store_products').update({ processed: true }).in('id', batch);
+  // Batch mark retailer_products as processed (no canonical link)
+  if (spUpdateProcessedOnly.length > 0) {
+    log('BATCH', `Marking ${spUpdateProcessedOnly.length} retailer_products as processed...`);
+    for (let i = 0; i < spUpdateProcessedOnly.length; i += UPSERT_BATCH_SIZE) {
+      const batch = spUpdateProcessedOnly.slice(i, i + UPSERT_BATCH_SIZE);
+      await supabase.from('retailer_products').update({ processed: true }).in('id', batch);
     }
   }
 
-  // Update canonical_product_id in parallel chunks
+  // Link retailer_products to canonical devices and mark processed
   if (spUpdateWithCanonical.length > 0) {
-    log('BATCH', `Linking ${spUpdateWithCanonical.length} store_products to canonical products...`);
+    log('BATCH', `Linking ${spUpdateWithCanonical.length} retailer_products to canonical devices...`);
     const LINK_CONCURRENCY = 25;
     for (let i = 0; i < spUpdateWithCanonical.length; i += LINK_CONCURRENCY) {
       const chunk = spUpdateWithCanonical.slice(i, i + LINK_CONCURRENCY);
       await Promise.all(
         chunk.map((u) =>
-          supabase.from('store_products')
-            .update({ canonical_product_id: u.canonicalProductId })
+          supabase
+            .from('retailer_products')
+            .update({ processed: true, canonical_device_id: u.canonicalDeviceId })
             .eq('id', u.id)
         )
       );
     }
   }
 
-  // Deduplicate listingRows by (retailer_id, external_id).
-  // Multiple store_products with the same external_id can match to different
-  // canonical products; keep only the first (highest-confidence) match.
-  const dedupedListingRows = (() => {
-    const seen = new Map<string, typeof listingRows[0]>();
-    for (const row of listingRows) {
+  // Deduplicate offerRows by (retailer_id, external_id).
+  const dedupedOfferRows = (() => {
+    const seen = new Map<string, typeof offerRows[0]>();
+    for (const row of offerRows) {
       const key = `${row.retailer_id}|${row.external_id}`;
       if (!seen.has(key)) {
         seen.set(key, row);
       }
     }
     const deduped = [...seen.values()];
-    if (deduped.length < listingRows.length) {
-      log('DEDUP', `Deduplicated ${listingRows.length} listing rows to ${deduped.length} (removed ${listingRows.length - deduped.length} duplicate external_ids)`);
+    if (deduped.length < offerRows.length) {
+      log('DEDUP', `Deduplicated ${offerRows.length} offer rows to ${deduped.length} (removed ${offerRows.length - deduped.length} duplicate external_ids)`);
     }
     return deduped;
   })();
 
-  // Batch upsert price_listings
-  if (dedupedListingRows.length > 0) {
-    log('UPSERT', `Upserting ${dedupedListingRows.length} price_listings...`);
-    for (let i = 0; i < dedupedListingRows.length; i += UPSERT_BATCH_SIZE) {
-      const batch = dedupedListingRows.slice(i, i + UPSERT_BATCH_SIZE);
+  // Batch upsert device_offers
+  if (dedupedOfferRows.length > 0) {
+    log('UPSERT', `Upserting ${dedupedOfferRows.length} device_offers...`);
+    for (let i = 0; i < dedupedOfferRows.length; i += UPSERT_BATCH_SIZE) {
+      const batch = dedupedOfferRows.slice(i, i + UPSERT_BATCH_SIZE);
       const { error } = await supabase
-        .from('price_listings')
+        .from('device_offers')
         .upsert(batch, { onConflict: 'retailer_id,external_id' });
 
       if (error) {
-        logError('UPSERT', 'price_listings batch', error);
+        logError('UPSERT', 'device_offers batch', error);
+        // Queue one error task per batch to avoid runaway spam.
+        reviewTaskRows.push({
+          task_type: 'ingest_error',
+          status: 'open',
+          priority: 95,
+          retailer_product_id: null,
+          payload: {
+            phase: 'process-store-products',
+            action: 'upsert_device_offers',
+            error_code: error.code,
+            error_message: error.message,
+          },
+          reason: `device_offers upsert failed: ${error.message}`,
+        });
       }
     }
   }
 
-  // Deduplicate matchRows by (retailer_id, external_id)
-  const dedupedMatchRows = (() => {
-    const seen = new Map<string, typeof matchRows[0]>();
-    for (const row of matchRows) {
-      const key = `${row.retailer_id}|${row.external_id}`;
-      const existing = seen.get(key);
-      if (!existing || (row.match_score ?? 0) > (existing.match_score ?? 0)) {
+  // Deduplicate reviewTaskRows by (task_type, retailer_product_id)
+  const dedupedReviewTaskRows = (() => {
+    const seen = new Map<string, typeof reviewTaskRows[0]>();
+    for (const row of reviewTaskRows) {
+      const key = `${row.task_type}|${row.retailer_product_id}`;
+      if (!seen.has(key)) {
         seen.set(key, row);
       }
     }
     return [...seen.values()];
   })();
 
-  // Batch upsert product_matches for pending reviews
-  if (dedupedMatchRows.length > 0) {
-    log('UPSERT', `Upserting ${dedupedMatchRows.length} product_matches (pending review)...`);
-    for (let i = 0; i < dedupedMatchRows.length; i += UPSERT_BATCH_SIZE) {
-      const batch = dedupedMatchRows.slice(i, i + UPSERT_BATCH_SIZE);
+  // Insert review_tasks (deduplicated per run)
+  if (dedupedReviewTaskRows.length > 0) {
+    log('UPSERT', `Inserting ${dedupedReviewTaskRows.length} review_tasks...`);
+    for (let i = 0; i < dedupedReviewTaskRows.length; i += UPSERT_BATCH_SIZE) {
+      const batch = dedupedReviewTaskRows.slice(i, i + UPSERT_BATCH_SIZE);
       const { error } = await supabase
-        .from('product_matches')
-        .upsert(batch, { onConflict: 'product_id,retailer_id' });
+        .from('review_tasks')
+        .upsert(batch, { onConflict: 'task_type,retailer_product_id', ignoreDuplicates: true });
 
       if (error) {
-        logError('UPSERT', 'product_matches batch', error);
+        logError('UPSERT', 'review_tasks batch', error);
       }
     }
   }
 
   return stats;
-}
-
-async function denormalizeLowestPrices(): Promise<number> {
-  const supabase = getSupabase();
-  const PAGE_SIZE = 1000;
-
-  log('DENORM', 'Finding lowest in-stock price per product...');
-
-  const listings: { product_id: string; price: number; affiliate_url: string | null; product_url: string | null }[] = [];
-  let offset = 0;
-
-  while (true) {
-    const { data, error } = await supabase
-      .from('price_listings')
-      .select('product_id, price, affiliate_url, product_url')
-      .eq('in_stock', true)
-      .order('price', { ascending: true })
-      .range(offset, offset + PAGE_SIZE - 1);
-
-    if (error) {
-      logError('DENORM', 'Failed to fetch price_listings', error);
-      return 0;
-    }
-
-    if (!data || data.length === 0) break;
-    listings.push(...data);
-    offset += data.length;
-    if (data.length < PAGE_SIZE) break;
-  }
-
-  if (listings.length === 0) {
-    log('DENORM', 'No in-stock listings found.');
-    return 0;
-  }
-
-  log('DENORM', `Fetched ${listings.length} in-stock listings`);
-
-  const lowestByProduct = new Map<string, { price: number; affiliate_url: string | null }>();
-  for (const listing of listings) {
-    const existing = lowestByProduct.get(listing.product_id);
-    if (!existing || listing.price < existing.price) {
-      lowestByProduct.set(listing.product_id, {
-        price: listing.price,
-        affiliate_url: listing.affiliate_url ?? listing.product_url,
-      });
-    }
-  }
-
-  log('DENORM', `Updating ${lowestByProduct.size} products with lowest prices...`);
-
-  let updatedCount = 0;
-  const entries = Array.from(lowestByProduct.entries());
-  const DENORM_CONCURRENCY = 25;
-
-  for (let i = 0; i < entries.length; i += DENORM_CONCURRENCY) {
-    const chunk = entries.slice(i, i + DENORM_CONCURRENCY);
-    const results = await Promise.all(
-      chunk.map(([productId, info]) =>
-        supabase
-          .from('products')
-          .update({ price: info.price, affiliate_url: info.affiliate_url, in_stock: true })
-          .eq('id', productId)
-      )
-    );
-
-    for (let j = 0; j < results.length; j++) {
-      if (results[j].error) {
-        logError('DENORM', `Failed to update product ${chunk[j][0]}`, results[j].error);
-      } else {
-        updatedCount++;
-      }
-    }
-  }
-
-  log('DENORM', `Updated ${updatedCount} products`);
-  return updatedCount;
 }
 
 export async function runProcessStoreProducts(options: ProcessStoreProductsOptions): Promise<void> {
@@ -914,35 +1005,28 @@ export async function runProcessStoreProducts(options: ProcessStoreProductsOptio
   console.log(`  Started at ${new Date().toISOString()}`);
   console.log('=================================================================\n');
 
-  const retailers = await getRetailers();
-  const retailerMap = new Map(retailers.map((r) => [r.id, r]));
-
   const storeProducts = await loadUnprocessed(options.categoryFilter, options.devMode);
   if (storeProducts.length === 0) {
-    log('DONE', 'No unprocessed store products. Nothing to do.');
+    log('DONE', 'No unprocessed retailer products. Nothing to do.');
     return;
   }
 
   const existingByCategory = await loadExistingProducts(options.categoryFilter);
 
-  log('PROCESS', `Processing ${storeProducts.length} store products...`);
-  const stats = await processStoreProducts(storeProducts, existingByCategory, retailerMap);
-
-  console.log('\n--- Denormalize Lowest Prices ---\n');
-  const denormalized = await denormalizeLowestPrices();
+  log('PROCESS', `Processing ${storeProducts.length} retailer products...`);
+  const stats = await processStoreProducts(storeProducts, existingByCategory);
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
   console.log('\n=================================================================');
   console.log(`  PROCESSING COMPLETE — ${options.label}`);
   console.log('=================================================================');
   console.log(`  Duration:           ${elapsed}s`);
-  console.log(`  Store products:     ${storeProducts.length}`);
+  console.log(`  Retailer products:  ${storeProducts.length}`);
   console.log(`  Merged (existing):  ${stats.merged}`);
   console.log(`  Created (new):      ${stats.created}`);
   console.log(`  Pending review:     ${stats.pendingReview}`);
   console.log(`  Skipped:            ${stats.skipped}`);
   console.log(`  Errors:             ${stats.errors}`);
   console.log(`  Listings created:   ${stats.listingsCreated}`);
-  console.log(`  Prices denormalized: ${denormalized}`);
   console.log('=================================================================\n');
 }

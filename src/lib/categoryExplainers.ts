@@ -34,6 +34,10 @@ export const CATEGORY_EXPLAINERS: Record<CategoryId, CategoryExplainer> = {
     shortBlurb: 'Replacement cables for detachable headphones.',
     whyYouNeed: 'Upgrade to a longer cable or a different connector type.',
   },
+  hp_accessory: {
+    shortBlurb: 'Stands, cases, adapters, and other headphone accessories.',
+    whyYouNeed: 'Finish your setup with storage, comfort upgrades, and compatibility pieces.',
+  },
   dac: {
     shortBlurb: 'Converts the digital music on your phone or computer into analog sound.',
     whyYouNeed: 'Improves audio quality over your device\'s built-in output.',

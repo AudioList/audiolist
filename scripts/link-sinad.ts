@@ -2,9 +2,11 @@
  * link-sinad.ts
  *
  * Scrapes AudioScienceReview's structured electronics database and links
- * SINAD measurements to existing DAC and amplifier products. Products
- * matched get SINAD fields updated and source_type set to 'merged'.
- * Unmatched measurements are inserted as source_type='measurement'.
+ * SINAD measurements into the Measurement Lab domain. It then attempts
+ * to link those measurements to canonical retailer-backed devices.
+ *
+ * Measurements NEVER create catalog devices. Unmatched items stay in
+ * `measurements` only and can be reviewed later.
  *
  * Usage:
  *   SUPABASE_SERVICE_KEY=<key> npx tsx scripts/link-sinad.ts [options]
@@ -39,10 +41,11 @@ const CATEGORY_FILTER = (() => {
   return arg ? arg.split('=')[1] : null;
 })();
 
-const MATCH_THRESHOLD = 0.75;
+// Precision-first defaults: auto-approve only for strong matches.
+const AUTO_APPROVE_THRESHOLD = 0.90;
+const QUEUE_REVIEW_THRESHOLD = 0.75;
 const BATCH_SIZE = 1000;
 const UPSERT_BATCH_SIZE = 500;
-const UPDATE_CONCURRENCY = 25;
 const PAGE_DELAY_MS = 1000;
 const ASR_BASE_URL = 'https://www.audiosciencereview.com/asrdata/ElectronicsallList';
 const RECORDS_PER_PAGE = 20;
@@ -92,14 +95,14 @@ type ExistingProduct = {
   name: string;
   brand: string | null;
   category_id: string;
-  source_type: string | null;
 };
 
 type Stats = {
   scraped: number;
   relevant: number;
-  matched: number;
-  inserted: number;
+  stored: number;
+  linkedApproved: number;
+  linkedPending: number;
   skippedNoSinad: number;
   errors: number;
 };
@@ -285,21 +288,21 @@ async function scrapeAsrDatabase(): Promise<AsrRecord[]> {
 }
 
 // ---------------------------------------------------------------------------
-// Load existing products for matching
+// Load existing devices for matching
 // ---------------------------------------------------------------------------
 
-async function loadExistingProducts(): Promise<Map<string, ExistingProduct[]>> {
+async function loadExistingDevices(): Promise<Map<string, ExistingProduct[]>> {
   const supabase = getSupabase();
   const all: ExistingProduct[] = [];
   let offset = 0;
 
   const categories = CATEGORY_FILTER ? [CATEGORY_FILTER] : ['dac', 'amp'];
-  log('LOAD', `Loading existing products for categories: ${categories.join(', ')}...`);
+  log('LOAD', `Loading existing devices for categories: ${categories.join(', ')}...`);
 
   while (true) {
     const { data, error } = await supabase
-      .from('products')
-      .select('id, name, brand, category_id, source_type')
+      .from('devices')
+      .select('id, name, brand, category_id')
       .in('category_id', categories)
       .range(offset, offset + BATCH_SIZE - 1);
 
@@ -323,9 +326,9 @@ async function loadExistingProducts(): Promise<Map<string, ExistingProduct[]>> {
     else byCategory.set(p.category_id, [p]);
   }
 
-  log('LOAD', `Loaded ${all.length} existing DAC/AMP products across ${byCategory.size} categories`);
+  log('LOAD', `Loaded ${all.length} existing DAC/AMP devices across ${byCategory.size} categories`);
   for (const [cat, prods] of byCategory) {
-    log('LOAD', `  ${cat}: ${prods.length} products`);
+    log('LOAD', `  ${cat}: ${prods.length} devices`);
   }
   return byCategory;
 }
@@ -352,6 +355,16 @@ function deduplicateRecords(records: AsrRecord[]): AsrRecord[] {
 // Main linking logic
 // ---------------------------------------------------------------------------
 
+function buildAsrSourceMeasurementId(record: AsrRecord, categoryId: CategoryId): string {
+  // Prefer a stable URL when present; include category to avoid collisions.
+  const url = record.reviewUrl?.trim();
+  if (url) return `${url}::${categoryId}`;
+
+  // Fallback: normalized name + device type + category.
+  const nameKey = normalizeName(`${record.brand} ${record.model}`);
+  return `${nameKey}::${normalizeName(record.deviceType)}::${categoryId}`;
+}
+
 async function linkSinad(
   records: AsrRecord[],
   existingByCategory: Map<string, ExistingProduct[]>,
@@ -360,15 +373,12 @@ async function linkSinad(
   const stats: Stats = {
     scraped: records.length,
     relevant: records.length,
-    matched: 0,
-    inserted: 0,
+    stored: 0,
+    linkedApproved: 0,
+    linkedPending: 0,
     skippedNoSinad: 0,
     errors: 0,
   };
-
-  const updates: { id: string; data: Record<string, unknown> }[] = [];
-  const inserts: Record<string, unknown>[] = [];
-  const matchedProductIds = new Set<string>();
 
   // Build fuzzy match indices per category
   log('LINK', 'Building candidate indices...');
@@ -396,89 +406,234 @@ async function linkSinad(
   }
   log('LINK', `Built indices for ${categoryIndices.size} categories`);
 
-  for (let i = 0; i < records.length; i++) {
-    const record = records[i];
+  // Pre-build per-record measurement rows (one per category).
+  type PendingMeasurementRow = {
+    source_measurement_id: string;
+    category_id: CategoryId;
+    raw_name: string;
+    brand: string;
+    model: string;
+    normalized_name: string;
+    source_domain: string;
+    source_url: string | null;
+    raw_payload: unknown;
+  };
 
-    if ((i + 1) % 100 === 0 || i === 0) {
-      log('LINK', `Processing ${i + 1}/${records.length}: "${record.brand} ${record.model}" (${record.deviceType})`);
-    }
+  const nowIso = new Date().toISOString();
+  const pendingMeasurements: PendingMeasurementRow[] = [];
 
+  for (const record of records) {
     if (record.sinad === null) {
       stats.skippedNoSinad++;
       continue;
     }
 
-    const fullName = `${record.brand} ${record.model}`;
+    const fullName = `${record.brand} ${record.model}`.trim();
+
+    for (const catId of record.categories) {
+      if (CATEGORY_FILTER && catId !== CATEGORY_FILTER) continue;
+
+      pendingMeasurements.push({
+        source_measurement_id: buildAsrSourceMeasurementId(record, catId),
+        category_id: catId,
+        raw_name: fullName,
+        brand: record.brand,
+        model: record.model,
+        normalized_name: normalizeName(fullName),
+        source_domain: 'audiosciencereview.com',
+        source_url: record.reviewUrl || null,
+        raw_payload: record,
+      });
+    }
+  }
+
+  if (DRY_RUN) {
+    log('DRY-RUN', `Dry run mode: evaluating ${pendingMeasurements.length} potential measurement rows (no writes).`);
+  } else {
+    log('STORE', `Upserting ${pendingMeasurements.length} ASR measurements into Measurement Lab...`);
+  }
+
+  type StoredMeasurement = {
+    measurement_id: string;
+    category_id: CategoryId;
+    raw_name: string;
+    source_measurement_id: string;
+  };
+
+  const storedMeasurements: StoredMeasurement[] = [];
+
+  if (!DRY_RUN && pendingMeasurements.length > 0) {
+    for (let i = 0; i < pendingMeasurements.length; i += UPSERT_BATCH_SIZE) {
+      const batch = pendingMeasurements.slice(i, i + UPSERT_BATCH_SIZE);
+
+      const measurementRows = batch.map((m) => ({
+        source: 'asr',
+        source_measurement_id: m.source_measurement_id,
+        category_id: m.category_id,
+        raw_name: m.raw_name,
+        brand: m.brand,
+        model: m.model,
+        normalized_name: m.normalized_name,
+        source_domain: m.source_domain,
+        source_url: m.source_url,
+        raw_payload: m.raw_payload,
+        first_seen_at: nowIso,
+        last_seen_at: nowIso,
+        updated_at: nowIso,
+      }));
+
+      const { data, error } = await supabase
+        .from('measurements')
+        .upsert(measurementRows, { onConflict: 'source,source_measurement_id' })
+        .select('id, category_id, raw_name, source_measurement_id');
+
+      if (error) {
+        logError('STORE', `Upsert batch ${Math.floor(i / UPSERT_BATCH_SIZE) + 1}`, error);
+        stats.errors++;
+        continue;
+      }
+
+      for (const row of (data ?? []) as Array<{ id: string; category_id: CategoryId; raw_name: string; source_measurement_id: string }>) {
+        storedMeasurements.push({
+          measurement_id: row.id,
+          category_id: row.category_id,
+          raw_name: row.raw_name,
+          source_measurement_id: row.source_measurement_id,
+        });
+      }
+    }
+
+    stats.stored = storedMeasurements.length;
+
+    // Upsert measurement_asr rows
+    const recordBySourceMeasurementId = new Map<string, AsrRecord>();
+    for (const m of pendingMeasurements) {
+      const rec = m.raw_payload as AsrRecord;
+      recordBySourceMeasurementId.set(m.source_measurement_id, rec);
+    }
+
+    log('STORE', `Upserting measurement_asr rows for ${storedMeasurements.length} measurements...`);
+    for (let i = 0; i < storedMeasurements.length; i += UPSERT_BATCH_SIZE) {
+      const batch = storedMeasurements.slice(i, i + UPSERT_BATCH_SIZE);
+      const asrRows = batch
+        .map((m) => {
+          const rec = recordBySourceMeasurementId.get(m.source_measurement_id);
+          if (!rec || rec.sinad === null) return null;
+          return {
+            measurement_id: m.measurement_id,
+            sinad_db: rec.sinad,
+            asr_device_type: rec.deviceType,
+            asr_recommended: rec.recommended,
+            asr_review_url: rec.reviewUrl,
+            asr_review_date: rec.reviewDate ? new Date(rec.reviewDate).toISOString() : null,
+            power_4ohm_mw: null,
+            power_8ohm_mw: null,
+            power_16ohm_mw: null,
+            power_32ohm_mw: null,
+            power_50ohm_mw: null,
+            power_300ohm_mw: null,
+            power_600ohm_mw: null,
+            power_source: null,
+          };
+        })
+        .filter((r): r is NonNullable<typeof r> => r !== null);
+
+      if (asrRows.length === 0) continue;
+
+      const { error } = await supabase
+        .from('measurement_asr')
+        .upsert(asrRows, { onConflict: 'measurement_id' });
+
+      if (error) {
+        logError('STORE', `measurement_asr batch ${Math.floor(i / UPSERT_BATCH_SIZE) + 1}`, error);
+        stats.errors++;
+      }
+    }
+  }
+
+  // Link measurements to devices (or just report matches in dry-run)
+  const linkRows: Array<Record<string, unknown>> = [];
+  const reviewTaskRows: Array<Record<string, unknown>> = [];
+
+  // In dry-run we don't have measurement IDs; we just attempt to match names.
+  const itemsToLink = DRY_RUN
+    ? pendingMeasurements.map((m) => ({
+        measurement_id: null as string | null,
+        category_id: m.category_id,
+        raw_name: m.raw_name,
+      }))
+    : storedMeasurements.map((m) => ({
+        measurement_id: m.measurement_id,
+        category_id: m.category_id,
+        raw_name: m.raw_name,
+      }));
+
+  for (let i = 0; i < itemsToLink.length; i++) {
+    const item = itemsToLink[i];
+
+    if ((i + 1) % 100 === 0 || i === 0) {
+      log('LINK', `Processing ${i + 1}/${itemsToLink.length}: "${item.raw_name}"`);
+    }
 
     try {
-      const brand = extractBrand(fullName) ?? record.brand;
+      const brand = extractBrand(item.raw_name);
       const brandKey = brand?.toLowerCase();
 
-      // Try matching in each mapped category
-      for (const catId of record.categories) {
-        if (CATEGORY_FILTER && catId !== CATEGORY_FILTER) continue;
+      const brandIndex = brandKey ? brandIndices.get(item.category_id)?.get(brandKey) : undefined;
+      const categoryIndex = categoryIndices.get(item.category_id);
+      const candidateIndex = (brandIndex && brandIndex.length > 0) ? brandIndex : categoryIndex;
 
-        const brandIndex = brandKey ? brandIndices.get(catId)?.get(brandKey) : undefined;
-        const categoryIndex = categoryIndices.get(catId);
-        const candidateIndex = (brandIndex && brandIndex.length > 0) ? brandIndex : categoryIndex;
+      const match = (candidateIndex && candidateIndex.length > 0)
+        ? findBestMatchIndexed(item.raw_name, candidateIndex)
+        : null;
 
-        const match = (candidateIndex && candidateIndex.length > 0)
-          ? findBestMatchIndexed(fullName, candidateIndex)
+      if (!match) continue;
+
+      const status = match.score >= AUTO_APPROVE_THRESHOLD ? 'approved'
+        : match.score >= QUEUE_REVIEW_THRESHOLD ? 'pending'
           : null;
 
-        if (match && match.score >= MATCH_THRESHOLD) {
-          // Avoid double-updating the same product from a combo device
-          if (matchedProductIds.has(match.id)) continue;
-          matchedProductIds.add(match.id);
+      if (!status) continue;
 
-          if (DRY_RUN) {
-            log('MATCH', `  [${catId}] "${fullName}" -> "${match.name}" (score: ${match.score.toFixed(3)}, SINAD: ${record.sinad} dB)`);
-          }
+      if (DRY_RUN) {
+        log('MATCH', `  [${item.category_id}] "${item.raw_name}" -> "${match.name}" (score: ${match.score.toFixed(3)}, status: ${status})`);
+        continue;
+      }
 
-          updates.push({
-            id: match.id,
-            data: {
-              sinad_db: record.sinad,
-              asr_device_type: record.deviceType,
-              asr_recommended: record.recommended,
-              asr_review_url: record.reviewUrl,
-              asr_review_date: record.reviewDate,
-              source_domain: 'audiosciencereview.com',
-              source_type: 'merged',
-              updated_at: new Date().toISOString(),
-            },
-          });
-          stats.matched++;
-        } else {
-          // Only insert as new product for the primary (first) category
-          if (catId === record.categories[0]) {
-            if (DRY_RUN) {
-              const bestInfo = match ? ` (best: "${match.name}" @ ${match.score.toFixed(3)})` : ' (no candidates)';
-              log('INSERT', `  [${catId}] "${fullName}" SINAD: ${record.sinad} dB -- no match${bestInfo}`);
-            }
+      if (!item.measurement_id) continue;
 
-            inserts.push({
-              source_id: `asr-${normalizeName(fullName)}`,
-              category_id: catId,
-              name: fullName,
-              brand: brand,
-              price: record.priceUsd,
-              sinad_db: record.sinad,
-              asr_device_type: record.deviceType,
-              asr_recommended: record.recommended,
-              asr_review_url: record.reviewUrl,
-              asr_review_date: record.reviewDate,
-              source_domain: 'audiosciencereview.com',
-              source_type: 'measurement',
-              in_stock: false,
-              updated_at: new Date().toISOString(),
-            });
-            stats.inserted++;
-          }
-        }
+      linkRows.push({
+        device_id: match.id,
+        measurement_id: item.measurement_id,
+        status,
+        confidence: match.score,
+        method: 'asr_name_fuzzy_v1',
+        is_primary: status === 'approved',
+        notes: null,
+        updated_at: nowIso,
+      });
+
+      if (status === 'approved') {
+        stats.linkedApproved++;
+      } else {
+        stats.linkedPending++;
+        reviewTaskRows.push({
+          task_type: 'measurement_link',
+          status: 'open',
+          priority: Math.round(match.score * 100),
+          device_id: match.id,
+          measurement_id: item.measurement_id,
+          payload: {
+            suggested_device_id: match.id,
+            suggested_device_name: match.name,
+            score: match.score,
+            source: 'asr',
+          },
+          reason: `Review ASR measurement link for "${item.raw_name}" (${match.score.toFixed(3)})`,
+        });
       }
     } catch (err) {
-      logError('LINK', `Exception processing "${fullName}"`, err);
+      logError('LINK', `Exception processing "${item.raw_name}"`, err);
       stats.errors++;
     }
   }
@@ -488,43 +643,29 @@ async function linkSinad(
     return stats;
   }
 
-  // Apply updates in parallel chunks
-  if (updates.length > 0) {
-    log('UPDATE', `Updating ${updates.length} matched products with SINAD data (${UPDATE_CONCURRENCY} concurrent)...`);
-    let updateErrors = 0;
-
-    for (let i = 0; i < updates.length; i += UPDATE_CONCURRENCY) {
-      const chunk = updates.slice(i, i + UPDATE_CONCURRENCY);
-      const results = await Promise.all(
-        chunk.map((upd) =>
-          supabase.from('products').update(upd.data).eq('id', upd.id),
-        ),
-      );
-
-      for (const result of results) {
-        if (result.error) {
-          updateErrors++;
-          logError('UPDATE', 'Failed to update product', result.error);
-        }
+  if (linkRows.length > 0) {
+    log('UPSERT', `Upserting ${linkRows.length} device_measurement_links...`);
+    for (let i = 0; i < linkRows.length; i += UPSERT_BATCH_SIZE) {
+      const batch = linkRows.slice(i, i + UPSERT_BATCH_SIZE);
+      const { error } = await supabase
+        .from('device_measurement_links')
+        .upsert(batch, { onConflict: 'device_id,measurement_id' });
+      if (error) {
+        logError('UPSERT', `device_measurement_links batch ${Math.floor(i / UPSERT_BATCH_SIZE) + 1}`, error);
+        stats.errors++;
       }
-    }
-    if (updateErrors > 0) {
-      log('UPDATE', `${updateErrors} update errors`);
-      stats.errors += updateErrors;
     }
   }
 
-  // Batch upsert new measurement-only products
-  if (inserts.length > 0) {
-    log('INSERT', `Upserting ${inserts.length} measurement-only products...`);
-    for (let i = 0; i < inserts.length; i += UPSERT_BATCH_SIZE) {
-      const batch = inserts.slice(i, i + UPSERT_BATCH_SIZE);
+  if (reviewTaskRows.length > 0) {
+    log('UPSERT', `Inserting ${reviewTaskRows.length} review_tasks...`);
+    for (let i = 0; i < reviewTaskRows.length; i += UPSERT_BATCH_SIZE) {
+      const batch = reviewTaskRows.slice(i, i + UPSERT_BATCH_SIZE);
       const { error } = await supabase
-        .from('products')
-        .upsert(batch, { onConflict: 'source_id' });
-
+        .from('review_tasks')
+        .insert(batch);
       if (error) {
-        logError('INSERT', `Batch ${Math.floor(i / UPSERT_BATCH_SIZE) + 1}`, error);
+        logError('UPSERT', `review_tasks batch ${Math.floor(i / UPSERT_BATCH_SIZE) + 1}`, error);
         stats.errors++;
       }
     }
@@ -557,11 +698,11 @@ async function main(): Promise<void> {
   const records = deduplicateRecords(rawRecords);
   log('DEDUP', `Deduplicated: ${rawRecords.length} -> ${records.length} unique devices`);
 
-  // 3. Load existing products
-  const existingByCategory = await loadExistingProducts();
+  // 3. Load existing devices
+  const existingByCategory = await loadExistingDevices();
 
-  // 4. Link SINAD data to products
-  log('LINK', `Linking ${records.length} ASR records to products...`);
+  // 4. Store measurements + link to devices
+  log('LINK', `Storing and linking ${records.length} ASR records...`);
   const stats = await linkSinad(records, existingByCategory);
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
@@ -571,8 +712,9 @@ async function main(): Promise<void> {
   console.log(`  Duration:           ${elapsed}s`);
   console.log(`  ASR records scraped: ${rawRecords.length}`);
   console.log(`  After dedup:        ${records.length}`);
-  console.log(`  Matched (merged):   ${stats.matched}`);
-  console.log(`  Inserted (new):     ${stats.inserted}`);
+  console.log(`  Stored:             ${stats.stored}`);
+  console.log(`  Linked (approved):  ${stats.linkedApproved}`);
+  console.log(`  Linked (pending):   ${stats.linkedPending}`);
   console.log(`  Skipped (no SINAD): ${stats.skippedNoSinad}`);
   console.log(`  Errors:             ${stats.errors}`);
   console.log(`  Mode:               ${DRY_RUN ? 'DRY-RUN' : 'LIVE'}`);

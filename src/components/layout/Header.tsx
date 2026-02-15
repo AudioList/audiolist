@@ -7,18 +7,20 @@ import ExperienceModeToggle from './ExperienceModeToggle';
 const GLOSSARY_URL = 'https://headphones.com/blogs/features/the-glossary-of-audio-measurements-and-terms';
 
 const navLinks = [
-  { to: '/', label: 'Builder' },
+  { to: '/', label: 'Guide' },
   { to: '/products/iem', label: 'Products' },
+  { to: '/builder', label: 'Builder' },
   { to: '/deals', label: 'Deals' },
   { to: '/builds', label: 'Community' },
 ] as const;
 
 function NavItem({ to, label, isGlass }: { to: string; label: string; isGlass: boolean }) {
-  const href = isGlass ? `/glass${to === '/' ? '' : to}` || '/glass' : to;
+  const href = isGlass ? `/glass${to === '/' ? '' : to}` : to;
+  const useExactMatch = !to.startsWith('/products');
   return (
     <NavLink
       to={href}
-      end={href === '/' || href === '/glass'}
+      end={useExactMatch}
       className={({ isActive }) =>
         [
           'rounded-md px-3 py-2 text-sm font-medium transition-colors',
@@ -145,12 +147,12 @@ export default function Header() {
         >
           <div className="flex flex-col gap-1">
             {navLinks.map((link) => {
-              const href = isGlass ? `/glass${link.to === '/' ? '' : link.to}` || '/glass' : link.to;
+              const href = isGlass ? `/glass${link.to === '/' ? '' : link.to}` : link.to;
               return (
                 <NavLink
                   key={link.to}
                   to={href}
-                  end={href === '/' || href === '/glass'}
+                  end={link.to !== '/products/iem'}
                   onClick={() => setMobileOpen(false)}
                   className={({ isActive }) =>
                     [

@@ -27,6 +27,13 @@ export default function Footer() {
           {/* Links */}
           <nav className="flex items-center gap-4 text-sm">
             <Link
+              to={prefix || '/'}
+              className="text-surface-500 transition-colors hover:text-surface-700 dark:text-surface-400 dark:hover:text-surface-200"
+            >
+              Guide
+            </Link>
+            <span className="text-surface-300 dark:text-surface-700">|</span>
+            <Link
               to={`${prefix}/products/iem`}
               className="text-surface-500 transition-colors hover:text-surface-700 dark:text-surface-400 dark:hover:text-surface-200"
             >
@@ -34,7 +41,7 @@ export default function Footer() {
             </Link>
             <span className="text-surface-300 dark:text-surface-700">|</span>
             <Link
-              to={prefix || '/'}
+              to={`${prefix}/builder`}
               className="text-surface-500 transition-colors hover:text-surface-700 dark:text-surface-400 dark:hover:text-surface-200"
             >
               Builder
@@ -44,7 +51,7 @@ export default function Footer() {
 
         {/* PPI info */}
         <p className="mt-4 text-center text-xs text-surface-400 dark:text-surface-500 sm:text-left">
-          Predicted Preference Index — Scores indicate what listeners would rank the sound out of 100.
+          Predicted Preference Index — Measurement-based score bands from S+ to F.
         </p>
       </div>
     </footer>

@@ -39,7 +39,7 @@ import {
   buildAffiliateUrl,
   type Retailer,
 } from "./config/retailers.ts";
-import { findBestMatch, MATCH_THRESHOLDS } from "./scrapers/matcher.ts";
+import { findBestMatch, MATCH_THRESHOLDS, normalizeName } from "./scrapers/matcher.ts";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -389,43 +389,35 @@ async function loadProductsWithPriority(): Promise<Product[]> {
   return products;
 }
 
-type MatchInfo = { product_id: string; status: string };
-
-async function loadExistingAmazonMatches(amazonRetailerId: string): Promise<{
-  allMatched: Set<string>;
-  approvedIds: Set<string>;
-}> {
+async function loadExistingAmazonOfferDeviceIds(amazonRetailerId: string): Promise<Set<string>> {
   const supabase = getSupabase();
-  const allMatched = new Set<string>();
-  const approvedIds = new Set<string>();
+  const deviceIds = new Set<string>();
   let offset = 0;
 
   while (true) {
     const { data, error } = await supabase
-      .from("product_matches")
-      .select("product_id, status")
-      .eq("retailer_id", amazonRetailerId)
+      .from('device_offers')
+      .select('device_id')
+      .eq('retailer_id', amazonRetailerId)
       .range(offset, offset + PRODUCT_BATCH_SIZE - 1);
 
     if (error) {
-      logError("LOAD", "Failed to load existing Amazon matches", error);
+      logError('LOAD', 'Failed to load existing Amazon offers', error);
       break;
     }
 
-    const batch = (data ?? []) as MatchInfo[];
+    const batch = (data ?? []) as { device_id: string }[];
     if (batch.length === 0) break;
 
     for (const row of batch) {
-      allMatched.add(row.product_id);
-      if (row.status === "approved") {
-        approvedIds.add(row.product_id);
-      }
+      deviceIds.add(row.device_id);
     }
+
     offset += batch.length;
     if (batch.length < PRODUCT_BATCH_SIZE) break;
   }
 
-  return { allMatched, approvedIds };
+  return deviceIds;
 }
 
 async function loadStaleListings(amazonRetailerId: string, products: Product[]): Promise<Product[]> {
@@ -470,124 +462,33 @@ async function loadStaleListings(amazonRetailerId: string, products: Product[]):
   return result;
 }
 
-async function upsertBatch(
-  table: string,
-  rows: Record<string, unknown>[],
-  conflictColumns: string,
-  phase: string
-): Promise<number> {
-  if (rows.length === 0) return 0;
-
-  const supabase = getSupabase();
-  let successCount = 0;
-
-  for (let i = 0; i < rows.length; i += UPSERT_BATCH_SIZE) {
-    const batch = rows.slice(i, i + UPSERT_BATCH_SIZE);
-    const batchNum = Math.floor(i / UPSERT_BATCH_SIZE) + 1;
-    const totalBatches = Math.ceil(rows.length / UPSERT_BATCH_SIZE);
-
-    try {
-      const { error } = await supabase
-        .from(table)
-        .upsert(batch, { onConflict: conflictColumns });
-
-      if (error) {
-        logError(phase, `Upsert ${table} batch ${batchNum}/${totalBatches} failed`, error);
-      } else {
-        successCount += batch.length;
-      }
-    } catch (err) {
-      logError(phase, `Upsert ${table} batch ${batchNum}/${totalBatches} exception`, err);
-    }
-  }
-
-  return successCount;
-}
-
-async function denormalizeLowestPrices(): Promise<number> {
-  const supabase = getSupabase();
-
-  log("DENORM", "Finding lowest in-stock price per product...");
-
-  const PAGE_SIZE = 1000;
-  const listings: { product_id: string; price: number; affiliate_url: string | null; product_url: string | null }[] = [];
-  let offset = 0;
-
-  while (true) {
-    const { data, error } = await supabase
-      .from("price_listings")
-      .select("product_id, price, affiliate_url, product_url")
-      .eq("in_stock", true)
-      .order("price", { ascending: true })
-      .range(offset, offset + PAGE_SIZE - 1);
-
-    if (error) {
-      logError("DENORM", "Failed to fetch price_listings", error);
-      return 0;
-    }
-
-    if (!data || data.length === 0) break;
-    listings.push(...data);
-    offset += data.length;
-    if (data.length < PAGE_SIZE) break;
-  }
-
-  if (listings.length === 0) {
-    log("DENORM", "No in-stock listings found.");
-    return 0;
-  }
-
-  log("DENORM", `Fetched ${listings.length} in-stock listings`);
-
-  const lowestByProduct = new Map<string, { price: number; affiliate_url: string | null }>();
-
-  for (const listing of listings) {
-    const existing = lowestByProduct.get(listing.product_id);
-    if (!existing || listing.price < existing.price) {
-      lowestByProduct.set(listing.product_id, {
-        price: listing.price,
-        affiliate_url: listing.affiliate_url ?? listing.product_url,
-      });
-    }
-  }
-
-  log("DENORM", `Found lowest prices for ${lowestByProduct.size} product(s). Updating...`);
-
-  let updatedCount = 0;
-  const entries = Array.from(lowestByProduct.entries());
-  for (let i = 0; i < entries.length; i += UPSERT_BATCH_SIZE) {
-    const batch = entries.slice(i, i + UPSERT_BATCH_SIZE);
-    const batchNum = Math.floor(i / UPSERT_BATCH_SIZE) + 1;
-    const totalBatches = Math.ceil(entries.length / UPSERT_BATCH_SIZE);
-
-    let batchSuccess = 0;
-    for (const [productId, info] of batch) {
-      const { error: updateError } = await supabase
-        .from("products")
-        .update({ price: info.price, affiliate_url: info.affiliate_url })
-        .eq("id", productId);
-
-      if (!updateError) batchSuccess++;
-    }
-
-    updatedCount += batchSuccess;
-    if (batchNum % 10 === 0 || batchNum === totalBatches) {
-      log("DENORM", `Updated products batch ${batchNum}/${totalBatches}`);
-    }
-  }
-
-  log("DENORM", `Denormalized prices for ${updatedCount} product(s)`);
-  return updatedCount;
-}
-
 // ---------------------------------------------------------------------------
 // Worker Pool
 // ---------------------------------------------------------------------------
 
+type LinkDecision = 'auto' | 'pending';
+
+type LinkAttempt = {
+  deviceId: string;
+  deviceName: string;
+  deviceBrand: string | null;
+  deviceCategoryId: string;
+  asin: string;
+  amazonTitle: string;
+  department: string | null;
+  score: number;
+  decision: LinkDecision;
+  searchQuery: string;
+  price: number | null;
+  inStock: boolean;
+  imageUrl: string | null;
+  productUrl: string;
+  affiliateUrl: string;
+};
+
 type WorkerResult = {
   productId: string;
-  matchRow: Record<string, unknown> | null;
-  listingRow: Record<string, unknown> | null;
+  attempt: LinkAttempt | null;
   captcha: boolean;
   error: boolean;
 };
@@ -597,8 +498,7 @@ class WorkerPool {
   private queue: Product[] = [];
   private queueIndex = 0;
   private completedIds: string[] = [];
-  private matchRows: Record<string, unknown>[] = [];
-  private listingRows: Record<string, unknown>[] = [];
+  private attempts: LinkAttempt[] = [];
   private stats = { auto: 0, pending: 0, skipped: 0, errors: 0, captchas: 0 };
   private captchaTimestamps: number[] = [];
   private lastCaptchaCheck = Date.now();
@@ -640,8 +540,7 @@ class WorkerPool {
     this.startTime = Date.now();
     this.queueIndex = 0;
     this.stats = { auto: 0, pending: 0, skipped: 0, errors: 0, captchas: 0 };
-    this.matchRows = [];
-    this.listingRows = [];
+    this.attempts = [];
 
     const workerPromises: Promise<void>[] = [];
     for (let i = 0; i < this.activeWorkerCount; i++) {
@@ -695,11 +594,8 @@ class WorkerPool {
           continue;
         }
 
-        if (result.matchRow) {
-          this.matchRows.push(result.matchRow);
-          if (result.listingRow) {
-            this.listingRows.push(result.listingRow);
-          }
+        if (result.attempt) {
+          this.attempts.push(result.attempt);
         } else if (!result.error) {
           this.stats.skipped++;
         }
@@ -732,8 +628,8 @@ class WorkerPool {
           saveProgress(this.completedIds);
         }
 
-        // Flush rows every 200 products
-        if (this.matchRows.length >= 200) {
+        // Flush rows every 200 attempts
+        if (this.attempts.length >= 200) {
           await this.flushRows();
         }
       } catch (err) {
@@ -757,11 +653,11 @@ class WorkerPool {
     });
 
     if (captcha) {
-      return { productId: product.id, matchRow: null, listingRow: null, captcha: true, error: false };
+      return { productId: product.id, attempt: null, captcha: true, error: false };
     }
 
     if (azResults.length === 0) {
-      return { productId: product.id, matchRow: null, listingRow: null, captcha: false, error: false };
+      return { productId: product.id, attempt: null, captcha: false, error: false };
     }
 
     const candidates = azResults
@@ -776,13 +672,13 @@ class WorkerPool {
       .map((ap) => ({ name: ap.name, id: ap.asin }));
 
     if (candidates.length === 0) {
-      return { productId: product.id, matchRow: null, listingRow: null, captcha: false, error: false };
+      return { productId: product.id, attempt: null, captcha: false, error: false };
     }
 
     const match = findBestMatch(product.name, candidates, { productBrand: product.brand });
 
     if (!match || match.score < MATCH_THRESHOLDS.PENDING_REVIEW) {
-      return { productId: product.id, matchRow: null, listingRow: null, captcha: false, error: false };
+      return { productId: product.id, attempt: null, captcha: false, error: false };
     }
 
     // Additional false-positive guards for auto-approval
@@ -802,29 +698,18 @@ class WorkerPool {
         isAutoApprove = false;
       }
     }
-    const status = isAutoApprove ? "approved" : "pending";
-
     const azProduct = azResults.find((ap) => ap.asin === match.id);
     const price = azProduct?.price ?? null;
     const inStock = azProduct?.inStock ?? false;
     const imageUrl = azProduct?.image ?? null;
+    const productUrl = azProduct?.url ?? `https://www.amazon.com/dp/${match.id}`;
 
     const affiliateUrl = buildAffiliateUrl(
       this.amazonRetailer,
-      azProduct?.url ?? `https://www.amazon.com/dp/${match.id}`,
+      productUrl,
       match.id,
       match.id
     );
-
-    const matchRow: Record<string, unknown> = {
-      product_id: product.id,
-      retailer_id: this.amazonRetailer.id,
-      external_id: match.id,
-      external_name: match.name,
-      external_price: price,
-      match_score: match.score,
-      status,
-    };
 
     if (isAutoApprove) {
       this.stats.auto++;
@@ -832,23 +717,25 @@ class WorkerPool {
       this.stats.pending++;
     }
 
-    let listingRow: Record<string, unknown> | null = null;
-    if (isAutoApprove && price !== null && price > 0) {
-      listingRow = {
-        product_id: product.id,
-        retailer_id: this.amazonRetailer.id,
-        external_id: match.id,
-        price,
-        currency: "USD",
-        in_stock: inStock,
-        product_url: azProduct?.url ?? `https://www.amazon.com/dp/${match.id}`,
-        affiliate_url: affiliateUrl ?? `https://www.amazon.com/dp/${match.id}?tag=${this.amazonRetailer.affiliate_tag}`,
-        image_url: imageUrl,
-        last_checked: new Date().toISOString(),
-      };
-    }
+    const attempt: LinkAttempt = {
+      deviceId: product.id,
+      deviceName: product.name,
+      deviceBrand: product.brand,
+      deviceCategoryId: product.category_id ?? 'iem',
+      asin: match.id,
+      amazonTitle: match.name,
+      department: azProduct?.department ?? null,
+      score: match.score,
+      decision: isAutoApprove ? 'auto' : 'pending',
+      searchQuery,
+      price,
+      inStock,
+      imageUrl,
+      productUrl,
+      affiliateUrl: affiliateUrl ?? `${productUrl}${productUrl.includes('?') ? '&' : '?'}tag=${this.amazonRetailer.affiliate_tag ?? ''}`,
+    };
 
-    return { productId: product.id, matchRow, listingRow, captcha: false, error: false };
+    return { productId: product.id, attempt, captcha: false, error: false };
   }
 
   private handleCaptcha(worker: { context: BrowserContext; page: Page; id: number }): void {
@@ -878,18 +765,218 @@ class WorkerPool {
   }
 
   private async flushRows(): Promise<void> {
-    if (this.matchRows.length === 0) return;
+    if (this.attempts.length === 0) return;
 
-    const matchCount = this.matchRows.length;
-    const listingCount = this.listingRows.length;
+    const supabase = getSupabase();
+    const nowIso = new Date().toISOString();
 
-    log("FLUSH", `Upserting ${matchCount} matches, ${listingCount} listings...`);
+    // Deduplicate by ASIN: keep the highest-signal attempt.
+    const bestByAsin = new Map<string, LinkAttempt>();
+    for (const a of this.attempts) {
+      const existing = bestByAsin.get(a.asin);
+      if (!existing) {
+        bestByAsin.set(a.asin, a);
+        continue;
+      }
+      const rank = (x: LinkAttempt) => (x.decision === 'auto' ? 2_000 : 1_000) + x.score;
+      if (rank(a) > rank(existing)) {
+        bestByAsin.set(a.asin, a);
+      }
+    }
+    const dedupedAttempts = [...bestByAsin.values()];
 
-    await upsertBatch("product_matches", [...this.matchRows], "product_id,retailer_id", "FLUSH");
-    await upsertBatch("price_listings", [...this.listingRows], "retailer_id,external_id", "FLUSH");
+    // Upsert retailer_products so we have stable retailer_product_id values.
+    const retailerProductRows = dedupedAttempts.map((a) => ({
+      retailer_id: this.amazonRetailer.id,
+      external_id: a.asin,
+      title: a.amazonTitle,
+      normalized_title: normalizeName(a.amazonTitle),
+      vendor: null,
+      product_type: null,
+      tags: [],
+      source_category_id: a.deviceCategoryId,
+      price: a.price,
+      compare_at_price: null,
+      on_sale: false,
+      in_stock: a.inStock,
+      image_url: a.imageUrl,
+      product_url: a.productUrl,
+      affiliate_url: a.affiliateUrl,
+      raw_data: {
+        source: 'amazon-bulk-sync',
+        matched_device_id: a.deviceId,
+        matched_device_name: a.deviceName,
+        matched_device_brand: a.deviceBrand,
+        match_score: a.score,
+        decision: a.decision,
+        department: a.department,
+        search_query: a.searchQuery,
+        scraped_at: nowIso,
+      },
+      imported_at: nowIso,
+      last_seen_at: nowIso,
+      processed: true,
+    }));
 
-    this.matchRows.length = 0;
-    this.listingRows.length = 0;
+    log('FLUSH', `Upserting ${retailerProductRows.length} retailer_products + resolving offers/tasks...`);
+
+    const rpIdByAsin = new Map<string, string>();
+
+    for (let i = 0; i < retailerProductRows.length; i += UPSERT_BATCH_SIZE) {
+      const batch = retailerProductRows.slice(i, i + UPSERT_BATCH_SIZE);
+      const { data, error } = await supabase
+        .from('retailer_products')
+        .upsert(batch, { onConflict: 'retailer_id,external_id' })
+        .select('id, external_id');
+
+      if (error) {
+        logError('FLUSH', 'retailer_products upsert batch failed', error);
+        continue;
+      }
+
+      for (const row of (data ?? []) as { id: string; external_id: string }[]) {
+        rpIdByAsin.set(row.external_id, row.id);
+      }
+    }
+
+    // Load existing Amazon offers for these ASINs to avoid overwriting device links.
+    const asins = dedupedAttempts.map((a) => a.asin);
+    const existingOfferDeviceByAsin = new Map<string, string>();
+    for (let i = 0; i < asins.length; i += UPSERT_BATCH_SIZE) {
+      const batch = asins.slice(i, i + UPSERT_BATCH_SIZE);
+      const { data, error } = await supabase
+        .from('device_offers')
+        .select('external_id, device_id')
+        .eq('retailer_id', this.amazonRetailer.id)
+        .in('external_id', batch);
+
+      if (error) {
+        logError('FLUSH', 'device_offers load batch failed', error);
+        continue;
+      }
+
+      for (const row of (data ?? []) as { external_id: string; device_id: string }[]) {
+        existingOfferDeviceByAsin.set(row.external_id, row.device_id);
+      }
+    }
+
+    const offerInsertRows: Record<string, unknown>[] = [];
+    const offerUpdateRows: Record<string, unknown>[] = [];
+    const reviewTaskRows: Record<string, unknown>[] = [];
+
+    for (const a of dedupedAttempts) {
+      const rpId = rpIdByAsin.get(a.asin);
+      if (!rpId) continue;
+
+      if (a.decision === 'auto') {
+        // If an offer already exists for this ASIN, update price/stock/etc without changing device_id.
+        const existingDeviceId = existingOfferDeviceByAsin.get(a.asin);
+        const offerFields = {
+          retailer_id: this.amazonRetailer.id,
+          external_id: a.asin,
+          price: a.price,
+          compare_at_price: null,
+          on_sale: false,
+          currency: 'USD',
+          in_stock: a.inStock,
+          product_url: a.productUrl,
+          affiliate_url: a.affiliateUrl,
+          image_url: a.imageUrl,
+          last_checked: nowIso,
+        };
+
+        if (!existingDeviceId) {
+          // Insert new offer linked to this device.
+          if (a.price != null && a.price > 0) {
+            offerInsertRows.push({
+              device_id: a.deviceId,
+              retailer_product_id: rpId,
+              ...offerFields,
+            });
+          }
+        } else {
+          // Existing offer: update offer fields only.
+          if (a.price != null && a.price > 0) {
+            offerUpdateRows.push(offerFields);
+          }
+
+          // If our auto-link suggests a different device than the existing offer,
+          // queue a manual task instead of overriding.
+          if (existingDeviceId !== a.deviceId) {
+            reviewTaskRows.push({
+              task_type: 'offer_link',
+              status: 'open',
+              priority: Math.round(a.score * 100),
+              retailer_product_id: rpId,
+              device_id: a.deviceId,
+              payload: {
+                suggested_device_id: a.deviceId,
+                suggested_device_name: a.deviceName,
+                score: a.score,
+                current_device_id: existingDeviceId,
+                department: a.department,
+                search_query: a.searchQuery,
+              },
+              reason: `Conflicting Amazon offer link (existing device differs)`
+            });
+          }
+        }
+      } else {
+        // Pending review: queue an offer_link task.
+        reviewTaskRows.push({
+          task_type: 'offer_link',
+          status: 'open',
+          priority: Math.round(a.score * 100),
+          retailer_product_id: rpId,
+          device_id: a.deviceId,
+          payload: {
+            suggested_device_id: a.deviceId,
+            suggested_device_name: a.deviceName,
+            score: a.score,
+            department: a.department,
+            search_query: a.searchQuery,
+          },
+          reason: `Amazon match needs review (score=${a.score.toFixed(3)})`,
+        });
+      }
+    }
+
+    // Insert new offers (do not overwrite existing device links).
+    if (offerInsertRows.length > 0) {
+      for (let i = 0; i < offerInsertRows.length; i += UPSERT_BATCH_SIZE) {
+        const batch = offerInsertRows.slice(i, i + UPSERT_BATCH_SIZE);
+        const { error } = await supabase
+          .from('device_offers')
+          .upsert(batch, { onConflict: 'retailer_id,external_id', ignoreDuplicates: true });
+
+        if (error) logError('FLUSH', 'device_offers insert batch failed', error);
+      }
+    }
+
+    // Update existing offers (price/stock/etc) without changing device_id.
+    if (offerUpdateRows.length > 0) {
+      for (let i = 0; i < offerUpdateRows.length; i += UPSERT_BATCH_SIZE) {
+        const batch = offerUpdateRows.slice(i, i + UPSERT_BATCH_SIZE);
+        const { error } = await supabase
+          .from('device_offers')
+          .upsert(batch, { onConflict: 'retailer_id,external_id' });
+
+        if (error) logError('FLUSH', 'device_offers update batch failed', error);
+      }
+    }
+
+    // Insert review tasks (ignore duplicates).
+    if (reviewTaskRows.length > 0) {
+      for (let i = 0; i < reviewTaskRows.length; i += UPSERT_BATCH_SIZE) {
+        const batch = reviewTaskRows.slice(i, i + UPSERT_BATCH_SIZE);
+        const { error } = await supabase
+          .from('review_tasks')
+          .upsert(batch, { onConflict: 'task_type,retailer_product_id', ignoreDuplicates: true });
+        if (error) logError('FLUSH', 'review_tasks upsert batch failed', error);
+      }
+    }
+
+    this.attempts.length = 0;
   }
 
   async cleanup(): Promise<void> {
@@ -951,13 +1038,13 @@ async function main(): Promise<void> {
     log("INIT", `Limited to first ${PRODUCT_LIMIT} products`);
   }
 
-  // Load existing matches
-  log("INIT", "Loading existing Amazon matches...");
-  const { allMatched, approvedIds } = await loadExistingAmazonMatches(amazonRetailer.id);
-  log("INIT", `Existing matches: ${allMatched.size} total (${approvedIds.size} approved)`);
+  // Load existing Amazon offers
+  log("INIT", "Loading existing Amazon offers...");
+  const existingAmazonOfferDevices = await loadExistingAmazonOfferDeviceIds(amazonRetailer.id);
+  log("INIT", `Existing Amazon offers: ${existingAmazonOfferDevices.size} device(s)`);
 
   // Build product lists for each mode
-  const unmatchedProducts = products.filter((p) => !allMatched.has(p.id));
+  const unmatchedProducts = products.filter((p) => !existingAmazonOfferDevices.has(p.id));
   log("INIT", `Unmatched products for discovery: ${unmatchedProducts.length}`);
 
   if (DRY_RUN) {
@@ -1068,10 +1155,6 @@ async function main(): Promise<void> {
     await closeBrowser();
   }
 
-  // Denormalize lowest prices
-  console.log("\n--- Denormalize Lowest Prices ---\n");
-  const pricesUpdated = await denormalizeLowestPrices();
-
   // Clean up progress file on success
   deleteProgress();
 
@@ -1090,7 +1173,6 @@ async function main(): Promise<void> {
   console.log(`  Skipped (no match): ${totalStats.skipped}`);
   console.log(`  CAPTCHAs hit:       ${totalStats.captchas}`);
   console.log(`  Errors:             ${totalStats.errors}`);
-  console.log(`  Prices denormalized: ${pricesUpdated}`);
   console.log("=================================================================\n");
 }
 

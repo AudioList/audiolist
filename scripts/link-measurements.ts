@@ -1,10 +1,12 @@
 /**
  * link-measurements.ts
  *
- * Daily enrichment: fetches Squig-Rank PPI measurement data and links it
- * to existing products in the database. Products matched get PPI fields
- * updated and source_type set to 'merged'. Unmatched measurements are
- * inserted as source_type='measurement'.
+ * Daily enrichment: fetches Squig-Rank measurement data (PPI + metadata),
+ * stores it in the Measurement Lab tables, and links measurements to
+ * canonical retailer-backed devices.
+ *
+ * Important: measurements NEVER create catalog devices. Unmatched items
+ * remain in `measurements` only and are reviewed later.
  *
  * Usage:
  *   SUPABASE_SERVICE_KEY=<key> npx tsx scripts/link-measurements.ts [--dev]
@@ -15,14 +17,16 @@
 import "./lib/env.js";
 import { getSupabase } from './config/retailers.ts';
 import { extractBrand } from './brand-config.ts';
-import { normalizeName, findBestMatch, buildCandidateIndex, findBestMatchIndexed, type IndexedCandidate } from './scrapers/matcher.ts';
-import { parseProductVariant } from './variant-config.ts';
+import { normalizeName, buildCandidateIndex, findBestMatchIndexed, type IndexedCandidate } from './scrapers/matcher.ts';
 
 const DEV_MODE = process.argv.includes('--dev');
 const DEV_LIMIT_PER_FILE = 100;
 const BATCH_SIZE = 1000;
 const UPSERT_BATCH_SIZE = 500;
-const MATCH_THRESHOLD = 0.75;
+
+// Precision-first defaults: auto-approve only for very strong matches.
+const AUTO_APPROVE_THRESHOLD = 0.92;
+const QUEUE_REVIEW_THRESHOLD = 0.75;
 
 // ---------------------------------------------------------------------------
 // Data sources — same 3 Squig-Rank GitHub files as sync-to-supabase.ts
@@ -86,14 +90,14 @@ type ExistingProduct = {
   name: string;
   brand: string | null;
   category_id: string;
-  source_type: string | null;
 };
 
 type Stats = {
   fetched: number;
   deduplicated: number;
-  matched: number;
-  inserted: number;
+  stored: number;
+  linkedApproved: number;
+  linkedPending: number;
   errors: number;
 };
 
@@ -112,6 +116,17 @@ function log(phase: string, msg: string): void {
 function logError(phase: string, msg: string, err: unknown): void {
   const detail = err instanceof Error ? err.message : String(err);
   console.error(`[${timestamp()}] [${phase}] ERROR: ${msg} — ${detail}`);
+}
+
+function buildSquigSourceUrl(sourceDomain: string | null | undefined, rawName: string): string | null {
+  if (!sourceDomain) return null;
+  if (sourceDomain.endsWith('.squig.link')) {
+    return `https://${sourceDomain}/?share=${encodeURIComponent(rawName)}`;
+  }
+  if (sourceDomain === 'graph.hangout.audio') {
+    return `https://graph.hangout.audio/?share=${encodeURIComponent(rawName)}`;
+  }
+  return null;
 }
 
 async function fetchJson<T>(url: string, label: string): Promise<T | null> {
@@ -146,17 +161,17 @@ function findDfTarget(data: ResultsFile, matchStr: string, label: string): Ranke
 // Load existing products for matching
 // ---------------------------------------------------------------------------
 
-async function loadExistingProducts(): Promise<Map<string, ExistingProduct[]>> {
+async function loadExistingDevices(): Promise<Map<string, ExistingProduct[]>> {
   const supabase = getSupabase();
   const all: ExistingProduct[] = [];
   let offset = 0;
 
-  log('LOAD', 'Loading existing products for measurement linking...');
+  log('LOAD', 'Loading existing devices for measurement linking...');
 
   while (true) {
     const { data, error } = await supabase
-      .from('products')
-      .select('id, name, brand, category_id, source_type')
+      .from('devices')
+      .select('id, name, brand, category_id')
       .in('category_id', ['iem', 'headphone'])
       .range(offset, offset + BATCH_SIZE - 1);
 
@@ -183,7 +198,7 @@ async function loadExistingProducts(): Promise<Map<string, ExistingProduct[]>> {
     }
   }
 
-  log('LOAD', `Loaded ${all.length} existing IEM/headphone products across ${byCategory.size} categories`);
+  log('LOAD', `Loaded ${all.length} existing IEM/headphone devices across ${byCategory.size} categories`);
   return byCategory;
 }
 
@@ -222,14 +237,112 @@ async function linkMeasurements(
   const stats: Stats = {
     fetched: measurements.length,
     deduplicated: measurements.length,
-    matched: 0,
-    inserted: 0,
+    stored: 0,
+    linkedApproved: 0,
+    linkedPending: 0,
     errors: 0,
   };
 
-  // Collect updates and inserts for batch processing
-  const updates: { id: string; data: Record<string, unknown> }[] = [];
-  const inserts: Record<string, unknown>[] = [];
+  // 1) Upsert measurements into Measurement Lab
+  log('STORE', `Upserting ${measurements.length} Squig measurements into Measurement Lab...`);
+  const nowIso = new Date().toISOString();
+
+  type StoredMeasurement = {
+    measurement_id: string;
+    source_measurement_id: string;
+    category_id: string;
+    raw_name: string;
+    normalized_name: string;
+    source_domain: string | null;
+  };
+
+  const stored: StoredMeasurement[] = [];
+
+  for (let i = 0; i < measurements.length; i += UPSERT_BATCH_SIZE) {
+    const batch = measurements.slice(i, i + UPSERT_BATCH_SIZE);
+
+    const measurementRows = batch.map((m) => {
+      const brand = extractBrand(m.entry.name);
+      return {
+        source: 'squig',
+        source_measurement_id: m.entry.id,
+        category_id: m.categoryId,
+        raw_name: m.entry.name,
+        brand,
+        model: null,
+        normalized_name: normalizeName(m.entry.name),
+        source_domain: m.entry.sourceDomain ?? null,
+        // For squig sources the UI can often reconstruct a per-measurement link from
+        // source_domain + raw_name; we still store source_url if we can.
+        source_url: buildSquigSourceUrl(m.entry.sourceDomain, m.entry.name),
+        raw_payload: m.entry,
+        first_seen_at: m.entry.firstSeen ? new Date(m.entry.firstSeen).toISOString() : nowIso,
+        last_seen_at: m.entry.lastSeen ? new Date(m.entry.lastSeen).toISOString() : nowIso,
+        updated_at: nowIso,
+      };
+    });
+
+    const { data, error } = await supabase
+      .from('measurements')
+      .upsert(measurementRows, { onConflict: 'source,source_measurement_id' })
+      .select('id, source_measurement_id, category_id, raw_name, normalized_name, source_domain');
+
+    if (error) {
+      logError('STORE', `Upsert batch ${Math.floor(i / UPSERT_BATCH_SIZE) + 1}`, error);
+      stats.errors++;
+      continue;
+    }
+
+    for (const row of (data ?? []) as Array<{ id: string; source_measurement_id: string; category_id: string; raw_name: string; normalized_name: string; source_domain: string | null }>) {
+      stored.push({
+        measurement_id: row.id,
+        source_measurement_id: row.source_measurement_id,
+        category_id: row.category_id,
+        raw_name: row.raw_name,
+        normalized_name: row.normalized_name,
+        source_domain: row.source_domain,
+      });
+    }
+  }
+
+  stats.stored = stored.length;
+
+  // 2) Upsert measurement_squig payload rows
+  log('STORE', `Upserting measurement_squig rows for ${stored.length} measurements...`);
+
+  const bySourceId = new Map<string, RankedEntry>();
+  for (const m of measurements) bySourceId.set(m.entry.id, m.entry);
+
+  for (let i = 0; i < stored.length; i += UPSERT_BATCH_SIZE) {
+    const batch = stored.slice(i, i + UPSERT_BATCH_SIZE);
+    const squigRows = batch
+      .map((m) => {
+        const entry = bySourceId.get(m.source_measurement_id);
+        if (!entry) return null;
+        return {
+          measurement_id: m.measurement_id,
+          ppi_score: entry.similarity,
+          ppi_stdev: entry.stdev,
+          ppi_slope: entry.slope,
+          ppi_avg_error: entry.avgError,
+          rig_type: entry.rig,
+          pinna: entry.pinna,
+          quality: entry.quality,
+        };
+      })
+      .filter((r): r is NonNullable<typeof r> => r !== null);
+
+    if (squigRows.length === 0) continue;
+
+    const { error } = await supabase
+      .from('measurement_squig')
+      .upsert(squigRows, { onConflict: 'measurement_id' });
+
+    if (error) {
+      logError('STORE', `measurement_squig batch ${Math.floor(i / UPSERT_BATCH_SIZE) + 1}`, error);
+      stats.errors++;
+    }
+  }
 
   // Pre-build candidate indices per category
   log('LINK', 'Building candidate indices...');
@@ -257,19 +370,24 @@ async function linkMeasurements(
   }
   log('LINK', `Built indices for ${categoryIndices.size} categories`);
 
-  for (let i = 0; i < measurements.length; i++) {
-    const m = measurements[i];
-    const { entry, categoryId } = m;
+  // 3) Link stored measurements to devices
+  log('LINK', `Linking ${stored.length} stored measurements to devices...`);
+
+  const linkRows: Array<Record<string, unknown>> = [];
+  const reviewTaskRows: Array<Record<string, unknown>> = [];
+
+  for (let i = 0; i < stored.length; i++) {
+    const m = stored[i];
+    const entry = bySourceId.get(m.source_measurement_id);
+    if (!entry) continue;
+    const categoryId = m.category_id;
 
     if ((i + 1) % 200 === 0 || i === 0) {
-      log('LINK', `Processing ${i + 1}/${measurements.length}: "${entry.name}"`);
+      log('LINK', `Processing ${i + 1}/${stored.length}: "${entry.name}"`);
     }
 
     try {
       const brand = extractBrand(entry.name);
-      const parsed = parseProductVariant(entry.name);
-      const primaryVariant = parsed.variants[0] ?? null;
-
       // Use pre-built indices for matching
       const brandKey = brand?.toLowerCase();
       const brandIndex = brandKey ? brandIndices.get(categoryId)?.get(brandKey) : undefined;
@@ -281,46 +399,43 @@ async function linkMeasurements(
         ? findBestMatchIndexed(entry.name, candidateIndex)
         : null;
 
-      if (match && match.score >= MATCH_THRESHOLD) {
-        updates.push({
-          id: match.id,
-          data: {
-            ppi_score: entry.similarity,
-            ppi_stdev: entry.stdev,
-            ppi_slope: entry.slope,
-            ppi_avg_error: entry.avgError,
-            source_domain: entry.sourceDomain,
-            rig_type: entry.rig,
-            pinna: entry.pinna,
-            quality: entry.quality,
-            source_type: 'merged',
-            updated_at: new Date().toISOString(),
-          },
-        });
-        stats.matched++;
+      if (!match) continue;
+
+      const status = match.score >= AUTO_APPROVE_THRESHOLD ? 'approved'
+        : match.score >= QUEUE_REVIEW_THRESHOLD ? 'pending'
+          : null;
+
+      if (!status) continue;
+
+      linkRows.push({
+        device_id: match.id,
+        measurement_id: m.measurement_id,
+        status,
+        confidence: match.score,
+        method: 'squig_name_fuzzy_v1',
+        is_primary: status === 'approved',
+        notes: null,
+        updated_at: nowIso,
+      });
+
+      if (status === 'approved') {
+        stats.linkedApproved++;
       } else {
-        inserts.push({
-          source_id: entry.id,
-          category_id: categoryId,
-          name: entry.name,
-          brand,
-          price: entry.price,
-          ppi_score: entry.similarity,
-          ppi_stdev: entry.stdev,
-          ppi_slope: entry.slope,
-          ppi_avg_error: entry.avgError,
-          source_domain: entry.sourceDomain,
-          rig_type: entry.rig,
-          pinna: entry.pinna,
-          quality: entry.quality,
-          source_type: 'measurement',
-          variant_type: primaryVariant?.type ?? null,
-          variant_value: primaryVariant?.value ?? null,
-          first_seen: entry.firstSeen,
-          in_stock: false,
-          updated_at: new Date().toISOString(),
+        stats.linkedPending++;
+        reviewTaskRows.push({
+          task_type: 'measurement_link',
+          status: 'open',
+          priority: Math.round(match.score * 100),
+          device_id: match.id,
+          measurement_id: m.measurement_id,
+          payload: {
+            suggested_device_id: match.id,
+            suggested_device_name: match.name,
+            score: match.score,
+            source: 'squig',
+          },
+          reason: `Review measurement link for "${entry.name}" (${match.score.toFixed(3)})`,
         });
-        stats.inserted++;
       }
     } catch (err) {
       logError('LINK', `Exception processing "${entry.name}"`, err);
@@ -328,42 +443,29 @@ async function linkMeasurements(
     }
   }
 
-  // Apply updates in parallel chunks of 25
-  const UPDATE_CONCURRENCY = 25;
-  if (updates.length > 0) {
-    log('UPDATE', `Updating ${updates.length} matched products with PPI data (${UPDATE_CONCURRENCY} concurrent)...`);
-    let updateErrors = 0;
-
-    for (let i = 0; i < updates.length; i += UPDATE_CONCURRENCY) {
-      const chunk = updates.slice(i, i + UPDATE_CONCURRENCY);
-      const results = await Promise.all(
-        chunk.map((upd) =>
-          supabase.from('products').update(upd.data).eq('id', upd.id)
-        )
-      );
-
-      for (const result of results) {
-        if (result.error) {
-          updateErrors++;
-        }
+  if (linkRows.length > 0) {
+    log('UPSERT', `Upserting ${linkRows.length} device_measurement_links...`);
+    for (let i = 0; i < linkRows.length; i += UPSERT_BATCH_SIZE) {
+      const batch = linkRows.slice(i, i + UPSERT_BATCH_SIZE);
+      const { error } = await supabase
+        .from('device_measurement_links')
+        .upsert(batch, { onConflict: 'device_id,measurement_id' });
+      if (error) {
+        logError('UPSERT', `device_measurement_links batch ${Math.floor(i / UPSERT_BATCH_SIZE) + 1}`, error);
+        stats.errors++;
       }
-    }
-    if (updateErrors > 0) {
-      log('UPDATE', `${updateErrors} update errors`);
     }
   }
 
-  // Batch upsert new measurement-only products
-  if (inserts.length > 0) {
-    log('INSERT', `Upserting ${inserts.length} measurement-only products...`);
-    for (let i = 0; i < inserts.length; i += UPSERT_BATCH_SIZE) {
-      const batch = inserts.slice(i, i + UPSERT_BATCH_SIZE);
+  if (reviewTaskRows.length > 0) {
+    log('UPSERT', `Inserting ${reviewTaskRows.length} review_tasks...`);
+    for (let i = 0; i < reviewTaskRows.length; i += UPSERT_BATCH_SIZE) {
+      const batch = reviewTaskRows.slice(i, i + UPSERT_BATCH_SIZE);
       const { error } = await supabase
-        .from('products')
-        .upsert(batch, { onConflict: 'source_id' });
-
+        .from('review_tasks')
+        .insert(batch);
       if (error) {
-        logError('INSERT', `Batch ${Math.floor(i / UPSERT_BATCH_SIZE) + 1}`, error);
+        logError('UPSERT', `review_tasks batch ${Math.floor(i / UPSERT_BATCH_SIZE) + 1}`, error);
         stats.errors++;
       }
     }
@@ -429,11 +531,11 @@ async function main(): Promise<void> {
   const deduplicated = deduplicateMeasurements(allMeasurements);
   log('DEDUP', `Deduplicated: ${allMeasurements.length} → ${deduplicated.length}`);
 
-  // 4. Load existing products for matching
-  const existingByCategory = await loadExistingProducts();
+  // 4. Load existing devices for matching
+  const existingByCategory = await loadExistingDevices();
 
-  // 5. Link measurements to products
-  log('LINK', `Linking ${deduplicated.length} measurements to products...`);
+  // 5. Store and link measurements to devices
+  log('LINK', `Storing and linking ${deduplicated.length} measurements to devices...`);
   const stats = await linkMeasurements(deduplicated, existingByCategory);
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
@@ -443,8 +545,9 @@ async function main(): Promise<void> {
   console.log(`  Duration:           ${elapsed}s`);
   console.log(`  Fetched:            ${allMeasurements.length}`);
   console.log(`  Deduplicated:       ${deduplicated.length}`);
-  console.log(`  Matched (merged):   ${stats.matched}`);
-  console.log(`  Inserted (new):     ${stats.inserted}`);
+  console.log(`  Stored:             ${stats.stored}`);
+  console.log(`  Linked (approved):  ${stats.linkedApproved}`);
+  console.log(`  Linked (pending):   ${stats.linkedPending}`);
   console.log(`  Errors:             ${stats.errors}`);
   console.log(`  Mode:               ${DEV_MODE ? 'DEV (limited)' : 'FULL'}`);
   console.log('=================================================================\n');

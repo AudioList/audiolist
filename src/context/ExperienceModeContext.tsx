@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 
 export type ExperienceMode = 'default' | 'beginner' | 'advanced';
@@ -13,7 +14,7 @@ export function ExperienceModeProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<ExperienceMode>(() => {
     const stored = localStorage.getItem('audiolist_experience_mode');
     if (stored === 'beginner' || stored === 'advanced') return stored;
-    return 'default';
+    return 'beginner';
   });
 
   const setMode = useCallback((newMode: ExperienceMode) => {

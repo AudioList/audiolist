@@ -196,6 +196,15 @@ export function extractHeadphoneDesign(name: string): 'open' | 'closed' | null {
   return null;
 }
 
+export function extractHeadphoneType(name: string): 'active' | 'passive' | null {
+  const lower = name.toLowerCase();
+  // "Active" means battery-powered electronics (wireless/ANC/DSP).
+  if (/\bwireless\b|\bbluetooth\b|\banc\b|noise[\s-]?cancell?ing|active noise|\bdsp\b/.test(lower)) {
+    return 'active';
+  }
+  return 'passive';
+}
+
 /**
  * Extract IEM connectivity type from a product name.
  * Returns 'tws' or 'active' if detected, otherwise null.

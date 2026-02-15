@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { CategoryId, BuildItem, Product } from '../../types';
 import { useBuild } from '../../context/BuildContext';
+import { useGlassMode } from '../../context/GlassModeContext';
 import { supabase } from '../../lib/supabase';
 
 interface CloneBuildButtonProps {
@@ -12,6 +13,8 @@ interface CloneBuildButtonProps {
 export default function CloneBuildButton({ items, buildName }: CloneBuildButtonProps) {
   const navigate = useNavigate();
   const { setProduct, setName, setDescription, clearBuild } = useBuild();
+  const isGlass = useGlassMode();
+  const builderPath = isGlass ? '/glass/builder' : '/builder';
   const [state, setState] = useState<'idle' | 'loading' | 'done'>('idle');
 
   const handleClone = useCallback(async () => {
@@ -61,13 +64,13 @@ export default function CloneBuildButton({ items, buildName }: CloneBuildButtonP
 
       setState('done');
       setTimeout(() => {
-        navigate('/');
+        navigate(builderPath);
       }, 1000);
     } catch (err) {
       console.error('Clone error:', err);
       setState('idle');
     }
-  }, [items, buildName, setProduct, setName, setDescription, clearBuild, navigate]);
+  }, [items, buildName, setProduct, setName, setDescription, clearBuild, navigate, builderPath]);
 
   return (
     <button

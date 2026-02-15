@@ -1,4 +1,5 @@
 import { useGlassMode } from '../../context/GlassModeContext';
+import { getPPILabel } from '../../lib/categories';
 
 interface BestValueBadgeProps {
   score: number | null;
@@ -7,7 +8,7 @@ interface BestValueBadgeProps {
 
 /**
  * Shows a "Great Value" badge when a product has a high score at a low price.
- * Simple static threshold for MVP: score >= 70 and price <= $200.
+ * Simple static threshold for MVP: score >= 70 (B- or higher) and price <= $200.
  */
 export default function BestValueBadge({ score, price }: BestValueBadgeProps) {
   const isGlass = useGlassMode();
@@ -21,7 +22,7 @@ export default function BestValueBadge({ score, price }: BestValueBadgeProps) {
         ? "inline-flex items-center gap-1 rounded-full border border-green-400/30 bg-green-50/60 backdrop-blur-sm px-2 py-0.5 text-xs font-semibold text-green-700 dark:border-green-700 dark:bg-green-900/20 dark:text-green-400"
         : "inline-flex items-center gap-1 rounded-full border border-green-300 bg-green-50 px-2 py-0.5 text-xs font-semibold text-green-700 dark:border-green-700 dark:bg-green-900/20 dark:text-green-400"
       }
-      title={`High performance (${score.toFixed(0)}) at a great price ($${price.toFixed(0)})`}
+      title={`High performance (${getPPILabel(score)}) at a great price ($${price.toFixed(0)})`}
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"

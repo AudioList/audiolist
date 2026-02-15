@@ -11,7 +11,7 @@
 
 export type CategoryId =
   | 'iem' | 'headphone' | 'dac' | 'amp' | 'speaker' | 'cable' | 'dap' | 'microphone'
-  | 'iem_tips' | 'iem_cable' | 'iem_filter' | 'hp_pads' | 'hp_cable' | 'mic_accessory';
+  | 'iem_tips' | 'iem_cable' | 'iem_filter' | 'hp_pads' | 'hp_cable' | 'hp_accessory' | 'mic_accessory';
 
 export interface CollectionMapping {
   handle: string;
@@ -29,7 +29,7 @@ export interface StoreConfig {
 /** Category groups for split pipeline execution */
 export const CATEGORY_GROUPS: Record<string, CategoryId[]> = {
   iem: ['iem', 'iem_tips', 'iem_cable', 'iem_filter'],
-  headphone: ['headphone', 'hp_pads', 'hp_cable'],
+  headphone: ['headphone', 'hp_pads', 'hp_cable', 'hp_accessory'],
   microphone: ['microphone', 'mic_accessory'],
 };
 

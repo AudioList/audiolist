@@ -12,6 +12,7 @@ export const CATEGORIES: Category[] = [
   // Headphone accessories
   { id: 'hp_pads', name: 'Earpads', description: 'Replacement pads for headphones', sort_order: 20, icon: 'disc', has_ppi: false, parent_category: 'headphone' },
   { id: 'hp_cable', name: 'Headphone Cables', description: 'Replacement headphone cables', sort_order: 21, icon: 'cable', has_ppi: false, parent_category: 'headphone' },
+  { id: 'hp_accessory', name: 'Headphone Accessories', description: 'Stands, cases, adapters, and other headphone accessories', sort_order: 22, icon: 'wrench', has_ppi: false, parent_category: 'headphone' },
   // Main categories continued
   { id: 'dac', name: 'Digital-to-Analog Converter', description: 'Converts digital audio to analog signal', sort_order: 3, icon: 'cpu', has_ppi: false, parent_category: null },
   { id: 'amp', name: 'Amplifier', description: 'Powers headphones or speakers', sort_order: 4, icon: 'zap', has_ppi: false, parent_category: null },
@@ -20,7 +21,7 @@ export const CATEGORIES: Category[] = [
   { id: 'dap', name: 'Digital Audio Player', description: 'Portable music players', sort_order: 7, icon: 'smartphone', has_ppi: false, parent_category: null },
   { id: 'microphone', name: 'Microphone', description: 'Recording and streaming mics', sort_order: 8, icon: 'mic', has_ppi: false, parent_category: null },
   // Microphone accessories
-  { id: 'mic_accessory', name: 'Microphone Accessories', description: 'Preamps, boom arms, adapters, and accessories', sort_order: 22, icon: 'wrench', has_ppi: false, parent_category: 'microphone' },
+  { id: 'mic_accessory', name: 'Microphone Accessories', description: 'Preamps, boom arms, adapters, and accessories', sort_order: 23, icon: 'wrench', has_ppi: false, parent_category: 'microphone' },
 ];
 
 export const CATEGORY_MAP = new Map<CategoryId, Category>(
@@ -38,8 +39,65 @@ export function getTopLevelCategories(): Category[] {
 }
 
 /** @deprecated Use <CategoryIcon categoryId={id} /> component instead */
-export function getCategoryIcon(_id: CategoryId): string {
+export function getCategoryIcon(id: CategoryId): string {
+  void id;
   return '';
+}
+
+interface ScoreBand {
+  min: number;
+  band: string;
+  summary: string;
+}
+
+export interface ScoreBandOption {
+  band: string;
+  min: number;
+}
+
+const SCORE_BANDS: ScoreBand[] = [
+  { min: 97, band: 'S+', summary: 'Reference-tier measured performance.' },
+  { min: 93, band: 'S', summary: 'Exceptional measured performance.' },
+  { min: 90, band: 'S-', summary: 'Top-tier measured performance.' },
+  { min: 87, band: 'A+', summary: 'Excellent measured performance.' },
+  { min: 83, band: 'A', summary: 'Strong measured performance.' },
+  { min: 80, band: 'A-', summary: 'Very solid measured performance.' },
+  { min: 77, band: 'B+', summary: 'Above-average measured performance.' },
+  { min: 73, band: 'B', summary: 'Reliable measured performance.' },
+  { min: 70, band: 'B-', summary: 'Good measured performance for most listeners.' },
+  { min: 67, band: 'C+', summary: 'Decent measured performance with tradeoffs.' },
+  { min: 63, band: 'C', summary: 'Mixed measured performance.' },
+  { min: 60, band: 'C-', summary: 'Noticeable measured compromises.' },
+  { min: 55, band: 'D+', summary: 'Below-average measured performance.' },
+  { min: 50, band: 'D', summary: 'Weak measured performance.' },
+  { min: 40, band: 'D-', summary: 'Poor measured performance.' },
+  { min: 0, band: 'F', summary: 'Very poor measured performance.' },
+];
+
+/** Return user-facing score bands used by filter chips. */
+export function getScoreBandOptions(): ScoreBandOption[] {
+  return SCORE_BANDS
+    .filter((entry) => entry.band !== 'F')
+    .map(({ band, min }) => ({ band, min }));
+}
+
+/** Convert a normalized 0-100 score to a letter band. */
+export function getPPIBand(score: number): string {
+  for (const threshold of SCORE_BANDS) {
+    if (score >= threshold.min) {
+      return threshold.band;
+    }
+  }
+  return 'F';
+}
+
+function getPPIBandSummary(score: number): string {
+  for (const threshold of SCORE_BANDS) {
+    if (score >= threshold.min) {
+      return threshold.summary;
+    }
+  }
+  return 'Very poor measured performance.';
 }
 
 export function getPPIColor(score: number): string {
@@ -51,22 +109,7 @@ export function getPPIColor(score: number): string {
 }
 
 export function getPPILabel(score: number): string {
-  if (score >= 97) return 'S+';
-  if (score >= 93) return 'S';
-  if (score >= 90) return 'S-';
-  if (score >= 87) return 'A+';
-  if (score >= 83) return 'A';
-  if (score >= 80) return 'A-';
-  if (score >= 77) return 'B+';
-  if (score >= 73) return 'B';
-  if (score >= 70) return 'B-';
-  if (score >= 67) return 'C+';
-  if (score >= 63) return 'C';
-  if (score >= 60) return 'C-';
-  if (score >= 55) return 'D+';
-  if (score >= 50) return 'D';
-  if (score >= 40) return 'D-';
-  return 'F';
+  return getPPIBand(score);
 }
 
 /** Get the measurement score label for a category.
@@ -98,6 +141,7 @@ export function getCategoryAccentColor(id: CategoryId): string {
     case 'headphone':
     case 'hp_pads':
     case 'hp_cable':
+    case 'hp_accessory':
       return 'text-accent-headphone';
     case 'dac': return 'text-accent-dac';
     case 'amp': return 'text-accent-amp';
@@ -122,6 +166,7 @@ export function getCategoryBorderColor(id: CategoryId): string {
     case 'headphone':
     case 'hp_pads':
     case 'hp_cable':
+    case 'hp_accessory':
       return 'border-accent-headphone';
     case 'dac': return 'border-accent-dac';
     case 'amp': return 'border-accent-amp';
@@ -146,6 +191,7 @@ export function getCategoryBgColor(id: CategoryId): string {
     case 'headphone':
     case 'hp_pads':
     case 'hp_cable':
+    case 'hp_accessory':
       return 'bg-accent-headphone/10';
     case 'dac': return 'bg-accent-dac/10';
     case 'amp': return 'bg-accent-amp/10';
@@ -162,11 +208,8 @@ export function getCategoryBgColor(id: CategoryId): string {
 /** Get beginner-friendly tooltip text for a PPI/Spinorama/SINAD score */
 export function getPPITooltip(score: number, isSpinorama: boolean): string {
   const type = isSpinorama ? 'Spinorama Score' : 'Predicted Preference Index';
-  if (score >= 85) return `${type}: ${score.toFixed(1)} — Excellent. Top-tier measured audio quality.`;
-  if (score >= 70) return `${type}: ${score.toFixed(1)} — Great. Above-average sound quality.`;
-  if (score >= 55) return `${type}: ${score.toFixed(1)} — Good. Solid performer for the price.`;
-  if (score >= 40) return `${type}: ${score.toFixed(1)} — Fair. Noticeable tuning deviations.`;
-  return `${type}: ${score.toFixed(1)} — Poor. Significant tuning issues.`;
+  const band = getPPIBand(score);
+  return `${type}: ${score.toFixed(1)} (${band}) — ${getPPIBandSummary(score)}`;
 }
 
 /**
@@ -176,6 +219,12 @@ export function getPPITooltip(score: number, isSpinorama: boolean): string {
  */
 export function sinadToScore(sinadDb: number): number {
   return Math.max(0, Math.min(100, Math.round(((sinadDb - 60) / 60) * 100)));
+}
+
+/** Convert normalized 0-100 score to SINAD dB (inverse of sinadToScore, before rounding). */
+export function scoreToSinad(score: number): number {
+  const normalized = Math.max(0, Math.min(100, score));
+  return 60 + (normalized / 100) * 60;
 }
 
 /** Check if a category is a dedicated amplifier (supports power output display) */

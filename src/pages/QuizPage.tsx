@@ -119,6 +119,7 @@ export default function QuizPage() {
   });
   const [result, setResult] = useState<QuizResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const builderPath = isGlass ? '/glass/builder' : '/builder';
 
   const currentQuestion = QUESTIONS[step];
   const totalSteps = QUESTIONS.length;
@@ -191,7 +192,7 @@ export default function QuizPage() {
           }
         }
 
-        navigate('/');
+        navigate(builderPath);
       } catch (err) {
         console.error('Error loading build:', err);
         addToast('Something went wrong loading the build.', 'error');
@@ -199,7 +200,7 @@ export default function QuizPage() {
         setLoading(false);
       }
     },
-    [setProduct, setName, setDescription, clearBuild, navigate]
+    [setProduct, setName, setDescription, clearBuild, navigate, addToast, builderPath]
   );
 
   return (
@@ -429,7 +430,7 @@ export default function QuizPage() {
               &larr; Retake Quiz
             </button>
             <Link
-              to="/"
+              to={builderPath}
               className="text-sm font-medium text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300"
             >
               Go to Builder &rarr;

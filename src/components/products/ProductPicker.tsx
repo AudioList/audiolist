@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { CategoryId, ProductFilters, ProductSort, Product } from '../../types';
 import { useProducts, useFilterOptions } from '../../hooks/useProducts';
 import { useBuild } from '../../context/BuildContext';
@@ -31,6 +31,7 @@ const emptyFilters: ProductFilters = {
   sinadMin: null,
   sinadMax: null,
   headphoneDesigns: [],
+  headphoneTypes: [],
   iemTypes: [],
   driverTypes: [],
   micConnections: [],
@@ -45,10 +46,11 @@ export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetai
 
   const [filters, setFilters] = useState<ProductFilters>(emptyFilters);
   const showSinad = isSinadCategory(categoryId);
-  const [sort, setSort] = useState<ProductSort>({
+  const defaultSort = useMemo<ProductSort>(() => ({
     field: showPPI ? 'ppi_score' : showSinad ? 'sinad_db' : 'price',
     direction: 'desc',
-  });
+  }), [showPPI, showSinad]);
+  const [sort, setSort] = useState<ProductSort>(defaultSort);
 
   const { products, loading, error, hasMore, total, loadMore } = useProducts({
     category: categoryId,
@@ -56,21 +58,20 @@ export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetai
     sort,
   });
 
-  const { brands, retailers, speakerTypes, headphoneDesigns, iemTypes, driverTypes, micConnections, micTypes, micPatterns } = useFilterOptions(categoryId);
+  const { brands, retailers, speakerTypes, headphoneDesigns, headphoneTypes, iemTypes, driverTypes, micConnections, micTypes, micPatterns } = useFilterOptions(categoryId);
   const { setProduct, getSelection } = useBuild();
   const currentSelection = getSelection(categoryId);
   const backdropRef = useRef<HTMLDivElement>(null);
 
-  // Reset state when opening
-  useEffect(() => {
-    if (isOpen) {
-      setFilters(emptyFilters);
-      setSort({
-        field: showPPI ? 'ppi_score' : showSinad ? 'sinad_db' : 'price',
-        direction: 'desc',
-      });
-    }
-  }, [isOpen, showPPI, showSinad]);
+  const resetPickerState = useCallback(() => {
+    setFilters(emptyFilters);
+    setSort(defaultSort);
+  }, [defaultSort]);
+
+  const handleClose = useCallback(() => {
+    resetPickerState();
+    onClose();
+  }, [onClose, resetPickerState]);
 
   // ESC key handler
   useEffect(() => {
@@ -78,13 +79,13 @@ export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetai
 
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
-        onClose();
+        handleClose();
       }
     }
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, handleClose]);
 
   // Prevent body scroll when open
   useEffect(() => {
@@ -147,19 +148,19 @@ export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetai
 
   const handleBackdropClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      if (e.target === backdropRef.current) {
-        onClose();
+        if (e.target === backdropRef.current) {
+        handleClose();
       }
     },
-    [onClose]
+    [handleClose]
   );
 
   const handleSelect = useCallback(
     (product: Product) => {
       setProduct(categoryId, product);
-      onClose();
+      handleClose();
     },
-    [categoryId, setProduct, onClose]
+    [categoryId, setProduct, handleClose]
   );
 
   function handleSearchChange(value: string) {
@@ -196,7 +197,7 @@ export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetai
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="rounded-lg p-1.5 text-surface-400 transition-colors hover:bg-surface-700 hover:text-surface-100 focus:outline-none focus:ring-2 focus:ring-primary-500/40"
             aria-label="Close picker"
           >
@@ -238,6 +239,7 @@ export default function ProductPicker({ categoryId, isOpen, onClose, onViewDetai
             retailers={retailers}
             speakerTypes={categoryId === 'speaker' ? speakerTypes : undefined}
             headphoneDesigns={categoryId === 'headphone' ? headphoneDesigns : undefined}
+            headphoneTypes={categoryId === 'headphone' ? headphoneTypes : undefined}
             iemTypes={categoryId === 'iem' ? iemTypes : undefined}
             driverTypes={(categoryId === 'iem' || categoryId === 'headphone') ? driverTypes : undefined}
             micConnections={categoryId === 'microphone' ? micConnections : undefined}

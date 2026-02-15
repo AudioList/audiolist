@@ -1,4 +1,4 @@
-name: Sync Prices
+name: Sync Best Buy Offers
 
 on:
   schedule:
@@ -28,11 +28,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Playwright browsers
-        run: npx playwright install chromium
-
-      - name: Run price sync
+      - name: Run Best Buy sync
         env:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           BESTBUY_API_KEY: ${{ secrets.BESTBUY_API_KEY }}
-        run: npx tsx scripts/sync-prices.ts --skip-amazon
+        run: |
+          npx tsx scripts/bestbuy-sync.ts --mode=daily
+          npx tsx scripts/process-store-products-iem.ts
+          npx tsx scripts/process-store-products-headphone.ts
+          npx tsx scripts/process-store-products-microphone.ts

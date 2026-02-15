@@ -20,6 +20,38 @@ interface UseProductsReturn {
   refresh: () => void;
 }
 
+interface PriceListingRow {
+  retailer_id: string;
+  price: number | null;
+  affiliate_url: string | null;
+  product_url: string | null;
+  in_stock: boolean;
+}
+
+type ProductWithListings = Product & { price_listings?: PriceListingRow[] };
+
+interface RetailerIdRow {
+  retailer_id: string;
+}
+
+interface FilterOptionCountRow {
+  value: string;
+  count: number;
+}
+
+interface FilterOptionsRpcResult {
+  brands?: string[];
+  retailers?: { id: string; name: string }[];
+  iem_types?: FilterOptionCountRow[];
+  headphone_types?: FilterOptionCountRow[];
+  driver_types?: FilterOptionCountRow[];
+  speaker_types?: FilterOptionCountRow[];
+  headphone_designs?: FilterOptionCountRow[];
+  mic_connections?: FilterOptionCountRow[];
+  mic_types?: FilterOptionCountRow[];
+  mic_patterns?: FilterOptionCountRow[];
+}
+
 const defaultFilters: ProductFilters = {
   search: '',
   brands: [],
@@ -35,6 +67,7 @@ const defaultFilters: ProductFilters = {
   sinadMin: null,
   sinadMax: null,
   headphoneDesigns: [],
+  headphoneTypes: [],
   iemTypes: [],
   driverTypes: [],
   micConnections: [],
@@ -139,6 +172,11 @@ export function useProducts({
           query = query.in('headphone_design', filters.headphoneDesigns);
         }
 
+        // Headphone type (passive/active)
+        if (filters.headphoneTypes.length > 0) {
+          query = query.in('headphone_type', filters.headphoneTypes);
+        }
+
         // IEM type (passive/active/tws)
         if (filters.iemTypes.length > 0) {
           query = query.in('iem_type', filters.iemTypes);
@@ -199,14 +237,8 @@ export function useProducts({
         // When retailer filter is active, override product price/link/in_stock
         // with the best listing from the matched retailers
         if (hasRetailerFilter && data) {
-          for (const raw of data as any[]) {
-            const listings = raw.price_listings as {
-              retailer_id: string;
-              price: number | null;
-              affiliate_url: string | null;
-              product_url: string | null;
-              in_stock: boolean;
-            }[];
+          for (const raw of data as unknown as ProductWithListings[]) {
+            const listings = raw.price_listings;
             if (!listings?.length) continue;
 
             // Pick the lowest-priced listing from the filtered retailers
@@ -294,7 +326,7 @@ export function useRetailers(category: CategoryId): { id: string; name: string }
           .range(offset, offset + PAGE - 1);
 
         if (!data || data.length === 0) break;
-        for (const d of data) retailerIds.add((d as any).retailer_id);
+        for (const d of data as RetailerIdRow[]) retailerIds.add(d.retailer_id);
         if (data.length < PAGE) break;
         offset += PAGE;
       }
@@ -401,7 +433,6 @@ export function useHeadphoneDesigns(category: CategoryId): { value: string; labe
   useEffect(() => {
     // Only fetch for headphone category (IEMs are neither open nor closed back)
     if (category !== 'headphone') {
-      setDesigns([]);
       return;
     }
 
@@ -442,7 +473,7 @@ export function useHeadphoneDesigns(category: CategoryId): { value: string; labe
     fetchDesigns();
   }, [category]);
 
-  return designs;
+  return category === 'headphone' ? designs : [];
 }
 
 const IEM_TYPE_LABELS: Record<string, string> = {
@@ -455,13 +486,21 @@ export function getIemTypeLabel(type: string): string {
   return IEM_TYPE_LABELS[type] ?? type.charAt(0).toUpperCase() + type.slice(1);
 }
 
+const HEADPHONE_TYPE_LABELS: Record<string, string> = {
+  passive: 'Passive',
+  active: 'Active (Wireless/ANC/DSP)',
+};
+
+export function getHeadphoneTypeLabel(type: string): string {
+  return HEADPHONE_TYPE_LABELS[type] ?? type.charAt(0).toUpperCase() + type.slice(1);
+}
+
 export function useIemTypes(category: CategoryId): { value: string; label: string; count: number }[] {
   const [types, setTypes] = useState<{ value: string; label: string; count: number }[]>([]);
 
   useEffect(() => {
     // Only fetch for IEM category
     if (category !== 'iem') {
-      setTypes([]);
       return;
     }
 
@@ -503,7 +542,7 @@ export function useIemTypes(category: CategoryId): { value: string; label: strin
     fetchTypes();
   }, [category]);
 
-  return types;
+  return category === 'iem' ? types : [];
 }
 
 const DRIVER_TYPE_LABELS: Record<string, string> = {
@@ -602,6 +641,7 @@ interface FilterOptions {
   brands: string[];
   retailers: { id: string; name: string }[];
   iemTypes: { value: string; label: string; count: number }[];
+  headphoneTypes: { value: string; label: string; count: number }[];
   driverTypes: { value: string; label: string; count: number }[];
   speakerTypes: { value: string; label: string; count: number }[];
   headphoneDesigns: { value: string; label: string; count: number }[];
@@ -615,6 +655,7 @@ export function useFilterOptions(category: CategoryId): FilterOptions {
     brands: [],
     retailers: [],
     iemTypes: [],
+    headphoneTypes: [],
     driverTypes: [],
     speakerTypes: [],
     headphoneDesigns: [],
@@ -629,40 +670,46 @@ export function useFilterOptions(category: CategoryId): FilterOptions {
       .rpc('get_filter_options', { p_category_id: category })
       .then(({ data }) => {
         if (cancelled || !data) return;
+        const rpcData = data as FilterOptionsRpcResult;
         setOptions({
-          brands: data.brands ?? [],
-          retailers: data.retailers ?? [],
-          iemTypes: (data.iem_types ?? []).map((t: any) => ({
+          brands: rpcData.brands ?? [],
+          retailers: rpcData.retailers ?? [],
+          iemTypes: (rpcData.iem_types ?? []).map((t) => ({
             value: t.value,
             label: getIemTypeLabel(t.value),
             count: t.count,
           })),
-          driverTypes: (data.driver_types ?? []).map((t: any) => ({
+          headphoneTypes: (rpcData.headphone_types ?? []).map((t) => ({
+            value: t.value,
+            label: getHeadphoneTypeLabel(t.value),
+            count: t.count,
+          })),
+          driverTypes: (rpcData.driver_types ?? []).map((t) => ({
             value: t.value,
             label: getDriverTypeLabel(t.value),
             count: t.count,
           })),
-          speakerTypes: (data.speaker_types ?? []).map((t: any) => ({
+          speakerTypes: (rpcData.speaker_types ?? []).map((t) => ({
             value: t.value,
             label: getSpeakerTypeLabel(t.value),
             count: t.count,
           })),
-          headphoneDesigns: (data.headphone_designs ?? []).map((t: any) => ({
+          headphoneDesigns: (rpcData.headphone_designs ?? []).map((t) => ({
             value: t.value,
             label: getHeadphoneDesignLabel(t.value),
             count: t.count,
           })),
-          micConnections: (data.mic_connections ?? []).map((t: any) => ({
+          micConnections: (rpcData.mic_connections ?? []).map((t) => ({
             value: t.value,
             label: getMicConnectionLabel(t.value),
             count: t.count,
           })),
-          micTypes: (data.mic_types ?? []).map((t: any) => ({
+          micTypes: (rpcData.mic_types ?? []).map((t) => ({
             value: t.value,
             label: getMicTypeLabel(t.value),
             count: t.count,
           })),
-          micPatterns: (data.mic_patterns ?? []).map((t: any) => ({
+          micPatterns: (rpcData.mic_patterns ?? []).map((t) => ({
             value: t.value,
             label: getMicPatternLabel(t.value),
             count: t.count,

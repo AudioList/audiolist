@@ -1,9 +1,12 @@
 /**
  * link-spinorama.ts
  *
- * Fetches speaker measurement data from spinorama.org and links preference
- * scores to existing speaker products in the database. Unmatched speakers
- * are inserted as measurement-only products.
+ * Fetches speaker measurement data from spinorama.org, stores it in the
+ * Measurement Lab domain, and links measurements to canonical retailer-backed
+ * devices.
+ *
+ * Measurements NEVER create catalog devices. Unmatched items stay in
+ * `measurements` only and can be reviewed later.
  *
  * Data source: https://www.spinorama.org/json/metadata.json
  * (1000+ speaker measurements with preference scores from pierreaubert/spinorama)
@@ -13,7 +16,6 @@
  */
 
 import { getSupabase } from './config/retailers.ts';
-import { extractBrand } from './brand-config.ts';
 import {
   normalizeName,
   buildCandidateIndex,
@@ -24,7 +26,10 @@ const DEV_MODE = process.argv.includes('--dev');
 const DEV_LIMIT = 50;
 const BATCH_SIZE = 1000;
 const UPSERT_BATCH = 100;
-const MATCH_THRESHOLD = 0.70; // speakers have different naming, be slightly more lenient
+
+// Precision-first defaults.
+const AUTO_APPROVE_THRESHOLD = 0.90;
+const QUEUE_REVIEW_THRESHOLD = 0.75;
 
 const SPINORAMA_URL = 'https://www.spinorama.org/json/metadata.json';
 
@@ -66,7 +71,6 @@ type ExistingProduct = {
   name: string;
   brand: string | null;
   category_id: string;
-  source_type: string | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -98,18 +102,8 @@ function mapShape(shape: string): string {
   return map[shape] ?? shape;
 }
 
-// Normalize spinorama score (0-10 range) to our 0-100 PPI scale
-// Score range: roughly -5 to 8.5
-// We'll map: <0 → 0, 0-3 → 0-40, 3-5 → 40-60, 5-7 → 60-80, 7-8.5 → 80-100
-function scoreTo100(score: number): number {
-  if (score <= 0) return 0;
-  // Linear mapping: 0 → 0, 8.5 → 100
-  const scaled = Math.round((score / 8.5) * 100);
-  return Math.max(0, Math.min(100, scaled));
-}
-
 // ---------------------------------------------------------------------------
-// Load existing speaker products for matching
+// Load existing speaker devices for matching
 // ---------------------------------------------------------------------------
 
 async function loadExistingSpeakers(): Promise<ExistingProduct[]> {
@@ -117,12 +111,12 @@ async function loadExistingSpeakers(): Promise<ExistingProduct[]> {
   const all: ExistingProduct[] = [];
   let offset = 0;
 
-  log('LOAD', 'Loading existing speaker products...');
+  log('LOAD', 'Loading existing speaker devices...');
 
   while (true) {
     const { data, error } = await supabase
-      .from('products')
-      .select('id, name, brand, category_id, source_type')
+      .from('devices')
+      .select('id, name, brand, category_id')
       .eq('category_id', 'speaker')
       .range(offset, offset + BATCH_SIZE - 1);
 
@@ -138,7 +132,7 @@ async function loadExistingSpeakers(): Promise<ExistingProduct[]> {
     if (batch.length < BATCH_SIZE) break;
   }
 
-  log('LOAD', `Loaded ${all.length} existing speaker products`);
+  log('LOAD', `Loaded ${all.length} existing speaker devices`);
   return all;
 }
 
@@ -166,6 +160,7 @@ async function main() {
 
   // 2. Extract entries with preference scores
   interface ScoredSpeaker {
+    sourceKey: string;
     fullName: string;
     brand: string;
     model: string;
@@ -194,6 +189,7 @@ async function main() {
     const priceNum = info.price ? parseFloat(info.price) : null;
 
     speakers.push({
+      sourceKey: _key,
       fullName: `${info.brand} ${info.model}`.trim(),
       brand: info.brand,
       model: info.model,
@@ -222,7 +218,7 @@ async function main() {
     log('DEV', `Limited to top ${speakers.length} speakers`);
   }
 
-  // 3. Load existing speaker products
+  // 3. Load existing speaker devices
   const existing = await loadExistingSpeakers();
 
   // Build candidate index for fuzzy matching
@@ -232,78 +228,207 @@ async function main() {
   }));
   const index = buildCandidateIndex(candidates);
 
-  // 4. Match and prepare updates/inserts
+  // 4. Store measurements + link to devices
   const supabase = getSupabase();
-  let matched = 0;
-  let inserted = 0;
+  const nowIso = new Date().toISOString();
+  let storedCount = 0;
+  let linkedApproved = 0;
+  let linkedPending = 0;
   let errors = 0;
-  const matchedProductIds = new Set<string>();
 
-  for (let i = 0; i < speakers.length; i++) {
-    const sp = speakers[i];
-    const spBrand = extractBrand(sp.fullName) ?? sp.brand;
+  type PendingMeasurement = {
+    source_measurement_id: string;
+    raw_name: string;
+    brand: string | null;
+    model: string | null;
+    normalized_name: string;
+    source_url: string | null;
+    speakerType: string;
+    prefScore: number;
+    prefScoreWsub: number;
+    nbdOnAxis: number;
+    smPredInRoom: number;
+    lfxHz: number;
+    origin: string;
+    quality: string;
+    raw_payload: unknown;
+  };
 
-    // Try fuzzy matching against existing products
-    const match = findBestMatchIndexed(sp.fullName, index);
+  const pending: PendingMeasurement[] = speakers.map((sp) => ({
+    source_measurement_id: `spinorama::${sp.sourceKey}`,
+    raw_name: sp.fullName,
+    brand: sp.brand ?? null,
+    model: sp.model ?? null,
+    normalized_name: normalizeName(sp.fullName),
+    source_url: sp.review,
+    speakerType: sp.speakerType,
+    prefScore: sp.prefScore,
+    prefScoreWsub: sp.prefScoreWsub,
+    nbdOnAxis: sp.nbdOnAxis,
+    smPredInRoom: sp.smPredInRoom,
+    lfxHz: sp.lfxHz,
+    origin: sp.origin,
+    quality: sp.quality,
+    raw_payload: sp,
+  }));
 
-    const ppiScore = scoreTo100(sp.prefScore);
-    const updateData = {
-      ppi_score: ppiScore,
-      pref_score: sp.prefScore,
-      pref_score_wsub: sp.prefScoreWsub,
-      nbd_on_axis: sp.nbdOnAxis,
-      sm_pred_in_room: sp.smPredInRoom,
-      lfx_hz: sp.lfxHz,
-      speaker_type: sp.speakerType,
-      spinorama_origin: sp.origin,
-      quality: sp.quality === 'high' ? 'high' : sp.quality === 'medium' ? 'medium' : 'low',
+  log('STORE', `Upserting ${pending.length} Spinorama measurements into Measurement Lab...`);
+
+  type StoredMeasurement = {
+    measurement_id: string;
+    raw_name: string;
+    source_measurement_id: string;
+  };
+
+  const stored: StoredMeasurement[] = [];
+
+  for (let i = 0; i < pending.length; i += UPSERT_BATCH) {
+    const batch = pending.slice(i, i + UPSERT_BATCH);
+    const measurementRows = batch.map((m) => ({
+      source: 'spinorama',
+      source_measurement_id: m.source_measurement_id,
+      category_id: 'speaker',
+      raw_name: m.raw_name,
+      brand: m.brand,
+      model: m.model,
+      normalized_name: m.normalized_name,
       source_domain: 'spinorama.org',
-    };
+      source_url: m.source_url,
+      raw_payload: m.raw_payload,
+      first_seen_at: nowIso,
+      last_seen_at: nowIso,
+      updated_at: nowIso,
+    }));
 
-    if (match && match.score >= MATCH_THRESHOLD && !matchedProductIds.has(match.id)) {
-      // Update existing product with spinorama data
-      matchedProductIds.add(match.id);
-      const { error } = await supabase
-        .from('products')
-        .update({
-          ...updateData,
-          source_type: 'merged',
-        })
-        .eq('id', match.id);
+    const { data, error } = await supabase
+      .from('measurements')
+      .upsert(measurementRows, { onConflict: 'source,source_measurement_id' })
+      .select('id, raw_name, source_measurement_id');
 
-      if (error) {
-        console.error(`Update error for ${sp.fullName}:`, error.message);
-        errors++;
-      } else {
-        matched++;
-      }
+    if (error) {
+      console.error('Measurement upsert error:', error.message);
+      errors++;
+      continue;
+    }
+
+    for (const row of (data ?? []) as Array<{ id: string; raw_name: string; source_measurement_id: string }>) {
+      stored.push({ measurement_id: row.id, raw_name: row.raw_name, source_measurement_id: row.source_measurement_id });
+    }
+  }
+
+  storedCount = stored.length;
+
+  const pendingBySourceId = new Map<string, PendingMeasurement>();
+  for (const m of pending) pendingBySourceId.set(m.source_measurement_id, m);
+
+  log('STORE', `Upserting measurement_spinorama rows for ${stored.length} measurements...`);
+  for (let i = 0; i < stored.length; i += UPSERT_BATCH) {
+    const batch = stored.slice(i, i + UPSERT_BATCH);
+    const spinRows = batch
+      .map((m) => {
+        const src = pendingBySourceId.get(m.source_measurement_id);
+        if (!src) return null;
+        return {
+          measurement_id: m.measurement_id,
+          pref_score: src.prefScore,
+          pref_score_wsub: src.prefScoreWsub,
+          lfx_hz: src.lfxHz,
+          nbd_on_axis: src.nbdOnAxis,
+          sm_pred_in_room: src.smPredInRoom,
+          speaker_type: src.speakerType,
+          spinorama_origin: src.origin,
+          quality: src.quality,
+        };
+      })
+      .filter((r): r is NonNullable<typeof r> => r !== null);
+
+    if (spinRows.length === 0) continue;
+
+    const { error } = await supabase
+      .from('measurement_spinorama')
+      .upsert(spinRows, { onConflict: 'measurement_id' });
+    if (error) {
+      console.error('measurement_spinorama upsert error:', error.message);
+      errors++;
+    }
+  }
+
+  const linkRows: Array<Record<string, unknown>> = [];
+  const reviewTaskRows: Array<Record<string, unknown>> = [];
+
+  for (let i = 0; i < stored.length; i++) {
+    const m = stored[i];
+
+    // Try fuzzy matching against existing devices
+    const match = findBestMatchIndexed(m.raw_name, index);
+    if (!match) continue;
+
+    const status = match.score >= AUTO_APPROVE_THRESHOLD ? 'approved'
+      : match.score >= QUEUE_REVIEW_THRESHOLD ? 'pending'
+        : null;
+    if (!status) continue;
+
+    linkRows.push({
+      device_id: match.id,
+      measurement_id: m.measurement_id,
+      status,
+      confidence: match.score,
+      method: 'spinorama_name_fuzzy_v1',
+      is_primary: status === 'approved',
+      notes: null,
+      updated_at: nowIso,
+    });
+
+    if (status === 'approved') {
+      linkedApproved++;
     } else {
-      // Insert as measurement-only speaker product
-      const brand = spBrand || sp.brand;
-      const { error } = await supabase
-        .from('products')
-        .upsert({
-          source_id: `spinorama-${normalizeName(sp.fullName)}`,
-          name: sp.fullName,
-          brand,
-          category_id: 'speaker',
-          price: sp.price,
-          ...updateData,
-          source_type: 'measurement',
-        }, {
-          onConflict: 'source_id',
-        });
-
-      if (error) {
-        console.error(`Insert error for ${sp.fullName}:`, error.message);
-        errors++;
-      } else {
-        inserted++;
-      }
+      linkedPending++;
+      reviewTaskRows.push({
+        task_type: 'measurement_link',
+        status: 'open',
+        priority: Math.round(match.score * 100),
+        device_id: match.id,
+        measurement_id: m.measurement_id,
+        payload: {
+          suggested_device_id: match.id,
+          suggested_device_name: match.name,
+          score: match.score,
+          source: 'spinorama',
+        },
+        reason: `Review Spinorama measurement link for "${m.raw_name}" (${match.score.toFixed(3)})`,
+      });
     }
 
     if ((i + 1) % 100 === 0) {
-      log('PROCESS', `Progress: ${i + 1}/${speakers.length} (matched=${matched}, inserted=${inserted})`);
+      log('PROCESS', `Progress: ${i + 1}/${stored.length} (approved=${linkedApproved}, pending=${linkedPending})`);
+    }
+  }
+
+  if (linkRows.length > 0) {
+    log('UPSERT', `Upserting ${linkRows.length} device_measurement_links...`);
+    for (let i = 0; i < linkRows.length; i += UPSERT_BATCH) {
+      const batch = linkRows.slice(i, i + UPSERT_BATCH);
+      const { error } = await supabase
+        .from('device_measurement_links')
+        .upsert(batch, { onConflict: 'device_id,measurement_id' });
+      if (error) {
+        console.error('device_measurement_links upsert error:', error.message);
+        errors++;
+      }
+    }
+  }
+
+  if (reviewTaskRows.length > 0) {
+    log('UPSERT', `Inserting ${reviewTaskRows.length} review_tasks...`);
+    for (let i = 0; i < reviewTaskRows.length; i += UPSERT_BATCH) {
+      const batch = reviewTaskRows.slice(i, i + UPSERT_BATCH);
+      const { error } = await supabase
+        .from('review_tasks')
+        .insert(batch);
+      if (error) {
+        console.error('review_tasks insert error:', error.message);
+        errors++;
+      }
     }
   }
 
@@ -312,8 +437,9 @@ async function main() {
   console.log('  SPINORAMA LINK COMPLETE');
   console.log('='.repeat(65));
   console.log(`  Speakers with scores:  ${speakers.length}`);
-  console.log(`  Matched to existing:   ${matched}`);
-  console.log(`  Inserted (new):        ${inserted}`);
+  console.log(`  Stored:                ${storedCount}`);
+  console.log(`  Linked (approved):     ${linkedApproved}`);
+  console.log(`  Linked (pending):      ${linkedPending}`);
   console.log(`  Errors:                ${errors}`);
   console.log('='.repeat(65));
 }

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { ProductFilters, CategoryId } from '../../types';
-import { isSpinormaCategory, isSinadCategory } from '../../lib/categories';
+import { getScoreBandOptions, isSpinormaCategory, isSinadCategory, scoreToSinad } from '../../lib/categories';
 import { useExperienceMode } from '../../context/ExperienceModeContext';
 import { useGlassMode } from '../../context/GlassModeContext';
 
@@ -12,6 +12,7 @@ interface FilterSidebarProps {
   retailers: { id: string; name: string }[];
   speakerTypes?: { value: string; label: string; count: number }[];
   headphoneDesigns?: { value: string; label: string; count: number }[];
+  headphoneTypes?: { value: string; label: string; count: number }[];
   iemTypes?: { value: string; label: string; count: number }[];
   driverTypes?: { value: string; label: string; count: number }[];
   micConnections?: { value: string; label: string; count: number }[];
@@ -20,6 +21,26 @@ interface FilterSidebarProps {
 }
 
 const BRAND_SEARCH_MIN = 10; // Show search box when there are this many brands
+const SCORE_BANDS = getScoreBandOptions();
+
+function getBandFromThreshold(
+  minValue: number | null,
+  maxValue: number | null,
+  toThreshold: (bandMin: number) => number = (bandMin) => bandMin,
+): string | null {
+  if (minValue === null || maxValue !== null) return null;
+  for (const band of SCORE_BANDS) {
+    const threshold = toThreshold(band.min);
+    if (Math.abs(minValue - threshold) < 0.2) {
+      return band.band;
+    }
+  }
+  return null;
+}
+
+function getSinadThresholdForBand(bandMin: number): number {
+  return Number(scoreToSinad(bandMin).toFixed(1));
+}
 
 function hasPPI(category: CategoryId): boolean {
   return category === 'iem' || category === 'headphone' || category === 'speaker';
@@ -33,6 +54,7 @@ export default function FilterSidebar({
   retailers,
   speakerTypes = [],
   headphoneDesigns = [],
+  headphoneTypes = [],
   iemTypes = [],
   driverTypes = [],
   micConnections = [],
@@ -44,11 +66,7 @@ export default function FilterSidebar({
   const [expanded, setExpanded] = useState(false);
   const [brandSearch, setBrandSearch] = useState('');
   const [measurementOpen, setMeasurementOpen] = useState(mode === 'advanced');
-
-  // Sync measurement section expand state when mode changes
-  useEffect(() => {
-    if (mode === 'advanced') setMeasurementOpen(true);
-  }, [mode]);
+  const measurementExpanded = mode === 'advanced' || measurementOpen;
 
   const showPPI = hasPPI(category);
   const visibleBrands = brandSearch
@@ -75,6 +93,7 @@ export default function FilterSidebar({
       sinadMin: null,
       sinadMax: null,
       headphoneDesigns: [],
+      headphoneTypes: [],
       iemTypes: [],
       driverTypes: [],
       micConnections: [],
@@ -109,6 +128,13 @@ export default function FilterSidebar({
       ? filters.headphoneDesigns.filter((d) => d !== design)
       : [...filters.headphoneDesigns, design];
     update({ headphoneDesigns: next });
+  }
+
+  function toggleHeadphoneType(type: string) {
+    const next = filters.headphoneTypes.includes(type)
+      ? filters.headphoneTypes.filter((t) => t !== type)
+      : [...filters.headphoneTypes, type];
+    update({ headphoneTypes: next });
   }
 
   function toggleIemType(type: string) {
@@ -147,12 +173,15 @@ export default function FilterSidebar({
   }
 
   const showSinad = isSinadCategory(category);
+  const activePpiBand = getBandFromThreshold(filters.ppiMin, filters.ppiMax);
+  const activeSinadBand = getBandFromThreshold(filters.sinadMin, filters.sinadMax, getSinadThresholdForBand);
 
   const hasActiveFilters =
     filters.brands.length > 0 ||
     filters.retailers.length > 0 ||
     filters.speakerTypes.length > 0 ||
     filters.headphoneDesigns.length > 0 ||
+    filters.headphoneTypes.length > 0 ||
     filters.iemTypes.length > 0 ||
     filters.driverTypes.length > 0 ||
     filters.micConnections.length > 0 ||
@@ -233,6 +262,35 @@ export default function FilterSidebar({
                 />
                 <span className="truncate">{hd.label}</span>
                 <span className="ml-auto text-xs text-surface-500">{hd.count}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Headphone Type (headphone category only) */}
+      {category === 'headphone' && headphoneTypes.length > 0 && (
+        <div>
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-surface-400">
+            Headphone Type
+            {filters.headphoneTypes.length > 0 && (
+              <span className="ml-1.5 text-primary-400">({filters.headphoneTypes.length})</span>
+            )}
+          </h4>
+          <div className="space-y-1" role="group" aria-label="Filter by headphone type">
+            {headphoneTypes.map((ht) => (
+              <label
+                key={ht.value}
+                className={`flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-surface-200 ${isGlass ? 'hover:bg-white/12' : 'hover:bg-surface-700'}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={filters.headphoneTypes.includes(ht.value)}
+                  onChange={() => toggleHeadphoneType(ht.value)}
+                  className="h-3.5 w-3.5 rounded border-surface-500 bg-surface-700 text-primary-500 focus:ring-primary-500/40 focus:ring-offset-0"
+                />
+                <span className="truncate">{ht.label}</span>
+                <span className="ml-auto text-xs text-surface-500">{ht.count}</span>
               </label>
             ))}
           </div>
@@ -425,7 +483,11 @@ export default function FilterSidebar({
         <div>
           <button
             type="button"
-            onClick={() => setMeasurementOpen(!measurementOpen)}
+            onClick={() => {
+              if (mode !== 'advanced') {
+                setMeasurementOpen(!measurementOpen);
+              }
+            }}
             className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wider text-surface-400 hover:text-surface-300 transition-colors"
           >
             <span>Measurement Filters</span>
@@ -433,7 +495,7 @@ export default function FilterSidebar({
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 20 20"
               fill="currentColor"
-              className={`h-3.5 w-3.5 transition-transform ${measurementOpen ? 'rotate-180' : ''}`}
+               className={`h-3.5 w-3.5 transition-transform ${measurementExpanded ? 'rotate-180' : ''}`}
               aria-hidden="true"
             >
               <path
@@ -444,44 +506,54 @@ export default function FilterSidebar({
             </svg>
           </button>
 
-          {measurementOpen && (
+          {measurementExpanded && (
             <div className="mt-3 space-y-4">
-              {/* Score Range */}
+              {/* Score Band */}
               <div>
                 <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-surface-400">
-                  {isSpinormaCategory(category) ? 'Spinorama Range' : 'PPI Range'}
+                  {isSpinormaCategory(category) ? 'Spinorama Band' : 'PPI Band'}
                 </h4>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    placeholder="Min"
-                    value={filters.ppiMin ?? ''}
-                    onChange={(e) =>
-                      update({ ppiMin: e.target.value ? Number(e.target.value) : null })
-                    }
-                    min={0}
-                    max={100}
-                    className={isGlass
-                ? "w-full glass-input px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:outline-none"
-                : "w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
-              }
-                  />
-                  <span className="text-surface-500 text-sm">-</span>
-                  <input
-                    type="number"
-                    placeholder="Max"
-                    value={filters.ppiMax ?? ''}
-                    onChange={(e) =>
-                      update({ ppiMax: e.target.value ? Number(e.target.value) : null })
-                    }
-                    min={0}
-                    max={100}
-                    className={isGlass
-                ? "w-full glass-input px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:outline-none"
-                : "w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
-              }
-                  />
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => update({ ppiMin: null, ppiMax: null })}
+                    className={`rounded-md border px-2 py-1 text-xs font-semibold transition-colors ${
+                      activePpiBand === null
+                        ? 'border-primary-500 bg-primary-500 text-white'
+                        : isGlass
+                          ? 'border-white/20 bg-white/[0.04] text-surface-300 hover:bg-white/[0.08]'
+                          : 'border-surface-600 bg-surface-800 text-surface-300 hover:bg-surface-700'
+                    }`}
+                  >
+                    Any
+                  </button>
+                  {SCORE_BANDS.map((band) => {
+                    const selected = activePpiBand === band.band;
+                    return (
+                      <button
+                        key={band.band}
+                        type="button"
+                        onClick={() =>
+                          update(
+                            selected
+                              ? { ppiMin: null, ppiMax: null }
+                              : { ppiMin: band.min, ppiMax: null }
+                          )
+                        }
+                        className={`rounded-md border px-2 py-1 text-xs font-semibold transition-colors ${
+                          selected
+                            ? 'border-primary-500 bg-primary-500 text-white'
+                            : isGlass
+                              ? 'border-white/20 bg-white/[0.04] text-surface-300 hover:bg-white/[0.08]'
+                              : 'border-surface-600 bg-surface-800 text-surface-300 hover:bg-surface-700'
+                        }`}
+                      >
+                        {band.band}
+                      </button>
+                    );
+                  })}
                 </div>
+                <p className="mt-2 text-[11px] text-surface-500">Shows this band and higher.</p>
               </div>
 
               {/* Quality */}
@@ -532,37 +604,50 @@ export default function FilterSidebar({
       {mode !== 'beginner' && showSinad && (
         <div>
           <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-surface-400">
-            SINAD Range (dB)
+            SINAD Band
           </h4>
-          <div className="flex items-center gap-2">
-            <input
-              type="number"
-              placeholder="Min"
-              value={filters.sinadMin ?? ''}
-              onChange={(e) =>
-                update({ sinadMin: e.target.value ? Number(e.target.value) : null })
-              }
-              min={0}
-              className={isGlass
-                ? "w-full glass-input px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:outline-none"
-                : "w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
-              }
-            />
-            <span className="text-surface-500 text-sm">-</span>
-            <input
-              type="number"
-              placeholder="Max"
-              value={filters.sinadMax ?? ''}
-              onChange={(e) =>
-                update({ sinadMax: e.target.value ? Number(e.target.value) : null })
-              }
-              min={0}
-              className={isGlass
-                ? "w-full glass-input px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:outline-none"
-                : "w-full rounded-md border border-surface-600 bg-surface-800 px-2 py-1.5 text-sm text-surface-100 placeholder-surface-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/40 dark:border-surface-600 dark:bg-surface-800"
-              }
-            />
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => update({ sinadMin: null, sinadMax: null })}
+              className={`rounded-md border px-2 py-1 text-xs font-semibold transition-colors ${
+                activeSinadBand === null
+                  ? 'border-primary-500 bg-primary-500 text-white'
+                  : isGlass
+                    ? 'border-white/20 bg-white/[0.04] text-surface-300 hover:bg-white/[0.08]'
+                    : 'border-surface-600 bg-surface-800 text-surface-300 hover:bg-surface-700'
+              }`}
+            >
+              Any
+            </button>
+            {SCORE_BANDS.map((band) => {
+              const threshold = getSinadThresholdForBand(band.min);
+              const selected = activeSinadBand === band.band;
+              return (
+                <button
+                  key={band.band}
+                  type="button"
+                  onClick={() =>
+                    update(
+                      selected
+                        ? { sinadMin: null, sinadMax: null }
+                        : { sinadMin: threshold, sinadMax: null }
+                    )
+                  }
+                  className={`rounded-md border px-2 py-1 text-xs font-semibold transition-colors ${
+                    selected
+                      ? 'border-primary-500 bg-primary-500 text-white'
+                      : isGlass
+                        ? 'border-white/20 bg-white/[0.04] text-surface-300 hover:bg-white/[0.08]'
+                        : 'border-surface-600 bg-surface-800 text-surface-300 hover:bg-surface-700'
+                  }`}
+                >
+                  {band.band}
+                </button>
+              );
+            })}
           </div>
+          <p className="mt-2 text-[11px] text-surface-500">Backend query still uses numeric SINAD dB.</p>
         </div>
       )}
 

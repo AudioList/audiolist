@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import { ExperienceModeProvider } from './context/ExperienceModeContext';
 import { BuildProvider } from './context/BuildContext';
@@ -36,24 +36,26 @@ export default function App() {
           <Suspense fallback={<LoadingSpinner />}>
             <Routes>
               <Route element={<Layout />}>
-                <Route path="/" element={<HomePage />} />
+                <Route path="/" element={<QuizPage />} />
+                <Route path="/builder" element={<HomePage />} />
                 <Route path="/build/:shareCode" element={<SharedBuildPage />} />
                 <Route path="/products/:category" element={<ProductListPage />} />
                 <Route path="/product/:id" element={<ProductDetailPage />} />
                 <Route path="/deals" element={<DealsPage />} />
-                <Route path="/quiz" element={<QuizPage />} />
+                <Route path="/quiz" element={<Navigate to="/" replace />} />
                 <Route path="/builds" element={<CommunityBuildsPage />} />
                 <Route path="/triage" element={<TriagePage />} />
                 <Route path="*" element={<NotFoundPage />} />
               </Route>
               {/* Glass theme routes -- same pages, different layout */}
               <Route element={<GlassLayout />}>
-                <Route path="/glass" element={<HomePage />} />
+                <Route path="/glass" element={<QuizPage />} />
+                <Route path="/glass/builder" element={<HomePage />} />
                 <Route path="/glass/build/:shareCode" element={<SharedBuildPage />} />
                 <Route path="/glass/products/:category" element={<ProductListPage />} />
                 <Route path="/glass/product/:id" element={<ProductDetailPage />} />
                 <Route path="/glass/deals" element={<DealsPage />} />
-                <Route path="/glass/quiz" element={<QuizPage />} />
+                <Route path="/glass/quiz" element={<Navigate to="/glass" replace />} />
                 <Route path="/glass/builds" element={<CommunityBuildsPage />} />
               </Route>
             </Routes>

@@ -30,13 +30,15 @@ export default function ProductDetailModal({
 
   // Entrance animation
   useEffect(() => {
+    let rafId = 0;
     if (product) {
-      requestAnimationFrame(() => {
+      rafId = requestAnimationFrame(() => {
         requestAnimationFrame(() => setEntered(true));
       });
     } else {
-      setEntered(false);
+      rafId = requestAnimationFrame(() => setEntered(false));
     }
+    return () => cancelAnimationFrame(rafId);
   }, [product]);
 
   // ESC to close

@@ -20,6 +20,7 @@ export default function HomePage() {
   const { items, itemCount, clearBuild, name, description, setName, setDescription } = useBuild();
   const { mode } = useExperienceMode();
   const isGlass = useGlassMode();
+  const guidePath = isGlass ? '/glass' : '/';
   const [pickerCategory, setPickerCategory] = useState<CategoryId | null>(null);
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const [targetType, setTargetType] = useState<TargetType>('df');
@@ -156,7 +157,7 @@ export default function HomePage() {
               </p>
             </div>
             <Link
-              to="/quiz"
+              to={guidePath}
               className={isGlass ? 'glass-btn-primary shrink-0 rounded-lg px-5 py-2.5 text-sm font-semibold' : 'shrink-0 rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-500'}
             >
               Take the Quiz

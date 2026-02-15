@@ -7,12 +7,62 @@
 
 import { getSupabase, getRetailers, buildAffiliateUrl, type Retailer } from '../config/retailers.ts';
 import { fetchShopifyCollection, type ShopifyProduct } from '../scrapers/shopify.ts';
-import { STORE_COLLECTIONS, type CategoryId, type CollectionMapping, type StoreConfig } from '../config/store-collections.ts';
+import { normalizeName } from '../scrapers/matcher.ts';
+import { STORE_COLLECTIONS, type CategoryId, type CollectionMapping } from '../config/store-collections.ts';
 import { log, logError, delay } from './log.ts';
 
 const UPSERT_BATCH_SIZE = 100;
 const COLLECTION_DELAY_MS = 400;
 const STORE_CONCURRENCY = 3;
+
+type RetailerProductUpsertRow = {
+  id: string;
+  retailer_id: string;
+  external_id: string;
+  canonical_device_id: string | null;
+  price: number | null;
+  compare_at_price: number | null;
+  on_sale: boolean;
+  in_stock: boolean;
+  product_url: string | null;
+  affiliate_url: string | null;
+  image_url: string | null;
+};
+
+async function upsertDeviceOffersFromRetailerProducts(
+  retailerProductRows: RetailerProductUpsertRow[],
+  nowIso: string,
+  label: string,
+): Promise<void> {
+  const offerRows = retailerProductRows
+    .filter((rp) => rp.canonical_device_id && rp.price != null)
+    .map((rp) => ({
+      device_id: rp.canonical_device_id,
+      retailer_product_id: rp.id,
+      retailer_id: rp.retailer_id,
+      external_id: rp.external_id,
+      price: rp.price,
+      compare_at_price: rp.compare_at_price,
+      on_sale: rp.on_sale || (rp.compare_at_price != null && rp.price != null && rp.compare_at_price > rp.price),
+      currency: 'USD',
+      in_stock: rp.in_stock,
+      product_url: rp.product_url,
+      affiliate_url: rp.affiliate_url ?? rp.product_url,
+      image_url: rp.image_url,
+      last_checked: nowIso,
+    }));
+
+  if (offerRows.length === 0) return;
+
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from('device_offers')
+    .upsert(offerRows, { onConflict: 'retailer_id,external_id' });
+
+  if (error) {
+    logError('OFFERS', `device_offers upsert failed (${label})`, error);
+  }
+}
 
 export interface SyncStoresOptions {
   categoryFilter: Set<CategoryId> | null;
@@ -90,14 +140,21 @@ async function upsertStoreProducts(
   for (let i = 0; i < rows.length; i += UPSERT_BATCH_SIZE) {
     const batch = rows.slice(i, i + UPSERT_BATCH_SIZE);
     try {
-      const { error } = await supabase
-        .from('store_products')
-        .upsert(batch, { onConflict: 'retailer_id,external_id' });
+      const nowIso = new Date().toISOString();
+      const { data, error } = await supabase
+        .from('retailer_products')
+        .upsert(batch, { onConflict: 'retailer_id,external_id' })
+        .select('id, retailer_id, external_id, canonical_device_id, price, compare_at_price, on_sale, in_stock, product_url, affiliate_url, image_url');
 
       if (error) {
         logError('UPSERT', `Batch ${Math.floor(i / UPSERT_BATCH_SIZE) + 1} for ${domain}`, error);
       } else {
         successCount += batch.length;
+        await upsertDeviceOffersFromRetailerProducts(
+          (data ?? []) as RetailerProductUpsertRow[],
+          nowIso,
+          `${domain}:batch-${Math.floor(i / UPSERT_BATCH_SIZE) + 1}`,
+        );
       }
     } catch (err) {
       logError('UPSERT', `Batch exception for ${domain}`, err);
@@ -138,23 +195,27 @@ async function syncShopifyStore(
         String(p.id)
       );
 
+      const now = new Date().toISOString();
+
       return {
         retailer_id: retailer.id,
         external_id: p.handle,
         title: p.title,
+        normalized_title: normalizeName(p.title),
         vendor: p.vendor || null,
         product_type: p.product_type || null,
         tags: p.tags || [],
-        category_id: mapping.categoryId,
+        source_category_id: mapping.categoryId,
         price,
         compare_at_price: compareAtPrice,
+        on_sale: compareAtPrice !== null,
         in_stock: inStock,
         image_url: p.images?.[0]?.src ?? null,
         product_url: productUrl,
         affiliate_url: affiliateUrl ?? productUrl,
-        raw_data: {},
-        imported_at: new Date().toISOString(),
-        processed: false,
+        raw_data: { handle: p.handle, shopify_id: p.id },
+        imported_at: now,
+        last_seen_at: now,
       };
     });
 
@@ -186,6 +247,7 @@ async function syncDealCollections(
 
   const supabase = getSupabase();
   let totalFlagged = 0;
+  const nowIso = new Date().toISOString();
 
   for (const handle of dealCollections) {
     const maxPages = devMode ? 1 : 100;
@@ -199,22 +261,27 @@ async function syncDealCollections(
     }
 
     // Extract handles of products in this deal collection
-    const handles = products.map((p) => p.handle);
+    const externalIds = products.map((p) => p.handle);
 
     // Batch update on_sale flag for matching store_products
-    for (let i = 0; i < handles.length; i += UPSERT_BATCH_SIZE) {
-      const batch = handles.slice(i, i + UPSERT_BATCH_SIZE);
+    for (let i = 0; i < externalIds.length; i += UPSERT_BATCH_SIZE) {
+      const batch = externalIds.slice(i, i + UPSERT_BATCH_SIZE);
       const { data, error } = await supabase
-        .from('store_products')
+        .from('retailer_products')
         .update({ on_sale: true })
         .eq('retailer_id', retailer.id)
         .in('external_id', batch)
-        .select('id');
+        .select('id, retailer_id, external_id, canonical_device_id, price, compare_at_price, on_sale, in_stock, product_url, affiliate_url, image_url');
 
       if (error) {
         logError('DEALS', `Error flagging on_sale for ${domain}/${handle}`, error);
       } else {
         totalFlagged += data?.length ?? 0;
+        await upsertDeviceOffersFromRetailerProducts(
+          (data ?? []) as RetailerProductUpsertRow[],
+          nowIso,
+          `${domain}:deals:${handle}`,
+        );
       }
     }
 
@@ -223,17 +290,28 @@ async function syncDealCollections(
     const saleRows = products
       .map((p) => {
         const { compareAtPrice } = extractPrice(p);
-        return compareAtPrice ? { handle: p.handle, compareAtPrice } : null;
+        return compareAtPrice ? { externalId: p.handle, compareAtPrice } : null;
       })
-      .filter((r): r is { handle: string; compareAtPrice: number } => r !== null);
+      .filter((r): r is { externalId: string; compareAtPrice: number } => r !== null);
 
     for (const row of saleRows) {
-      await supabase
-        .from('store_products')
-        .update({ compare_at_price: row.compareAtPrice })
+      const { data, error } = await supabase
+        .from('retailer_products')
+        .update({ compare_at_price: row.compareAtPrice, on_sale: true })
         .eq('retailer_id', retailer.id)
-        .eq('external_id', row.handle)
-        .is('compare_at_price', null); // Don't overwrite if already set
+        .eq('external_id', row.externalId)
+        .is('compare_at_price', null) // Don't overwrite if already set
+        .select('id, retailer_id, external_id, canonical_device_id, price, compare_at_price, on_sale, in_stock, product_url, affiliate_url, image_url');
+
+      if (error) {
+        logError('DEALS', `Error setting compare_at_price for ${domain}/${handle}/${row.externalId}`, error);
+      } else if (data && data.length > 0) {
+        await upsertDeviceOffersFromRetailerProducts(
+          data as RetailerProductUpsertRow[],
+          nowIso,
+          `${domain}:compare-at:${handle}`,
+        );
+      }
     }
 
     log('DEALS', `${domain}/${handle}: ${products.length} products, ${totalFlagged} flagged on_sale`);
@@ -328,11 +406,25 @@ export async function runSyncStores(options: SyncStoresOptions): Promise<void> {
     // First, reset on_sale to false for all stores that have deal collections
     // so stale flags get cleared
     for (const job of dealJobs) {
-      await getSupabase()
-        .from('store_products')
+      const nowIso = new Date().toISOString();
+      const { data, error } = await getSupabase()
+        .from('retailer_products')
+        // Only reset deal-derived flags; preserve real compare_at sales.
         .update({ on_sale: false })
         .eq('retailer_id', job.retailer.id)
-        .eq('on_sale', true);
+        .eq('on_sale', true)
+        .is('compare_at_price', null)
+        .select('id, retailer_id, external_id, canonical_device_id, price, compare_at_price, on_sale, in_stock, product_url, affiliate_url, image_url');
+
+      if (error) {
+        logError('DEALS', `Error resetting on_sale for ${job.domain}`, error);
+      } else if (data && data.length > 0) {
+        await upsertDeviceOffersFromRetailerProducts(
+          data as RetailerProductUpsertRow[],
+          nowIso,
+          `${job.domain}:reset-deals`,
+        );
+      }
     }
 
     for (const job of dealJobs) {

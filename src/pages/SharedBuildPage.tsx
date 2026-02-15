@@ -19,6 +19,7 @@ interface SharedBuild {
 export default function SharedBuildPage() {
   const { shareCode } = useParams<{ shareCode: string }>();
   const isGlass = useGlassMode();
+  const builderPath = isGlass ? '/glass/builder' : '/builder';
   const [build, setBuild] = useState<SharedBuild | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -106,7 +107,7 @@ export default function SharedBuildPage() {
             This build link may have expired or is invalid.
           </p>
           <Link
-            to="/"
+            to={builderPath}
             className="mt-6 inline-block rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-500"
           >
             Create Your Own Build
@@ -257,7 +258,7 @@ export default function SharedBuildPage() {
       <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
         <CloneBuildButton items={build.items} buildName={build.name} />
         <Link
-          to="/"
+          to={builderPath}
           className={isGlass ? 'glass-btn-secondary inline-block rounded-lg px-6 py-2.5 text-sm font-medium' : 'inline-block rounded-lg border border-surface-300 bg-white px-6 py-2.5 text-sm font-medium text-surface-700 transition-colors hover:bg-surface-100 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-300 dark:hover:bg-surface-700'}
         >
           Create From Scratch

@@ -16,6 +16,7 @@ function getImagePath(categoryId: CategoryId): string {
     case 'headphone':
     case 'hp_pads':
     case 'hp_cable':
+    case 'hp_accessory':
       return '/icons/headphone.png';
     case 'dac':
       return '/icons/dac.png';
