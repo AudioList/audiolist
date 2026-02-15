@@ -167,8 +167,6 @@ export const JUNK_BRANDS_EXACT = new Set([
   'LATAM',
   'Thai',
   'Etihad',
-  'Pioneer',  // not the audio brand in this context — it's fallback first-word
-  'PIONEER',
   'The',
   'THE',
   'Mr',
@@ -758,6 +756,7 @@ export const KNOWN_BRANDS: string[] = [
   'Philips',
   'Phillips',
   'Phonak',
+  'Pioneer',
   'Plantronics',
   'Plexsonic',
   'PLEXTONE',

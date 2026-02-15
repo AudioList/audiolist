@@ -164,6 +164,7 @@ export interface PriceListing {
   id: string;
   product_id: string;
   retailer_id: string;
+  external_id: string;
   price: number;
   compare_at_price: number | null;
   on_sale: boolean;

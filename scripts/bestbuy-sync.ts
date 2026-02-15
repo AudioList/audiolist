@@ -16,6 +16,7 @@
  *   --category=iem|headphone|microphone|hp_accessory
  *   --limit=N
  *   --delay=ms
+ *   --discontinued-checks=N   Max BestBuy page checks per run (default: 40)
  *   --dry-run
  */
 
@@ -83,6 +84,7 @@ const MODE = getArg('mode', 'daily') as RunMode;
 const CATEGORY_FILTER = getArg('category', '');
 const LIMIT = parseInt(getArg('limit', '0'), 10) || 0;
 const START_DELAY_MS = parseInt(getArg('delay', '1200'), 10) || 1200;
+const DISCONTINUED_PAGE_CHECKS = parseInt(getArg('discontinued-checks', '40'), 10) || 0;
 const PAGE_SIZE = parseInt(getArg('page-size', '100'), 10) || 100;
 const MAX_PAGES_PER_RUN = parseInt(getArg('max-pages', '5'), 10) || 5;
 const DRY_RUN = args.includes('--dry-run');
@@ -109,6 +111,30 @@ function logError(phase: string, msg: string, err: unknown): void {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function hasDiscontinuedNewConditionBanner(productUrl: string): Promise<boolean> {
+  // BestBuy product pages sometimes show:
+  // "This item is no longer available in new condition. See similar items below"
+  // This can happen even when the API still returns the SKU.
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), 15_000);
+  try {
+    const resp = await fetch(productUrl, {
+      headers: {
+        'User-Agent': 'AudioList BestBuy Sync/1.0',
+        'Accept': 'text/html,application/xhtml+xml',
+      },
+      signal: ac.signal,
+    });
+    if (!resp.ok) return false;
+    const html = (await resp.text()).toLowerCase();
+    return html.includes('no longer available in new condition');
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 function shouldExcludeByCategoryPath(bb: BestBuyProduct): boolean {
@@ -472,6 +498,7 @@ async function refreshOffersBySku(retailer: Retailer, apiKey: string, offers: Ex
   log('REFRESH', `Refreshing ${skus.length} Best Buy SKUs in batches...`);
 
   const state = { delayMs: Math.max(BASE_DELAY_MS, START_DELAY_MS), rateLimited: 0 };
+  let pageChecksUsed = 0;
   for (let i = 0; i < skus.length; i += 100) {
     const batchSkus = skus.slice(i, i + 100);
     if (batchSkus.length === 0) continue;
@@ -485,11 +512,14 @@ async function refreshOffersBySku(retailer: Retailer, apiKey: string, offers: Ex
 
     const offerRows: Record<string, unknown>[] = [];
     const rpUpdates: { id: string; patch: Record<string, unknown> }[] = [];
+    const discontinuedMarked: string[] = [];
 
     for (const sku of batchSkus) {
       const existing = bySku.get(sku);
       if (!existing) continue;
       const bb = bbBySku.get(sku);
+
+      const fallbackProductUrl = existing.product_url ?? `https://www.bestbuy.com/site/${sku}.p?skuId=${sku}`;
 
       // If Best Buy doesn't return the SKU even with active=*, mark out of stock.
       if (!bb) {
@@ -515,6 +545,82 @@ async function refreshOffersBySku(retailer: Retailer, apiKey: string, offers: Ex
             imported_at: nowIso,
             last_seen_at: nowIso,
             raw_data: { source: 'bestbuy-sync:refresh', refreshed_at: nowIso, missing_from_api: true },
+          },
+        });
+
+        // Fallback: product page banner for discontinued-new items.
+        if (!DRY_RUN && DISCONTINUED_PAGE_CHECKS > 0 && pageChecksUsed < DISCONTINUED_PAGE_CHECKS) {
+          pageChecksUsed++;
+          const discontinued = await hasDiscontinuedNewConditionBanner(fallbackProductUrl);
+          if (discontinued) {
+            discontinuedMarked.push(existing.external_id);
+            rpUpdates.push({
+              id: existing.retailer_product_id,
+              patch: {
+                in_stock: false,
+                price: null,
+                compare_at_price: null,
+                on_sale: false,
+                imported_at: nowIso,
+                last_seen_at: nowIso,
+                raw_data: { source: 'bestbuy-sync:refresh', refreshed_at: nowIso, discontinued_new: true, discontinued_banner: true },
+              },
+            });
+          }
+          await sleep(250);
+        }
+        continue;
+      }
+
+      // Discontinued / no longer available new condition.
+      // Best Buy typically marks these as active=false. We keep offers for data
+      // preservation, but mark the retailer_product as discontinued_new so the
+      // UI/report can hide them.
+      if (bb.active === false) {
+        discontinuedMarked.push(existing.external_id);
+        // Preserve the offer row for data/history, but mark it as out of stock.
+        offerRows.push({
+          device_id: existing.device_id,
+          retailer_product_id: existing.retailer_product_id,
+          retailer_id: retailer.id,
+          external_id: existing.external_id,
+          price: existing.price,
+          compare_at_price: existing.compare_at_price,
+          on_sale: false,
+          currency: 'USD',
+          in_stock: false,
+          product_url: bb.url ?? existing.product_url ?? `https://www.bestbuy.com/site/${sku}.p`,
+          affiliate_url: existing.affiliate_url ?? existing.product_url,
+          image_url: bb.image ?? existing.image_url,
+          last_checked: nowIso,
+        });
+        rpUpdates.push({
+          id: existing.retailer_product_id,
+          patch: {
+            title: bb.name,
+            normalized_title: normalizeName(bb.name),
+            vendor: bb.manufacturer,
+            price: null,
+            compare_at_price: null,
+            on_sale: false,
+            in_stock: false,
+            image_url: bb.image ?? existing.image_url,
+            product_url: bb.url ?? existing.product_url ?? `https://www.bestbuy.com/site/${sku}.p`,
+            affiliate_url: existing.affiliate_url ?? existing.product_url,
+            imported_at: nowIso,
+            last_seen_at: nowIso,
+            raw_data: {
+              source: 'bestbuy-sync:refresh',
+              refreshed_at: nowIso,
+              bestbuy_active: false,
+              discontinued_new: true,
+              manufacturer: bb.manufacturer,
+              modelNumber: bb.modelNumber,
+              department: bb.department,
+              class: bb.class,
+              subclass: bb.subclass,
+              categoryPath: bb.categoryPath,
+            },
           },
         });
         continue;
@@ -575,6 +681,29 @@ async function refreshOffersBySku(retailer: Retailer, apiKey: string, offers: Ex
           },
         },
       });
+
+      // Second discontinuation signal: product page banner.
+      // Only check when out of stock, and cap checks per run.
+      if (!inStock && !DRY_RUN && DISCONTINUED_PAGE_CHECKS > 0 && pageChecksUsed < DISCONTINUED_PAGE_CHECKS) {
+        pageChecksUsed++;
+        const discontinued = await hasDiscontinuedNewConditionBanner(productUrl);
+        if (discontinued) {
+          discontinuedMarked.push(existing.external_id);
+          rpUpdates.push({
+            id: existing.retailer_product_id,
+            patch: {
+              in_stock: false,
+              price: null,
+              compare_at_price: null,
+              on_sale: false,
+              imported_at: nowIso,
+              last_seen_at: nowIso,
+              raw_data: { source: 'bestbuy-sync:refresh', refreshed_at: nowIso, discontinued_new: true, discontinued_banner: true },
+            },
+          });
+        }
+        await sleep(250);
+      }
     }
 
     if (offerRows.length > 0) {
@@ -582,6 +711,13 @@ async function refreshOffersBySku(retailer: Retailer, apiKey: string, offers: Ex
         .from('device_offers')
         .upsert(offerRows, { onConflict: 'retailer_id,external_id' });
       if (error) logError('REFRESH', 'device_offers upsert failed', error);
+    }
+
+    if (discontinuedMarked.length > 0) {
+      log(
+        'REFRESH',
+        `Marked ${discontinuedMarked.length} Best Buy SKU(s) as discontinued-new (kept offers; UI can hide using retailer_products.raw_data)`
+      );
     }
 
     // Update retailer_products by id.

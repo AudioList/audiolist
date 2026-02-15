@@ -626,8 +626,12 @@ async function processStoreProducts(
       const effectiveMergeThreshold = usingBrandIndex ? MERGE_THRESHOLD : 0.92;
       const effectiveReviewThreshold = usingBrandIndex ? REVIEW_THRESHOLD : 0.75;
 
-      const shouldAutoMerge = !!(match && match.score >= effectiveMergeThreshold && !crossCategory);
-      const shouldQueueMergeReview = !!(match && match.score >= effectiveReviewThreshold && !crossCategory);
+      const bestBuyAutoMergeAllowed = sp.retailer_id !== 'bestbuy'
+        ? true
+        : !!(brand && usingBrandIndex);
+
+      const shouldAutoMerge = !!(match && match.score >= effectiveMergeThreshold && !crossCategory && bestBuyAutoMergeAllowed);
+      const shouldQueueMergeReview = !!(match && match.score >= effectiveReviewThreshold && !crossCategory && bestBuyAutoMergeAllowed);
 
       const isReviewGatedRetailer = REVIEW_GATED_RETAILERS.has(sp.retailer_id);
       const shouldReviewGatedAutoLink = !!(

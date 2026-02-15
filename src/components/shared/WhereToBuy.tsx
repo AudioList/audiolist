@@ -1,4 +1,4 @@
-import { Fragment, useMemo } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { usePriceListings } from '../../hooks/usePriceListings';
 import { useBundleListings } from '../../hooks/useBundleListings';
 import { usePriceInsights } from '../../hooks/usePriceInsights';
@@ -9,6 +9,8 @@ import RetailerTrustInfo from './RetailerTrustInfo';
 import DealBadge from './DealBadge';
 import CouponChip from './CouponChip';
 import type { StoreProductBundle } from '../../types';
+import { supabase } from '../../lib/supabase';
+import type { PriceListing } from '../../types';
 
 interface WhereToBuyProps {
   productId: string;
@@ -48,6 +50,66 @@ function isOlderThanHours(dateString: string, hours: number): boolean {
   if (Number.isNaN(then)) return false;
   const ageMs = Date.now() - then;
   return ageMs > hours * 60 * 60 * 1000;
+}
+
+const COLOR_WORDS = new Set([
+  'black', 'white', 'gray', 'grey', 'silver', 'gold', 'red', 'blue', 'green', 'pink', 'purple', 'orange', 'yellow',
+  'brown', 'tan', 'beige', 'cream', 'ivory',
+  'navy', 'teal', 'cyan', 'magenta',
+  'clear', 'transparent',
+]);
+
+function splitTitleSegments(title: string): string[] {
+  return title
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' - ')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function looksLikeColorSegment(seg: string): boolean {
+  const tokens = seg
+    .toLowerCase()
+    .split(/[^a-z]+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+  if (tokens.length === 0) return false;
+  const hasColor = tokens.some((t) => COLOR_WORDS.has(t));
+  if (!hasColor) return false;
+  return tokens.every((t) => COLOR_WORDS.has(t) || t === 'and');
+}
+
+function baseAndVariantFromTitle(title: string | null): { baseTitle: string | null; variant: string | null } {
+  if (!title) return { baseTitle: null, variant: null };
+  const segs = splitTitleSegments(title);
+  if (segs.length >= 2) {
+    const last = segs[segs.length - 1];
+    if (looksLikeColorSegment(last)) {
+      return { baseTitle: segs.slice(0, -1).join(' - '), variant: last };
+    }
+  }
+  return { baseTitle: title, variant: null };
+}
+
+function pickBestListing<T extends { in_stock: boolean; price: number; last_checked: string }>(listings: T[]): T {
+  return [...listings].sort((a, b) => {
+    if (a.in_stock !== b.in_stock) return a.in_stock ? -1 : 1;
+    if (a.price !== b.price) return a.price - b.price;
+    return b.last_checked.localeCompare(a.last_checked);
+  })[0];
+}
+
+function uniqueByKey<T>(items: T[], keyFn: (t: T) => string): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const item of items) {
+    const k = keyFn(item);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(item);
+  }
+  return out;
 }
 
 function BundleRow({
@@ -145,9 +207,158 @@ export default function WhereToBuy({ productId, productName, discontinued }: Whe
   const isGlass = useGlassMode();
   const { listings, loading, error } = usePriceListings(productId);
   const { bundles } = useBundleListings(productId, productName);
-  const { insights } = usePriceInsights(productId, listings);
-  const retailerIds = useMemo(() => listings.map(l => l.retailer_id), [listings]);
+  const bestListingPerRetailer = useMemo(() => {
+    const byRetailer = new Map<string, PriceListing>();
+    for (const l of listings) {
+      const existing = byRetailer.get(l.retailer_id);
+      if (!existing) {
+        byRetailer.set(l.retailer_id, l);
+        continue;
+      }
+      const best = pickBestListing([existing, l]);
+      byRetailer.set(l.retailer_id, best);
+    }
+    return [...byRetailer.values()];
+  }, [listings]);
+
+  const { insights } = usePriceInsights(productId, bestListingPerRetailer);
+
+  const retailerIds = useMemo(() => {
+    const ids = bestListingPerRetailer.map((l) => l.retailer_id);
+    return [...new Set(ids)];
+  }, [bestListingPerRetailer]);
   const { coupons } = useCoupons(retailerIds);
+
+  // Best Buy (and some retailers) can have multiple SKUs linked to a single product.
+  // We fetch store_products titles so we can group color variants into a single row.
+  const [metaByRetailerExternalId, setMetaByRetailerExternalId] = useState<
+    Record<string, { title: string; discontinuedNew: boolean }>
+  >({});
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchTitles() {
+      if (!productId) {
+        setMetaByRetailerExternalId({});
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('store_products')
+          .select('retailer_id, external_id, title, raw_data')
+          .eq('canonical_product_id', productId);
+
+        if (cancelled) return;
+        if (error) throw error;
+
+        const map: Record<string, { title: string; discontinuedNew: boolean }> = {};
+        for (const row of (data ?? []) as { retailer_id: string; external_id: string; title: string; raw_data?: unknown }[]) {
+          const key = `${row.retailer_id}|${row.external_id}`;
+          const raw = row.raw_data as Record<string, unknown> | null | undefined;
+          const discontinuedNew = raw?.discontinued_new === true || raw?.discontinued_banner === true || raw?.discontinued === true;
+          map[key] = { title: row.title ?? '', discontinuedNew };
+        }
+        setMetaByRetailerExternalId(map);
+      } catch {
+        if (!cancelled) setMetaByRetailerExternalId({});
+      }
+    }
+
+    fetchTitles();
+    return () => {
+      cancelled = true;
+    };
+  }, [productId]);
+
+  type EnrichedListing = PriceListing & { offer_title: string | null };
+  const enrichedListings: EnrichedListing[] = useMemo(() => {
+    return listings
+      .filter((l) => {
+        const key = `${l.retailer_id}|${l.external_id}`;
+        const meta = metaByRetailerExternalId[key];
+        return meta?.discontinuedNew !== true;
+      })
+      .map((l) => {
+        const key = `${l.retailer_id}|${l.external_id}`;
+        const meta = metaByRetailerExternalId[key];
+        return { ...l, offer_title: meta?.title ? meta.title : null };
+      });
+  }, [listings, metaByRetailerExternalId]);
+
+  type ListingGroup = {
+    groupKey: string;
+    retailer_id: string;
+    retailerName: string;
+    retailer: PriceListing['retailer'];
+    baseTitle: string | null;
+    modelLabel: string | null;
+    variants: {
+      label: string;
+      listing: EnrichedListing;
+    }[];
+  };
+
+  const listingGroups: ListingGroup[] = useMemo(() => {
+    const groups = new Map<string, ListingGroup>();
+
+    for (const l of enrichedListings) {
+      const title = l.offer_title;
+      const { baseTitle, variant } = baseAndVariantFromTitle(title);
+      const baseKey = baseTitle ?? `${l.retailer_id}:${l.id}`;
+      const groupKey = `${l.retailer_id}|${baseKey}`;
+
+      const retailerName = l.retailer?.name ?? l.retailer_id;
+      const segs = baseTitle ? splitTitleSegments(baseTitle) : [];
+      const modelLabel = segs.length >= 2 ? segs.slice(1).join(' - ') : baseTitle;
+
+      const existing = groups.get(groupKey);
+      if (!existing) {
+        groups.set(groupKey, {
+          groupKey,
+          retailer_id: l.retailer_id,
+          retailerName,
+          retailer: l.retailer,
+          baseTitle,
+          modelLabel,
+          variants: [],
+        });
+      }
+
+      const g = groups.get(groupKey)!;
+      const label = variant ?? (title ? '(default)' : '(listing)');
+      g.variants.push({ label, listing: l });
+    }
+
+    // Dedupe exact duplicate URLs within a group (BestBuy sometimes has duplicate titles).
+    const out: ListingGroup[] = [];
+    for (const g of groups.values()) {
+      const dedupedVariants = uniqueByKey(g.variants, (v) => v.listing.affiliate_url ?? v.listing.product_url ?? v.listing.id);
+      // Make labels unique and stable.
+      const labelCounts = new Map<string, number>();
+      const normalized = dedupedVariants.map((v) => {
+        const count = (labelCounts.get(v.label) ?? 0) + 1;
+        labelCounts.set(v.label, count);
+        const label = count === 1 ? v.label : `${v.label} (${count})`;
+        return { ...v, label };
+      });
+
+      out.push({ ...g, variants: normalized });
+    }
+
+    // Sort groups by best available offer.
+    out.sort((a, b) => {
+      const aBest = pickBestListing(a.variants.map((v) => v.listing));
+      const bBest = pickBestListing(b.variants.map((v) => v.listing));
+      if (aBest.in_stock !== bBest.in_stock) return aBest.in_stock ? -1 : 1;
+      if (aBest.price !== bBest.price) return aBest.price - bBest.price;
+      return a.retailerName.localeCompare(b.retailerName);
+    });
+
+    return out;
+  }, [enrichedListings]);
+
+  const [selectedVariantByGroupKey, setSelectedVariantByGroupKey] = useState<Record<string, string>>({});
 
   // Group bundles by retailer_id
   const bundlesByRetailer = useMemo(() => {
@@ -245,28 +456,40 @@ export default function WhereToBuy({ productId, productName, discontinued }: Whe
                   </tr>
                 </thead>
                 <tbody>
-                  {listings.map((listing) => {
-                    const buyUrl = listing.affiliate_url ?? listing.product_url;
+                  {listingGroups.map((group) => {
+                    const best = pickBestListing(group.variants.map((v) => v.listing));
+                    const selectedExternalId = selectedVariantByGroupKey[group.groupKey];
+                    const selected = selectedExternalId
+                      ? group.variants.find((v) => v.listing.external_id === selectedExternalId)?.listing
+                      : null;
+                    const current = selected ?? best;
+
+                    const buyUrl = current.affiliate_url ?? current.product_url;
                     const hasUrl = buyUrl !== null;
-                    const retailerBundles = bundlesByRetailer.get(listing.retailer_id) ?? [];
+                    const retailerBundles = bundlesByRetailer.get(group.retailer_id) ?? [];
 
                     return (
-                      <Fragment key={listing.id}>
+                      <Fragment key={group.groupKey}>
                         <tr
                           className="border-b border-surface-100 last:border-b-0 dark:border-surface-800"
                         >
                           <td className="py-3 pr-4">
                             <div className="flex flex-col gap-1">
                               <span className="inline-flex items-center gap-1 font-semibold text-surface-900 dark:text-surface-100">
-                                {listing.retailer?.name ?? 'Unknown'}
-                                {listing.retailer && <RetailerTrustInfo retailer={listing.retailer} />}
+                                {group.retailerName ?? 'Unknown'}
+                                {group.retailer && <RetailerTrustInfo retailer={group.retailer} />}
                               </span>
-                              {coupons.get(listing.retailer_id)?.map((coupon) => (
+                              {group.baseTitle && listingGroups.filter((g) => g.retailer_id === group.retailer_id).length > 1 && (
+                                <span className="text-[0.7rem] text-surface-500 dark:text-surface-400">
+                                  {group.baseTitle}
+                                </span>
+                              )}
+                              {coupons.get(group.retailer_id)?.map((coupon) => (
                                 <CouponChip
                                   key={coupon.id}
                                   coupon={coupon}
-                                  productHandle={listing.product_url?.split('/products/')[1]?.split('?')[0]}
-                                  storeDomain={listing.retailer?.base_url?.replace('https://', '')}
+                                  productHandle={current.product_url?.split('/products/')[1]?.split('?')[0]}
+                                  storeDomain={group.retailer?.base_url?.replace('https://', '')}
                                 />
                               ))}
                             </div>
@@ -275,23 +498,23 @@ export default function WhereToBuy({ productId, productName, discontinued }: Whe
                             <div className="flex flex-col gap-0.5">
                               <div className="flex items-center gap-1.5">
                                 <span className="font-mono text-surface-900 dark:text-surface-100">
-                                  {formatPrice(listing.price, listing.currency)}
+                                  {formatPrice(current.price, current.currency)}
                                 </span>
-                                {listing.compare_at_price != null && listing.compare_at_price > listing.price && (
+                                {current.compare_at_price != null && current.compare_at_price > current.price && (
                                   <span className="font-mono text-xs text-surface-400 line-through dark:text-surface-500">
-                                    {formatPrice(listing.compare_at_price, listing.currency)}
+                                    {formatPrice(current.compare_at_price, current.currency)}
                                   </span>
                                 )}
                               </div>
                               <div className="flex flex-wrap items-center gap-1">
-                                {listing.compare_at_price != null && listing.compare_at_price > listing.price && (
+                                {current.compare_at_price != null && current.compare_at_price > current.price && (
                                   <DealBadge
                                     type="discount"
-                                    value={Math.round(((listing.compare_at_price - listing.price) / listing.compare_at_price) * 100)}
+                                    value={Math.round(((current.compare_at_price - current.price) / current.compare_at_price) * 100)}
                                   />
                                 )}
                                 {(() => {
-                                  const insight = insights.get(listing.retailer_id);
+                                  const insight = insights.get(group.retailer_id);
                                   if (!insight) return null;
                                   return (
                                     <>
@@ -302,14 +525,14 @@ export default function WhereToBuy({ productId, productName, discontinued }: Whe
                                     </>
                                   );
                                 })()}
-                                {listing.on_sale && !listing.compare_at_price && (
+                                {current.on_sale && !current.compare_at_price && (
                                   <DealBadge type="on-sale" />
                                 )}
                               </div>
                             </div>
                           </td>
                           <td className="py-3 pr-4">
-                            {listing.in_stock ? (
+                            {current.in_stock ? (
                               <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
                                 In Stock
                               </span>
@@ -324,37 +547,61 @@ export default function WhereToBuy({ productId, productName, discontinued }: Whe
                             )}
                           </td>
                           <td className="py-3 text-right">
-                            {hasUrl ? (
-                              <a
-                                href={buyUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={isGlass
-                                  ? "inline-flex items-center gap-1 rounded-xl bg-primary-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary-500 shadow-sm shadow-primary-500/20"
-                                  : "inline-flex items-center gap-1 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary-500"
-                                }
-                              >
-                                Buy
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  viewBox="0 0 16 16"
-                                  fill="currentColor"
-                                  className="h-3 w-3"
-                                  aria-hidden="true"
+                            <div className="flex items-center justify-end gap-2">
+                              {group.variants.length > 1 && (
+                                <select
+                                  value={selectedVariantByGroupKey[group.groupKey] ?? current.external_id}
+                                  onChange={(e) => {
+                                    const externalId = e.target.value;
+                                    setSelectedVariantByGroupKey((prev) => ({ ...prev, [group.groupKey]: externalId }));
+                                  }}
+                                  className={
+                                    isGlass
+                                      ? 'h-8 rounded-lg bg-white/10 px-2 text-xs text-surface-100 ring-1 ring-white/10'
+                                      : 'h-8 rounded-lg border border-surface-200 bg-white px-2 text-xs text-surface-800 dark:border-surface-700 dark:bg-surface-900 dark:text-surface-100'
+                                  }
+                                  aria-label="Select variant"
                                 >
-                                  <path d="M6.22 8.72a.75.75 0 0 0 1.06 1.06l5.22-5.22v1.69a.75.75 0 0 0 1.5 0v-3.5a.75.75 0 0 0-.75-.75h-3.5a.75.75 0 0 0 0 1.5h1.69L6.22 8.72Z" />
-                                  <path d="M3.5 6.75c0-.69.56-1.25 1.25-1.25H7A.75.75 0 0 0 7 4H4.75A2.75 2.75 0 0 0 2 6.75v4.5A2.75 2.75 0 0 0 4.75 14h4.5A2.75 2.75 0 0 0 12 11.25V9a.75.75 0 0 0-1.5 0v2.25c0 .69-.56 1.25-1.25 1.25h-4.5c-.69 0-1.25-.56-1.25-1.25v-4.5Z" />
-                                </svg>
-                              </a>
-                            ) : (
-                              <button
-                                type="button"
-                                disabled
-                                className="inline-flex cursor-not-allowed items-center rounded-lg bg-surface-200 px-3 py-1.5 text-xs font-medium text-surface-400 dark:bg-surface-700 dark:text-surface-500"
-                              >
-                                Buy
-                              </button>
-                            )}
+                                  {group.variants.map((v) => (
+                                    <option key={v.listing.id} value={v.listing.external_id}>
+                                      {v.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
+
+                              {hasUrl ? (
+                                <a
+                                  href={buyUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={isGlass
+                                    ? "inline-flex items-center gap-1 rounded-xl bg-primary-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary-500 shadow-sm shadow-primary-500/20"
+                                    : "inline-flex items-center gap-1 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary-500"
+                                  }
+                                >
+                                  Buy
+                                  <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    viewBox="0 0 16 16"
+                                    fill="currentColor"
+                                    className="h-3 w-3"
+                                    aria-hidden="true"
+                                  >
+                                    <path d="M6.22 8.72a.75.75 0 0 0 1.06 1.06l5.22-5.22v1.69a.75.75 0 0 0 1.5 0v-3.5a.75.75 0 0 0-.75-.75h-3.5a.75.75 0 0 0 0 1.5h1.69L6.22 8.72Z" />
+                                    <path d="M3.5 6.75c0-.69.56-1.25 1.25-1.25H7A.75.75 0 0 0 7 4H4.75A2.75 2.75 0 0 0 2 6.75v4.5A2.75 2.75 0 0 0 4.75 14h4.5A2.75 2.75 0 0 0 12 11.25V9a.75.75 0 0 0-1.5 0v2.25c0 .69-.56 1.25-1.25 1.25h-4.5c-.69 0-1.25-.56-1.25-1.25v-4.5Z" />
+                                  </svg>
+                                </a>
+                              ) : (
+                                <button
+                                  type="button"
+                                  disabled
+                                  className="inline-flex cursor-not-allowed items-center rounded-lg bg-surface-200 px-3 py-1.5 text-xs font-medium text-surface-400 dark:bg-surface-700 dark:text-surface-500"
+                                >
+                                  Buy
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
 

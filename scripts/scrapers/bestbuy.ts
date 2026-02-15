@@ -1,6 +1,7 @@
 export type BestBuyProduct = {
   sku: number;
   name: string;
+  active: boolean | null;
   salePrice: number | null;
   regularPrice: number | null;
   onSale: boolean | null;
@@ -84,6 +85,7 @@ function mapBestBuyProduct(p: Record<string, unknown>): BestBuyProduct {
   return {
     sku: p.sku as number,
     name: (p.name as string) ?? '',
+    active: typeof p.active === 'boolean' ? (p.active as boolean) : null,
     salePrice: typeof p.salePrice === 'number' ? (p.salePrice as number) : null,
     regularPrice: typeof p.regularPrice === 'number' ? (p.regularPrice as number) : null,
     onSale: typeof p.onSale === 'boolean' ? (p.onSale as boolean) : null,
@@ -181,6 +183,7 @@ export async function searchBestBuy(
   const show = [
     'sku',
     'name',
+    'active',
     'salePrice',
     'regularPrice',
     'onSale',
@@ -213,6 +216,7 @@ export async function getBestBuyProductsBySkus(
   const show = [
     'sku',
     'name',
+    'active',
     'salePrice',
     'regularPrice',
     'onSale',
@@ -242,12 +246,13 @@ export async function listBestBuyProductsByCategoryIds(
   }
 
   const categoryFilter = ids.map((id) => `categoryPath.id=${encodeFilterValue(id)}`).join('|');
-  // Include inactive products too; otherwise some SKUs won't show up.
-  const filter = `(${categoryFilter})&active=*`;
+  // Only ingest products that are active/new.
+  const filter = `(${categoryFilter})&active=true`;
 
   const show = [
     'sku',
     'name',
+    'active',
     'salePrice',
     'regularPrice',
     'onSale',

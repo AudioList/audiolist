@@ -27,8 +27,11 @@ const SUFFIX_TERMS = [
   "earbuds",
   "earbud",
   "in-ear",
+  "in the ear",
   "over-ear",
+  "over the ear",
   "on-ear",
+  "on the ear",
   "open-back",
   "closed-back",
   // Connectivity / wireless modifiers (not identity-bearing)
@@ -723,7 +726,68 @@ const COMMON_AUDIO_WORDS = new Set([
   'audio', 'acoustics', 'acoustic', 'sound', 'sounds',
   'electronics', 'technology', 'technologies',
   'hifi', 'studio', 'pro', 'labs', 'music', 'digital',
+  // Very common retail/category words that do not identify a specific model
+  'over', 'the', 'ear', 'ears', 'in', 'on',
+  'headphone', 'headphones', 'earphone', 'earphones', 'earbud', 'earbuds',
+  'wireless', 'bluetooth', 'noise', 'canceling', 'cancelling', 'anc',
+  'true', 'truly', 'tws',
 ]);
+
+function numericTokensFromSet(tokens: Set<string>): Set<string> {
+  const out = new Set<string>();
+  for (const t of tokens) {
+    if (/^\d+$/.test(t) && t.length >= 1) out.add(t);
+  }
+  return out;
+}
+
+function lastNumericTokenFromString(s: string): string | null {
+  const tokens = s.split(/\s+/).filter(Boolean);
+  for (let i = tokens.length - 1; i >= 0; i--) {
+    if (/^\d+$/.test(tokens[i])) return tokens[i];
+  }
+  return null;
+}
+
+function intersectionCount(a: Set<string>, b: Set<string>): number {
+  let n = 0;
+  for (const t of a) {
+    if (b.has(t)) n++;
+  }
+  return n;
+}
+
+function applyModelNumberPenalty(
+  score: number,
+  productNoBrand: string,
+  candidateNoBrand: string,
+  productNoBrandTokens: Set<string>,
+  candidateNoBrandTokens: Set<string>
+): number {
+  // Only apply when the base score is already "tempting".
+  if (score < 0.7) return score;
+
+  const numsA = numericTokensFromSet(productNoBrandTokens);
+  const numsB = numericTokensFromSet(candidateNoBrandTokens);
+
+  // If both have model numbers and none overlap, it's almost certainly a different model.
+  if (numsA.size > 0 && numsB.size > 0) {
+    const overlap = intersectionCount(numsA, numsB);
+    if (overlap === 0) return score * 0.18;
+
+    // If the "last" model number differs (e.g. XM4 vs XM5), penalize strongly.
+    const lastA = lastNumericTokenFromString(productNoBrand);
+    const lastB = lastNumericTokenFromString(candidateNoBrand);
+    if (lastA && lastB && lastA !== lastB) return score * 0.25;
+  }
+
+  // One side has a model number but the other does not: slight penalty.
+  if ((numsA.size > 0) !== (numsB.size > 0)) {
+    return score * 0.9;
+  }
+
+  return score;
+}
 
 // ---------------------------------------------------------------------------
 // Brand removal helpers
@@ -905,8 +969,18 @@ export function findBestMatch(
     // Take the best of all approaches
     const score = Math.max(fullScore, noBrandScore, tokenFullScore, tokenNoBrandScore);
 
+    // Model-number guard: prevent false matches between different model numbers
+    // (e.g. HD 219 vs HD 229, XM4 vs XM5, SE-M290 vs HD 219).
+    const modelSafeScore = applyModelNumberPenalty(
+      score,
+      productNoBrand,
+      candidateNoBrand,
+      productNoBrandTokens,
+      candidateNoBrandTokens
+    );
+
     // Brand mismatch penalty: heavily penalize when brands are completely different
-    let finalScore = score;
+    let finalScore = modelSafeScore;
     if (options?.productBrand && candidate.brand) {
       const brandRelation = brandsSimilar(options.productBrand, candidate.brand);
       if (brandRelation === 'different') {
@@ -1034,8 +1108,17 @@ export function findBestMatchIndexed(
 
     const score = Math.max(fullScore, noBrandScore, tokenFullScore, tokenNoBrandScore);
 
+    // Model-number guard: prevent false matches between different model numbers
+    const modelSafeScore = applyModelNumberPenalty(
+      score,
+      productNoBrand,
+      candidate.noBrand,
+      productNoBrandTokens,
+      candidate.noBrandTokens
+    );
+
     // Brand mismatch penalty: heavily penalize when brands are completely different
-    let finalScore = score;
+    let finalScore = modelSafeScore;
     if (options?.productBrand && candidate.brand) {
       const brandRelation = brandsSimilar(options.productBrand, candidate.brand);
       if (brandRelation === 'different') {
