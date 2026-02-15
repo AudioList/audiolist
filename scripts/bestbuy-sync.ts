@@ -20,7 +20,7 @@
  */
 
 import './lib/env.js';
-import { getRetailers, getSupabase, buildAffiliateUrl, type Retailer } from './config/retailers.ts';
+import { getSupabase, buildAffiliateUrl, type Retailer } from './config/retailers.ts';
 import { BestBuyApiError, getBestBuyProductsBySkus, listBestBuyProductsByCategoryIds, type BestBuyProduct } from './scrapers/bestbuy.ts';
 import { normalizeName } from './scrapers/matcher.ts';
 import { BESTBUY_CATEGORY_IDS } from './config/bestbuy-taxonomy.ts';
@@ -827,12 +827,47 @@ async function main(): Promise<void> {
   console.log(`  Started:  ${new Date().toISOString()}`);
   console.log('=================================================================\n');
 
-  const retailers = await getRetailers();
-  const bestbuy = retailers.find((r) => r.api_type === 'bestbuy' || r.id === 'bestbuy');
-  if (!bestbuy) {
-    console.error('No Best Buy retailer found in DB (expected id="bestbuy" or api_type="bestbuy")');
-    process.exit(1);
-  }
+  const supabase = getSupabase();
+  const bestbuy = await (async (): Promise<Retailer> => {
+    const { data, error } = await supabase
+      .from('retailers')
+      .select('id, name, base_url, shop_domain, api_type, affiliate_tag, affiliate_url_template, is_active')
+      .eq('id', 'bestbuy')
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to load retailers.bestbuy: ${error.message}`);
+    }
+
+    if (data) return data as Retailer;
+
+    // Bootstrap Best Buy retailer row if it's missing.
+    const seed = {
+      id: 'bestbuy',
+      name: 'Best Buy',
+      base_url: 'https://www.bestbuy.com',
+      shop_domain: 'www.bestbuy.com',
+      api_type: 'bestbuy',
+      affiliate_tag: null,
+      affiliate_url_template: null,
+      is_active: true,
+    };
+
+    const { data: inserted, error: insertErr } = await supabase
+      .from('retailers')
+      .insert(seed)
+      .select('id, name, base_url, shop_domain, api_type, affiliate_tag, affiliate_url_template, is_active')
+      .single();
+
+    if (insertErr || !inserted) {
+      throw new Error(
+        `Best Buy retailer is missing and could not be created automatically: ${insertErr?.message ?? 'unknown error'}`
+      );
+    }
+
+    log('INIT', 'Created retailers.bestbuy row (bootstrap)');
+    return inserted as Retailer;
+  })();
 
   let products = await loadAllProducts();
   products = products.filter((p) => p.category_id != null);

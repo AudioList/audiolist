@@ -40,8 +40,12 @@ export async function getRetailers(): Promise<Retailer[]> {
     .eq("is_active", true);
 
   if (error) {
-    console.log(`Error fetching retailers: ${error.message}`);
-    return [];
+    // This should be fatal for any sync pipeline.
+    // Common cause: using a legacy JWT key after disabling legacy keys in Supabase.
+    throw new Error(
+      `Error fetching retailers: ${error.message}. ` +
+      `Verify SUPABASE_SERVICE_KEY is a valid project secret key (often starts with "sb_secret_").`
+    );
   }
 
   return (data ?? []) as Retailer[];
