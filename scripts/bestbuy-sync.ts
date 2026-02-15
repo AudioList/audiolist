@@ -16,7 +16,7 @@
  *   --category=iem|headphone|microphone|hp_accessory
  *   --limit=N
  *   --delay=ms
- *   --discontinued-checks=N   Max BestBuy page checks per run (default: 40)
+ *   --discontinued-checks=N   Max BestBuy page checks per run (default: 200)
  *   --dry-run
  */
 
@@ -84,7 +84,7 @@ const MODE = getArg('mode', 'daily') as RunMode;
 const CATEGORY_FILTER = getArg('category', '');
 const LIMIT = parseInt(getArg('limit', '0'), 10) || 0;
 const START_DELAY_MS = parseInt(getArg('delay', '1200'), 10) || 1200;
-const DISCONTINUED_PAGE_CHECKS = parseInt(getArg('discontinued-checks', '40'), 10) || 0;
+const DISCONTINUED_PAGE_CHECKS = parseInt(getArg('discontinued-checks', '200'), 10) || 0;
 const PAGE_SIZE = parseInt(getArg('page-size', '100'), 10) || 100;
 const MAX_PAGES_PER_RUN = parseInt(getArg('max-pages', '5'), 10) || 5;
 const DRY_RUN = args.includes('--dry-run');
@@ -494,7 +494,20 @@ async function refreshOffersBySku(retailer: Retailer, apiKey: string, offers: Ex
     bySku.set(sku, o);
   }
 
-  const skus = [...bySku.keys()];
+  const skus = [...bySku.keys()].sort((a, b) => {
+    const ea = bySku.get(a);
+    const eb = bySku.get(b);
+    // Prioritize out-of-stock offers for discontinued-banner checks.
+    const sa = ea?.in_stock ? 1 : 0;
+    const sb = eb?.in_stock ? 1 : 0;
+    if (sa !== sb) return sa - sb;
+    // More recently checked first.
+    const la = ea?.last_checked ?? '';
+    const lb = eb?.last_checked ?? '';
+    if (la !== lb) return lb.localeCompare(la);
+    // Stable fallback.
+    return a.localeCompare(b);
+  });
   log('REFRESH', `Refreshing ${skus.length} Best Buy SKUs in batches...`);
 
   const state = { delayMs: Math.max(BASE_DELAY_MS, START_DELAY_MS), rateLimited: 0 };
