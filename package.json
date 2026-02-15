@@ -30,7 +30,8 @@
     "db:phase1:reset": "tsx scripts/run-phase1-reset.ts",
     "db:apply:016": "tsx scripts/run-016-catalog-products-source-id.ts",
     "db:apply:017": "tsx scripts/run-017-review-tasks-offer-and-error.ts",
-    "db:apply:018": "tsx scripts/run-018-headphone-type-and-hp-accessory.ts"
+    "db:apply:018": "tsx scripts/run-018-headphone-type-and-hp-accessory.ts",
+    "db:apply:019": "tsx scripts/run-019-hide-discontinued-new-price-listings.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.95.2",
