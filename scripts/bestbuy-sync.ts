@@ -211,14 +211,16 @@ async function withBestBuyRetries<T>(
   for (let attempt = 0; attempt < 6; attempt++) {
     try {
       return await fn();
-    } catch (err) {
-      if (err instanceof BestBuyApiError) {
-        if (err.kind === 'auth') {
-          throw new Error('Best Buy API rejected the request (403 auth). Verify BESTBUY_API_KEY.');
-        }
-        if (err.kind === 'quota') {
-          throw new Error('Best Buy API quota exceeded. Wait for quota reset or request a higher quota.');
-        }
+      } catch (err) {
+        if (err instanceof BestBuyApiError) {
+          if (err.kind === 'auth') {
+          const snippet = err.bodySnippet ? ` Response: ${err.bodySnippet.replace(/\s+/g, ' ').slice(0, 220)}` : '';
+          throw new Error(`Best Buy API rejected the request (403 auth). Verify BESTBUY_API_KEY.${snippet}`);
+          }
+          if (err.kind === 'quota') {
+          const snippet = err.bodySnippet ? ` Response: ${err.bodySnippet.replace(/\s+/g, ' ').slice(0, 220)}` : '';
+          throw new Error(`Best Buy API quota exceeded. Wait for quota reset or request a higher quota.${snippet}`);
+          }
 
         // rate_limit / unknown: back off and retry.
         state.rateLimited++;
